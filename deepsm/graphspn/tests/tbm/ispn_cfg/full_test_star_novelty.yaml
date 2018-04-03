@@ -1,0 +1,15 @@
+#---Do not change---#
+db_name: Saarbrucken # default test db
+func_mask_params: {}
+inference_type: MARGINAL
+occlude_rand_rate: 0.2
+
+#---Changeable---#
+extra_partition_multiplyer: 3
+num_partitions: 5
+to_do: [NOVELTY]
+uniform_for_incorrect: False
+
+#---Must change! (Changeable via cmd args)---#
+test_name: unnamed
+cases: [CR-1PO, CR-DW, 1PO-2PO]

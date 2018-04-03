@@ -1,0 +1,408 @@
+---Stockholm---\n\n
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.fg.
+Evidence for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.tab.
+Swap 1PO and 2PO
+Factor graph for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.fg.
+Evidence for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.tab.
+Swap 1PO and CR
+Factor graph for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.fg.
+Evidence for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.tab.
+Swap DW and CR
+Factor graph for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.fg.
+Evidence for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.tab.
+Factor graph for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.fg.
+Evidence for floor4_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor4_night_c.tab.
+Stockholm-floor4_night_c
+#############
+
+{'_groundtruth_': {'normalized': -0.6625779667077192, 'raw': -533.688},
+ '_uniform_': -805.472,
+ ('1PO', '2PO'): {'normalized': -0.6563518036629454, 'raw': -528.673},
+ ('1PO', 'CR'): {'normalized': -0.7371404592586707, 'raw': -593.746},
+ ('DW', 'CR'): {'normalized': -1.0211776449088237, 'raw': -822.53}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.6625779667077192,
+                                'raw': -533.688},
+              '_uniform_': -805.472,
+              ('1PO', '2PO'): {'normalized': -0.6563518036629454,
+                               'raw': -528.673},
+              ('1PO', 'CR'): {'normalized': -0.7371404592586707,
+                              'raw': -593.746},
+              ('DW', 'CR'): {'normalized': -1.0211776449088237,
+                             'raw': -822.53}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.fg.
+Evidence for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.tab.
+Swap 1PO and 2PO
+Factor graph for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.fg.
+Evidence for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.tab.
+Swap 1PO and CR
+Factor graph for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.fg.
+Evidence for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.tab.
+Swap DW and CR
+Factor graph for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.fg.
+Evidence for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.tab.
+Factor graph for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.fg.
+Evidence for floor7_night_c saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor7_night_c.tab.
+Stockholm-floor7_night_c
+#############
+
+{'_groundtruth_': {'normalized': -0.6511879735636182, 'raw': -861.144},
+ '_uniform_': -1322.42,
+ ('1PO', '2PO'): {'normalized': -0.6473760227461773, 'raw': -856.103},
+ ('1PO', 'CR'): {'normalized': -0.7385694408735499, 'raw': -976.699},
+ ('DW', 'CR'): {'normalized': -0.9162217752302597, 'raw': -1211.63}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.6511879735636182,
+                                'raw': -861.144},
+              '_uniform_': -1322.42,
+              ('1PO', '2PO'): {'normalized': -0.6473760227461773,
+                               'raw': -856.103},
+              ('1PO', 'CR'): {'normalized': -0.7385694408735499,
+                              'raw': -976.699},
+              ('DW', 'CR'): {'normalized': -0.9162217752302597,
+                             'raw': -1211.63}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.fg.
+Evidence for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.tab.
+Swap 1PO and 2PO
+Factor graph for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.fg.
+Evidence for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.tab.
+Swap 1PO and CR
+Factor graph for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.fg.
+Evidence for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.tab.
+Swap DW and CR
+Factor graph for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.fg.
+Evidence for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.tab.
+Factor graph for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.fg.
+Evidence for floor6_night_a1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Stockholm_floor6_night_a1.tab.
+Stockholm-floor6_night_a1
+#############
+
+{'_groundtruth_': {'normalized': -0.6639349915155035, 'raw': -731.663},
+ '_uniform_': -1102.01,
+ ('1PO', '2PO'): {'normalized': -0.6588352192811318, 'raw': -726.043},
+ ('1PO', 'CR'): {'normalized': -0.7803141532290996, 'raw': -859.914},
+ ('DW', 'CR'): {'normalized': -1.0714603315759386, 'raw': -1180.76}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.6639349915155035,
+                                'raw': -731.663},
+              '_uniform_': -1102.01,
+              ('1PO', '2PO'): {'normalized': -0.6588352192811318,
+                               'raw': -726.043},
+              ('1PO', 'CR'): {'normalized': -0.7803141532290996,
+                              'raw': -859.914},
+              ('DW', 'CR'): {'normalized': -1.0714603315759386,
+                             'raw': -1180.76}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+---Freiburg---\n\n
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.fg.
+Evidence for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.tab.
+Swap 1PO and 2PO
+Factor graph for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.fg.
+Evidence for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.tab.
+Swap 1PO and CR
+Factor graph for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.fg.
+Evidence for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.tab.
+Swap DW and CR
+Factor graph for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.fg.
+Evidence for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.tab.
+Factor graph for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.fg.
+Evidence for seq2_night1 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq2_night1.tab.
+Freiburg-seq2_night1
+#############
+
+{'_groundtruth_': {'normalized': -0.6361212913681652, 'raw': -690.815},
+ '_uniform_': -1085.98,
+ ('1PO', '2PO'): {'normalized': -0.6430385458295733, 'raw': -698.327},
+ ('1PO', 'CR'): {'normalized': -0.7815475423120131, 'raw': -848.745},
+ ('DW', 'CR'): {'normalized': -1.178511574798799, 'raw': -1279.84}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.6361212913681652,
+                                'raw': -690.815},
+              '_uniform_': -1085.98,
+              ('1PO', '2PO'): {'normalized': -0.6430385458295733,
+                               'raw': -698.327},
+              ('1PO', 'CR'): {'normalized': -0.7815475423120131,
+                              'raw': -848.745},
+              ('DW', 'CR'): {'normalized': -1.178511574798799,
+                             'raw': -1279.84}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.fg.
+Evidence for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.tab.
+Swap 1PO and 2PO
+Factor graph for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.fg.
+Evidence for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.tab.
+Swap 1PO and CR
+Factor graph for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.fg.
+Evidence for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.tab.
+Swap DW and CR
+Factor graph for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.fg.
+Evidence for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.tab.
+Factor graph for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.fg.
+Evidence for seq1_cloudy3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_cloudy3.tab.
+Freiburg-seq1_cloudy3
+#############
+
+{'_groundtruth_': {'normalized': -0.4878131524008351, 'raw': -299.088},
+ '_uniform_': -613.12,
+ ('1PO', '2PO'): {'normalized': -0.49228209812108553, 'raw': -301.828},
+ ('1PO', 'CR'): {'normalized': -0.6994797103340292, 'raw': -428.865},
+ ('DW', 'CR'): {'normalized': -1.373561456158664, 'raw': -842.158}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.4878131524008351,
+                                'raw': -299.088},
+              '_uniform_': -613.12,
+              ('1PO', '2PO'): {'normalized': -0.49228209812108553,
+                               'raw': -301.828},
+              ('1PO', 'CR'): {'normalized': -0.6994797103340292,
+                              'raw': -428.865},
+              ('DW', 'CR'): {'normalized': -1.373561456158664,
+                             'raw': -842.158}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.fg.
+Evidence for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.tab.
+Swap 1PO and 2PO
+Factor graph for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.fg.
+Evidence for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.tab.
+Swap 1PO and CR
+Factor graph for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.fg.
+Evidence for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.tab.
+Swap DW and CR
+Factor graph for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.fg.
+Evidence for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.tab.
+Factor graph for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.fg.
+Evidence for seq1_sunny2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Freiburg_seq1_sunny2.tab.
+Freiburg-seq1_sunny2
+#############
+
+{'_groundtruth_': {'normalized': -0.5027826944839393, 'raw': -346.548},
+ '_uniform_': -689.26,
+ ('1PO', '2PO'): {'normalized': -0.5067594231494646, 'raw': -349.289},
+ ('1PO', 'CR'): {'normalized': -0.715909816324754, 'raw': -493.448},
+ ('DW', 'CR'): {'normalized': -1.378627803731538, 'raw': -950.233}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.5027826944839393,
+                                'raw': -346.548},
+              '_uniform_': -689.26,
+              ('1PO', '2PO'): {'normalized': -0.5067594231494646,
+                               'raw': -349.289},
+              ('1PO', 'CR'): {'normalized': -0.715909816324754,
+                              'raw': -493.448},
+              ('DW', 'CR'): {'normalized': -1.378627803731538,
+                             'raw': -950.233}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+---Saarbrucken---\n\n
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.fg.
+Evidence for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.tab.
+Swap 1PO and 2PO
+Factor graph for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.fg.
+Evidence for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.tab.
+Swap 1PO and CR
+Factor graph for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.fg.
+Evidence for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.tab.
+Swap DW and CR
+Factor graph for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.fg.
+Evidence for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.tab.
+Factor graph for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.fg.
+Evidence for seq4_night3 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq4_night3.tab.
+Saarbrucken-seq4_night3
+#############
+
+{'_groundtruth_': {'normalized': -0.596487065935611, 'raw': -339.425},
+ '_uniform_': -569.04,
+ ('1PO', '2PO'): {'normalized': -0.574813721355265, 'raw': -327.092},
+ ('1PO', 'CR'): {'normalized': -0.7343297483480951, 'raw': -417.863},
+ ('DW', 'CR'): {'normalized': -1.1535621397441305, 'raw': -656.423}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.596487065935611,
+                                'raw': -339.425},
+              '_uniform_': -569.04,
+              ('1PO', '2PO'): {'normalized': -0.574813721355265,
+                               'raw': -327.092},
+              ('1PO', 'CR'): {'normalized': -0.7343297483480951,
+                              'raw': -417.863},
+              ('DW', 'CR'): {'normalized': -1.1535621397441305,
+                             'raw': -656.423}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.fg.
+Evidence for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.tab.
+Swap 1PO and 2PO
+Factor graph for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.fg.
+Evidence for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.tab.
+Swap 1PO and CR
+Factor graph for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.fg.
+Evidence for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.tab.
+Swap DW and CR
+Factor graph for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.fg.
+Evidence for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.tab.
+Factor graph for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.fg.
+Evidence for seq3_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq3_night2.tab.
+Saarbrucken-seq3_night2
+#############
+
+{'_groundtruth_': {'normalized': -0.5332710817025822, 'raw': -198.74},
+ '_uniform_': -372.681,
+ ('1PO', '2PO'): {'normalized': -0.4937654455150652, 'raw': -184.017},
+ ('1PO', 'CR'): {'normalized': -0.6409583531223755, 'raw': -238.873},
+ ('DW', 'CR'): {'normalized': -1.2489072423869207, 'raw': -465.444}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.5332710817025822,
+                                'raw': -198.74},
+              '_uniform_': -372.681,
+              ('1PO', '2PO'): {'normalized': -0.4937654455150652,
+                               'raw': -184.017},
+              ('1PO', 'CR'): {'normalized': -0.6409583531223755,
+                              'raw': -238.873},
+              ('DW', 'CR'): {'normalized': -1.2489072423869207,
+                             'raw': -465.444}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+Number of samples: 1
+loading data...
+Factor graph for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.fg.
+Evidence for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.tab.
+Swap 1PO and 2PO
+Factor graph for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.fg.
+Evidence for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.tab.
+Swap 1PO and CR
+Factor graph for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.fg.
+Evidence for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.tab.
+Swap DW and CR
+Factor graph for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.fg.
+Evidence for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.tab.
+Factor graph for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.fg.
+Evidence for seq1_night2 saved to /home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r/Saarbrucken_seq1_night2.tab.
+Saarbrucken-seq1_night2
+#############
+
+{'_groundtruth_': {'normalized': -0.3754842869711094, 'raw': -206.142},
+ '_uniform_': -549.003,
+ ('1PO', '2PO'): {'normalized': -0.391012435269024, 'raw': -214.667},
+ ('1PO', 'CR'): {'normalized': -0.6607231654471832, 'raw': -362.739},
+ ('DW', 'CR'): {'normalized': -1.5108332741351138, 'raw': -829.452}}
+
+
+{'_cases_': [{'_groundtruth_': {'normalized': -0.3754842869711094,
+                                'raw': -206.142},
+              '_uniform_': -549.003,
+              ('1PO', '2PO'): {'normalized': -0.391012435269024,
+                               'raw': -214.667},
+              ('1PO', 'CR'): {'normalized': -0.6607231654471832,
+                              'raw': -362.739},
+              ('DW', 'CR'): {'normalized': -1.5108332741351138,
+                             'raw': -829.452}}],
+ '_failed_instances_': 0,
+ '_no_prob_': 0,
+ '_overall_': 0.0,
+ '_total_correct_': 0,
+ '_total_inferred_': 0,
+ '_total_instances_': 1}
+Done.

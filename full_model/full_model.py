@@ -51,6 +51,7 @@ class PlaceModel:
 
         vscan (np.ndarray) Array representation of the polar virtual scan.
         """
+        # TODO: Need to weight the SPN outputs
         likelihoods = []
         for model in self._models:
             likelihood_val = model._sess.run(model._train_likelihood,

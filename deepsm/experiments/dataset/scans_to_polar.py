@@ -16,22 +16,7 @@ import os
 import re
 import sys
 
-resolution      = 0.02
-num_angle_cells = 56
-min_radius      = 0.3
-max_radius      = 5
-radius_factor   = 1.15
-
-angles = np.linspace(-180, 180, num_angle_cells+1)
-r=min_radius
-radiuses=[r]
-v = 0.04
-while r<max_radius:
-    r = r+v
-    radiuses.append(r)
-    v*=radius_factor
-radiuses = np.array(radiuses)
-num_radius_cells = len(radiuses)-1
+import deepsm.experiments.common as common
 
 def pixel_to_polar(scan_size, x, y):
     """Convert pixel coordinate to polar cell coordinate."""
@@ -39,24 +24,24 @@ def pixel_to_polar(scan_size, x, y):
     c_y = scan_size[1]//2
     x = x - c_x
     y = y - c_y
-    r = np.sqrt(x**2 + y**2) * resolution
-    alpha = np.arctan2(-y, x) # Angles go clockwise with the -
+    r = np.sqrt(x**2 + y**2) * common.resolution
+    alpha = np.arctan2(-y, x) # angles go clockwise with the -
     return (r, np.degrees(alpha))
 
 def scan_to_polar(scan_image):
     ys,xs = np.meshgrid(np.arange(scan_image.shape[0])+0.5, np.arange(scan_image.shape[1])+0.5)
     rr, aa = pixel_to_polar(scan_image.shape, xs, ys)
-    aa = np.digitize(aa, angles) - 1
-    rr = np.digitize(rr, np.r_[0, radiuses]) - 1  # Additional cell for stuff near the robot
-    polar_scan_elems = [[[] for _ in range(num_angle_cells)] for _ in range(num_radius_cells)]
+    aa = np.digitize(aa, common.angles) - 1
+    rr = np.digitize(rr, np.r_[0, common.radiuses]) - 1  # Additional cell for stuff near the robot
+    polar_scan_elems = [[[] for _ in range(common.num_angle_cells)] for _ in range(common.num_radius_cells)]
     for x in range(scan_image.shape[0]):
         for y in range(scan_image.shape[1]):
             r = rr[x,y]
             a = aa[x,y]
-            if r>0 and r<=num_radius_cells:
+            if r>0 and r<=common.num_radius_cells:
                 polar_scan_elems[r-1][a].append(scan_image[x,y])
-    for r in range(num_radius_cells):
-        for a in range(num_angle_cells):
+    for r in range(common.num_radius_cells):
+        for a in range(common.num_angle_cells):
             vals=polar_scan_elems[r][a]
             free_count = sum(1 for i in vals if i>250)
             occupied_count = sum(1 for i in vals if i<10)
@@ -74,7 +59,7 @@ def scan_to_polar(scan_image):
 
 
 def plot_polar_scan(polar_scan):
-    a, r = np.meshgrid(np.radians(angles), radiuses)
+    a, r = np.meshgrid(np.radians(common.angles), common.radiuses)
     ax = plt.subplot(111, projection='polar')
     ax.set_theta_zero_location("S")
     ax.set_theta_direction(-1)
@@ -137,6 +122,7 @@ if __name__ == "__main__":
       - min_radius       (default 0.3)
       - max_radius       (default 5)
       - radius_factor    (default 1.15)
+    [see common.py for more definitions]
     """
     parser = argparse.ArgumentParser(description='Mass generates polar scans from cartesian virtual scans.')
     parser.add_argument('datapath', type=str, help='path to directory that contains cartesian virtual scans.')

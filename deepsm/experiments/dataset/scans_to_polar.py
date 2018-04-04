@@ -93,23 +93,27 @@ def process_sequence(datapath, outpath, seq_id):
     scan_pgms = sorted(glob(os.path.join(seq_scans_path, "*.pgm"))) 
     floor_name = re.sub("_.*", "", seq_id)
     polar_scans = []
-    for pgm in scan_pgms:
-        # Naming convention: {timestamp}_{floor#-class-id}.pgm
-        fname = os.path.basename(pgm)
-        tstamp = fname.split("_")[0]
-        room_id = fname.split("_")[1]
-        room_class = room_id.split("-")[1]
-        # Load scan and annotations
-        scan = imread(pgm)
-        polar_scan = scan_to_polar(scan)
-        polar_scans.append([room_id, room_class, polar_scan.ravel()])
-        sys.stdout.write('.')
-        sys.stdout.flush()
-
-    polar_path = os.path.join(outpath, seq_id)
-    os.makedirs(polar_path, exist_ok=True)
-    with open(polar_path, 'wb') as f:
-        pickle.dump(polar_scans, f)
+    try:
+        for pgm in scan_pgms:
+            # Naming convention: {timestamp}_{floor#-class-id}.pgm
+            fname = os.path.basename(pgm)
+            tstamp = fname.split("_")[0]
+            room_id = fname.split("_")[1]
+            room_class = room_id.split("-")[1]
+            # Load scan and annotations
+            scan = imread(pgm)
+            polar_scan = scan_to_polar(scan)
+            polar_scans.append([room_id, room_class, polar_scan.ravel()])
+            sys.stdout.write('.')
+            sys.stdout.flush()
+    except KeyboardInterrupt as e:
+        print("Terminating...")
+        raise e
+    finally:
+        os.makedirs(outpath, exist_ok=True)
+        polar_path = os.path.join(outpath, seq_id + "_scans.pkl")
+        with open(polar_path, 'wb') as f:
+            pickle.dump(polar_scans, f)
 
 
 
@@ -125,8 +129,7 @@ if __name__ == "__main__":
 
     The output directory structure will become:
     /{outpath}:
-        /{seq_id}
-            /...scans... (? files)
+        /{seq_id}_scans.pkl
 
     `params` are parameters for the polar scans:
       - resolution       (default 0.02)

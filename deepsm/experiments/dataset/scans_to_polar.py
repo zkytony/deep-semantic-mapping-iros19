@@ -4,6 +4,8 @@
 # imported by any other class.
 #
 # For now, still use the COLD dataset path.
+#
+# Room id: {location}_{floor}_{room#}
 
 import argparse
 from glob import glob
@@ -15,6 +17,7 @@ import pickle
 import os
 import re
 import sys
+import json
 
 import deepsm.experiments.common as common
 
@@ -71,7 +74,7 @@ def plot_polar_scan(polar_scan):
     plt.show()
 
 
-def process_sequence(datapath, outpath, seq_id):
+def process_sequence(datapath, outpath, db_name, seq_id):
     """Generate polar scans for virtual scans in one sequence, which
     are stored at location `seq_scans_path`."""
     seq_scans_path = os.path.join(datapath, seq_id, 'vscans')
@@ -81,14 +84,18 @@ def process_sequence(datapath, outpath, seq_id):
     try:
         for pgm in scan_pgms:
             # Naming convention: {timestamp}_{floor#-class-id}.pgm
-            fname = os.path.basename(pgm)
+            fname = os.path.splitext(os.path.basename(pgm))[0]
             tstamp = fname.split("_")[0]
-            room_id = fname.split("_")[1]
+            room_id = "%s_%s" % (db_name.lower(), fname.split("_")[1])  # prefix room id with db_name
             room_class = room_id.split("-")[1]
             # Load scan and annotations
             scan = imread(pgm)
             polar_scan = scan_to_polar(scan)
-            polar_scans.append([room_id, room_class, polar_scan.ravel()])
+            # Load coordinates
+            with open(os.path.join(seq_scans_path, fname + ".json")) as f:
+                metadata = json.load(f)
+            polar_scans.append([room_id, room_class, polar_scan.ravel(),
+                                (metadata["pose_amcl"]["x"], metadata["pose_amcl"]["y"])])
             sys.stdout.write('.')
             sys.stdout.flush()
     except KeyboardInterrupt as e:
@@ -127,9 +134,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Mass generates polar scans from cartesian virtual scans.')
     parser.add_argument('datapath', type=str, help='path to directory that contains cartesian virtual scans.')
     parser.add_argument('outpath', type=str, help='path to output directory that will contain polar scans.')
+    parser.add_argument('db_name', type=str, help='e.g. Freiburg')
     args = parser.parse_args()
     
     seq_ids = sorted(os.listdir(args.datapath))
     for seq_id in seq_ids:
-        process_sequence(args.datapath, args.outpath, seq_id)
+        process_sequence(args.datapath, args.outpath, args.db_name, seq_id)
         print(seq_id + " done.")

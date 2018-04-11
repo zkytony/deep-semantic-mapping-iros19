@@ -19,6 +19,7 @@ class DGSMDataset:
     The dataset consists of sequences of polar scans.
     """
     def __init__(self):
+        """Initialize DGSMDataset."""
         # db_name -> datapath
         self.datapaths = {}
 
@@ -62,12 +63,6 @@ class DGSMDataset:
         return seq_data
 
     
-    @staticmethod
-    def make_dataset(data, outpath):
-        os.makedirs(outpath, exist_ok=True)
-        with open(os.path.join(outpath, "real_data"), 'wb') as f:
-            pickle.dump(data, f)
-
     def polar_scans_from_graph(self, db_name, seq_id, seq_data, topo_map):
         """
         Create a sequence of polar scans where each corresponds to a node in the
@@ -170,7 +165,7 @@ class DGSMDataset:
 
     @staticmethod
     def make_set_defs(db_floor_plans, db_floors_training, db_seqs_testing):
-        """Create a set_defs dictionary.
+        """Create a set_defs dictionary. We will only have one subset (1)
 
         `db_floor_plans`: map from db_name to {floor -> room_id}; The room_id here is not prefixed by db_name
         `db_floors_training`: map from db_name to list of floors, where
@@ -187,15 +182,32 @@ class DGSMDataset:
                 set_defs['test_rooms_1'].append("%s_%s" % (db_name.lower(), seq_id))
         return set_defs
 
-if __name__ == "__main__":
-    
+    @staticmethod
+    def make_dataset(scans, outpath):
+        """
+        Dump the data as a single pickle file, with classes mapped to the canonical
+        category under the room class scheme defined in deepsm.util.CategoryManager
+
+        Args:
+            scans (list): list of scans of format [room_id, room_class, np.array(...), ?(x, y), ?nid]
+        """
+        # Even if canonical_class is unknown, it shouldn't be a problem because
+        # DGSM submodel will only pick the samples that have the same class for training.
+        for vscan in scans:
+            canonical_class = util.CategoryManager.canonical_category(vscan[1], checking=True)  # data[i][1] is the room class
+            vscan[1] = canonical_class
+        os.makedirs(outpath, exist_ok=True)
+        with open(os.path.join(outpath, "real_data"), 'wb') as f:
+            pickle.dump(scans, f)
+
+
+#---------------------------------------------------------------------------------
+def test(VISUALIZE=False):
     # Testing. DO NOT DELETE.
-    VISUALIZE = False
-    
     COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
     TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/spn_topo/experiments/data/topo_map"
     datapath1 = "/home/zkytony/Documents/thesis/experiments/Data/polar_scans_small"
-    outpath = "./"
+    outpath = "./10classes"
 
     ColdMgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
 
@@ -206,6 +218,7 @@ if __name__ == "__main__":
     topo_dataset.load("Stockholm", skip_unknown=True)
     topo_map = topo_dataset.get("Stockholm", "floor7_cloudy_b")
 
+    # Test creating a dataset of vscans corresponding to topological graph nodes
     floor7cb_scans = dgsm_dataset.load_one_sequence("small", "floor7_cloudy_b")
     graph_scans = dgsm_dataset.polar_scans_from_graph("small", "floor7_cloudy_b", floor7cb_scans, topo_map)
     if VISUALIZE:
@@ -226,3 +239,7 @@ if __name__ == "__main__":
                                           {"small": ["floor4"]},
                                           {"small": ["floor7_cloudy_b"]})
     pprint(set_defs)
+
+    
+if __name__ == "__main__":
+    test(VISUALIZE=False)

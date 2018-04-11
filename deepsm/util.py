@@ -175,6 +175,7 @@ def print_in_box(msgs, ho="=", vr="||"):
 
 
 class CategoryManager:
+    # TODO: Change CategoryManager so that we work with its instances, to automate more tests.
 
     # Invariant: categories have an associated number. The number
     #            goes from 0 to NUM_CATEGORIES - 1
@@ -295,7 +296,8 @@ class CategoryManager:
         `checking` is true if it is allowed to return 'UN' or its number, ignoring what is set
                    in SKIP_UNKNOWN. Namely, if SKIP_UNKNOWN is True, this function won't return
                    'UN' or its number, unless `checking` is True. This is useful for checking
-                   if some node should be skipped when loading from the database.
+                   if some node should be skipped when loading from the database, or when you
+                   don't care if the category can be novince (i.e. unknown).
         """
         # If we 'skip unknown', and the passed in `category` is 'unknown' to our
         # category mapping, then the category map is missing something. Throw
@@ -323,7 +325,7 @@ class CategoryManager:
                 return 'UN'
 
     @staticmethod
-    def canonical_catgegory(catg):
+    def canonical_category(catg, checking=False):
         """
         Returns the canonical category for category `catg`.
 
@@ -332,10 +334,11 @@ class CategoryManager:
 
         Returns the string abbreviation of the canonical category.
         """
+        # First, catg->num. Then num->cano_catg
         return CategoryManager.category_map(
-            CategoryManager.category_map(
-                CategoryManager.category_map(catg),
-                rev=True))
+            CategoryManager.category_map(catg, checking=checking),
+            rev=True, checking=checking)
+           
 
     @staticmethod
     def category_color(category):

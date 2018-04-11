@@ -64,8 +64,8 @@ class DGSMDataset:
     
     @staticmethod
     def make_dataset(data, outpath):
-        os.makedirs(os.path.join(outpath, "real_data"), exist_ok=True)
-        with open(os.path.join(outpath, "real_data")) as f:
+        os.makedirs(outpath, exist_ok=True)
+        with open(os.path.join(outpath, "real_data"), 'wb') as f:
             pickle.dump(data, f)
 
     def polar_scans_from_graph(self, db_name, seq_id, seq_data, topo_map):
@@ -180,7 +180,7 @@ class DGSMDataset:
         set_defs = {'train_rooms_1': [], 'test_rooms_1': []}
         for db_name in db_floors_training:
             for floor in db_floors_training[db_name]:
-                for room_id in db_floor_plans[floor]:
+                for room_id in db_floor_plans[db_name][floor]:
                     set_defs['train_rooms_1'].append(db_name.lower() + "_" + room_id)
         for db_name in db_seqs_testing:
             for seq_id in db_seqs_testing[db_name]:
@@ -190,6 +190,7 @@ class DGSMDataset:
 if __name__ == "__main__":
     
     # Testing. DO NOT DELETE.
+    VISUALIZE = False
     
     COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
     TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/spn_topo/experiments/data/topo_map"
@@ -207,14 +208,15 @@ if __name__ == "__main__":
 
     floor7cb_scans = dgsm_dataset.load_one_sequence("small", "floor7_cloudy_b")
     graph_scans = dgsm_dataset.polar_scans_from_graph("small", "floor7_cloudy_b", floor7cb_scans, topo_map)
-    ax = plt.gca()
-    # Visualize the graph scans
-    dgsm_dataset.visualize_graph_scans(ax,
-                                       graph_scans,
-                                       topo_map,
-                                       ColdMgr.groundtruth_file("floor7", 'map.yaml'))
-    dgsm_dataset.plot_scans_on_map(ax, floor7cb_scans, ColdMgr.groundtruth_file("floor7", 'map.yaml'))
-    plt.show()
+    if VISUALIZE:
+        ax = plt.gca()
+        # Visualize the graph scans
+        dgsm_dataset.visualize_graph_scans(ax,
+                                           graph_scans,
+                                           topo_map,
+                                           ColdMgr.groundtruth_file("floor7", 'map.yaml'))
+        dgsm_dataset.plot_scans_on_map(ax, floor7cb_scans, ColdMgr.groundtruth_file("floor7", 'map.yaml'))
+        plt.show()
 
     seq_data = dgsm_dataset.load_sequences(["small"])
     seq_data.extend(graph_scans)

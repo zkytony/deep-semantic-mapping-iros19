@@ -452,23 +452,14 @@ class TopologicalMap:
 
 
     #--- Visualizations ---#
-
-    @staticmethod
-    def _plot_map_img(canonical_map_yaml_path, map_spec):
-        # Plot the image
-        img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
-        mapplot = plt.imshow(img, cmap = plt.get_cmap('gray'), origin="lower")
-        return img
-        
-
-    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, img=None, map_spec=None, consider_placeholders=False):
+    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, img=None, consider_placeholders=False):
         """Visualize the topological map `self`. Nodes are colored by labels, if possible."""
         # Open the yaml file
-        if map_spec is None:
-            with open(canonical_map_yaml_path) as f:
-                map_spec = yaml.load(f)
+        with open(canonical_map_yaml_path) as f:
+            map_spec = yaml.load(f)
         if img is None:
-            img = TopologicalMap._plot_map_img(canonical_map_yaml_path, map_spec)
+            img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
+        plt.imshow(img, cmap = plt.get_cmap('gray'), origin="lower")
 
         h, w = img.shape
         util.zoom_rect((w/2, h/2), img, ax, h_zoom_level=3.0, v_zoom_level=2.0)
@@ -505,7 +496,8 @@ class TopologicalMap:
         with open(canonical_map_yaml_path) as f:
             map_spec = yaml.load(f)
         if img is None:
-            img = TopologicalMap._plot_map_img(canonical_map_yaml_path, map_spec)
+            img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
+            plt.imshow(img, cmap = plt.get_cmap('gray'), origin="lower")
             self.visualize(ax, map_spec=map_spec, img=img, dotsize=13)
         
         colors = set({})

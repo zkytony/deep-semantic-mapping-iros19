@@ -5,9 +5,9 @@
 import matplotlib
 import matplotlib.pyplot as plt
 
-from spn_topo.tbm.topo_map import PlaceNode, TopologicalMap
-from spn_topo.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate
-from spn_topo.util import CategoryManager, compute_view_number
+from deepsm.graphspn.tbm.topo_map import PlaceNode, TopologicalMap
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate
+from deepsm.util import CategoryManager, compute_view_number
 import os, sys
 import numpy as np
 import csv
@@ -431,7 +431,7 @@ class TopoMapDataset:
         return self._topo_maps_data
 
     def get(self, db_name, seq_id):
-        return self.topo_maps_data[db_name][seq_id]
+        return self._topo_maps_data[db_name][seq_id]
     
 
     def generate_visualization(self, coldmgr, db_names=None):

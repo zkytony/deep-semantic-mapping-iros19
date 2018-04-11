@@ -39,6 +39,18 @@ def abs_view_distance(v1, v2, num_divisions=8):
     return min(abs(v1-v2), num_divisions-abs(v1-v2))
 
 
+def transform_coordinates(gx, gy, map_spec, img):
+    # Given point (gx, gy) in the gmapping coordinate system (in meters), convert it
+    # to a point or pixel in Cairo context. Cairo coordinates origin is at top-left, while
+    # gmapping has coordinates origin at lower-left.
+    imgHeight, imgWidth = img.shape
+    res = float(map_spec['resolution'])
+    originX = float(map_spec['origin'][0])  # gmapping map origin
+    originY = float(map_spec['origin'][1])
+    # Transform from gmapping coordinates to pixel cooridnates.
+    return ((gx - originX) / res, imgHeight - (gy - originY) / res)
+
+
 ################# Colors ##################
 def linear_color_gradient(rgb_start, rgb_end, n):
     colors = [rgb_start]

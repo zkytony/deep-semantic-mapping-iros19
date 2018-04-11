@@ -104,6 +104,7 @@ def process_sequence(datapath, outpath, db_name, seq_id):
     finally:
         os.makedirs(outpath, exist_ok=True)
         polar_path = os.path.join(outpath, seq_id + "_scans.pkl")
+        print(polar_path)
         with open(polar_path, 'wb') as f:
             pickle.dump(polar_scans, f)
 

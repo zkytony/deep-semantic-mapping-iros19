@@ -8,8 +8,8 @@ import os
 import sys
 import argparse
 import libspn as spn
-from model import PlaceSubModel
-from data import Data
+from deepsm.dgsm.model import PlaceSubModel
+from deepsm.dgsm.data import Data
 
 KNOWN_CLASSES = ['corridor', 'door', 'small_office', 'large_office']
 

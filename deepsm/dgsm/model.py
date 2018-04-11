@@ -1,6 +1,6 @@
 from enum import Enum
 import libspn as spn
-from data import Data
+from deepsm.dgsm.data import Data
 import numpy as np
 import tensorflow as tf
 import os.path

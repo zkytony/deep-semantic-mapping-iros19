@@ -184,7 +184,7 @@ class CategoryManager:
     # classes should be `known` and there is no 'UN' label.
     SKIP_UNKNOWN = True
     # TYPE of label mapping scheme. Offers SIMPLE and FULL.
-    TYPE = 'FULL'
+    TYPE = 'SIMPLE'
     
     # Category mappings
     CAT_MAP_ALL = {
@@ -346,3 +346,14 @@ class CategoryManager:
             return CategoryManager.CAT_COLOR[CategoryManager.category_map(category)]
         else:  # unknown
             return CategoryManager.CAT_COLOR[CategoryManager.category_map('UN')]
+        
+
+    @staticmethod
+    def known_categories():
+        """Known categories should be the canonical categories besides 'unknown' and 'occluded'"""
+        return list(set(CategoryManager.canonical_category(c) for c in (set(CategoryManager.CAT_MAP.keys()) - {'UN', 'OC'})))
+
+    @staticmethod
+    def novel_categories():
+        """Novel categories are all represented by the 'unknown' class"""
+        return ['UN']

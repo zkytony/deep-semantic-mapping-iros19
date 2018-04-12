@@ -10,8 +10,9 @@ import argparse
 import libspn as spn
 from deepsm.dgsm.model import PlaceSubModel
 from deepsm.dgsm.data import Data
+from deepsm.util import CategoryManager
 
-KNOWN_CLASSES = ['corridor', 'door', 'small_office', 'large_office']
+KNOWN_CLASSES = CategoryManager.known_categories()
 
 
 def parse_args():

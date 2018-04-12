@@ -180,6 +180,9 @@ class DGSMDataset:
         for db_name in db_seqs_testing:
             for seq_id in db_seqs_testing[db_name]:
                 set_defs['test_rooms_1'].append("%s_%s" % (db_name.lower(), seq_id))
+        # Known categories are everything but 'UN' class, which represents novel.
+        set_defs['known_categories'] = util.CategoryManager.known_categories()
+        set_defs['novel_categories'] = util.CategoryManager.novel_categories()
         return set_defs
 
     @staticmethod
@@ -207,7 +210,7 @@ def test(VISUALIZE=False):
     COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
     TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/spn_topo/experiments/data/topo_map"
     datapath1 = "/home/zkytony/Documents/thesis/experiments/Data/polar_scans_small"
-    outpath = "./10classes"
+    outpath = "./4classes"
 
     ColdMgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
 
@@ -239,7 +242,10 @@ def test(VISUALIZE=False):
                                           {"small": ["floor4"]},
                                           {"small": ["floor7_cloudy_b"]})
     pprint(set_defs)
-
+    # Save set_defs to the same output directory
+    with open(os.path.join(outpath, "set_defs"), 'wb') as f:
+        pickle.dump(set_defs, f)
+        print("set_defs saved to %s" % os.path.join(outpath, "set_defs"))
     
 if __name__ == "__main__":
     test(VISUALIZE=False)

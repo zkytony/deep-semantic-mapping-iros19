@@ -286,55 +286,55 @@ class PlaceSubModel:
         np.save(os.path.join(results_dir, 'marginal_vals'), all_marginal_vals)
         print("Done!")
 
-        print("\nCompleting masked scans:")
-        completion_batch_size = 19  # set is divided by 19
-        if (len(self._data.masked_scans) % completion_batch_size) != 0:
-            raise Exception("Incorrect completion batch size!")
-        filled_scans = []
-        for i in range(0, len(self._data.masked_scans), completion_batch_size):
-            print("- BATCH for samples %s-%s/%s" %
-                  (i + 1, i + completion_batch_size, len(self._data.masked_scans)))
-            filled_scan, = self._sess.run(
-                [self._mpe_ivs],
-                feed_dict={
-                    self._ivs:
-                    self._data.masked_scans[i:(i + completion_batch_size), :]})
-            filled_scans.append(filled_scan)
-        print("- Saving...")
-        filled_scans = np.vstack(filled_scans)
-        np.save(os.path.join(results_dir, 'filled_scans'), filled_scans)
-        print("Done!")
+        # print("\nCompleting masked scans:")
+        # completion_batch_size = 19  # set is divided by 19
+        # if (len(self._data.masked_scans) % completion_batch_size) != 0:
+        #     raise Exception("Incorrect completion batch size!")
+        # filled_scans = []
+        # for i in range(0, len(self._data.masked_scans), completion_batch_size):
+        #     print("- BATCH for samples %s-%s/%s" %
+        #           (i + 1, i + completion_batch_size, len(self._data.masked_scans)))
+        #     filled_scan, = self._sess.run(
+        #         [self._mpe_ivs],
+        #         feed_dict={
+        #             self._ivs:
+        #             self._data.masked_scans[i:(i + completion_batch_size), :]})
+        #     filled_scans.append(filled_scan)
+        # print("- Saving...")
+        # filled_scans = np.vstack(filled_scans)
+        # np.save(os.path.join(results_dir, 'filled_scans'), filled_scans)
+        # print("Done!")
 
-        print("\nCalculating MPE vals for masked scans:")
-        masked_scans_mpe_vals = []
-        for i in range(0, len(self._data.masked_scans), completion_batch_size):
-            print("- BATCH for samples %s-%s/%s" %
-                  (i + 1, i + completion_batch_size, len(self._data.masked_scans)))
-            masked_scans_mpe_val, = self._sess.run(
-                [self._mpe_state_gen.mpe_path.value.values[self._root]],
-                feed_dict={
-                    self._ivs:
-                    self._data.masked_scans[i:(i + completion_batch_size), :]})
-            masked_scans_mpe_vals.append(masked_scans_mpe_val)
-        print("- Saving...")
-        masked_scans_mpe_vals = np.vstack(masked_scans_mpe_vals)
-        np.save(os.path.join(results_dir, 'masked_scans_mpe_vals'),
-                masked_scans_mpe_vals)
-        print("Done!")
+        # print("\nCalculating MPE vals for masked scans:")
+        # masked_scans_mpe_vals = []
+        # for i in range(0, len(self._data.masked_scans), completion_batch_size):
+        #     print("- BATCH for samples %s-%s/%s" %
+        #           (i + 1, i + completion_batch_size, len(self._data.masked_scans)))
+        #     masked_scans_mpe_val, = self._sess.run(
+        #         [self._mpe_state_gen.mpe_path.value.values[self._root]],
+        #         feed_dict={
+        #             self._ivs:
+        #             self._data.masked_scans[i:(i + completion_batch_size), :]})
+        #     masked_scans_mpe_vals.append(masked_scans_mpe_val)
+        # print("- Saving...")
+        # masked_scans_mpe_vals = np.vstack(masked_scans_mpe_vals)
+        # np.save(os.path.join(results_dir, 'masked_scans_mpe_vals'),
+        #         masked_scans_mpe_vals)
+        # print("Done!")
 
-        print("\nCalculating marginal vals for masked scans:")
-        masked_scans_marginal_vals = []
-        for i in range(0, len(self._data.masked_scans), 19):
-            print("- BATCH for samples %s-%s/%s" %
-                  (i + 1, i + completion_batch_size, len(self._data.masked_scans)))
-            masked_scans_marginal_val, = self._sess.run(
-                [self._em_learning.mpe_path.value.values[self._root]],
-                feed_dict={
-                    self._ivs:
-                    self._data.masked_scans[i:(i + completion_batch_size), :]})
-            masked_scans_marginal_vals.append(masked_scans_marginal_val)
-        print("- Saving...")
-        masked_scans_marginal_vals = np.vstack(masked_scans_marginal_vals)
-        np.save(os.path.join(results_dir, 'masked_scans_marginal_vals'),
-                masked_scans_marginal_vals)
-        print("Done!")
+        # print("\nCalculating marginal vals for masked scans:")
+        # masked_scans_marginal_vals = []
+        # for i in range(0, len(self._data.masked_scans), 19):
+        #     print("- BATCH for samples %s-%s/%s" %
+        #           (i + 1, i + completion_batch_size, len(self._data.masked_scans)))
+        #     masked_scans_marginal_val, = self._sess.run(
+        #         [self._em_learning.mpe_path.value.values[self._root]],
+        #         feed_dict={
+        #             self._ivs:
+        #             self._data.masked_scans[i:(i + completion_batch_size), :]})
+        #     masked_scans_marginal_vals.append(masked_scans_marginal_val)
+        # print("- Saving...")
+        # masked_scans_marginal_vals = np.vstack(masked_scans_marginal_vals)
+        # np.save(os.path.join(results_dir, 'masked_scans_marginal_vals'),
+        #         masked_scans_marginal_vals)
+        # print("Done!")

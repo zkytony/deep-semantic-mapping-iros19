@@ -7,10 +7,11 @@ matplotlib.use('Agg')
 import os
 import sys
 import argparse
-from data import Data
-from result import SubModelResult, Results
+from deepsm.dgsm.data import Data
+from deepsm.dgsm.result import SubModelResult, Results
+from deepsm.util import CategoryManager
 
-KNOWN_CLASSES = ['corridor', 'door', 'small_office', 'large_office']
+KNOWN_CLASSES = CategoryManager.known_categories()
 
 
 def parse_args():
@@ -73,14 +74,14 @@ def print_args(args):
     print("* Radius factor: %s" % args.radius_factor)
 
 
-def main():
+def main(trained_classes=KNOWN_CLASSES):
     args = parse_args()
     print_args(args)
 
     # Load and process data for each class
     print("\nLoading data:")
     datas = []
-    for kc in KNOWN_CLASSES:
+    for kc in trained_classes:
         data = Data(args.angle_cells, args.radius_min,
                     args.radius_max, args.radius_factor)
         data.load(args.data_dir)
@@ -96,7 +97,7 @@ def main():
     # Load all subclass results
     print("\nLoading results:")
     submodel_results = []
-    for kc in KNOWN_CLASSES:
+    for kc in trained_classes:
         submodel_result = SubModelResult(args.results_dir, kc)
         submodel_results.append(submodel_result)
     print("Done!")
@@ -104,10 +105,12 @@ def main():
     # Process all results
     print("\nProcessing results:")
     results = Results(datas, submodel_results, args.results_dir)
-    results.get_completion_ratios()
-    results.get_classification_results()
-    results.get_novelty_results()
+    # results.get_completion_ratios()
+    # results.get_classification_results()
+    # results.get_novelty_results()
+    results.get_classification_results_for_graphs()
     print("Done!")
+    
 
 
 if __name__ == '__main__':

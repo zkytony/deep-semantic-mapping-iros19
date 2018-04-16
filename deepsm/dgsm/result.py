@@ -4,6 +4,7 @@ import pprint
 import sklearn.metrics
 import matplotlib.pyplot as plt
 import sys
+import json
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -17,6 +18,13 @@ def get_class_rate(cm):
     d = ncm.diagonal()
     return np.mean(d)
 
+def interpret(likelihoods):
+    """Intepret likelihoods. Returns the vector of
+    normalized marginal likelihoods"""
+    marginals = np.exp(likelihoods -   # plus and minus the max is to prevent overflow
+                       (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
+    return marginals
+
 
 class SubModelResult:
 
@@ -29,14 +37,15 @@ class SubModelResult:
             final_dir, "marginal_vals.npy"))
         self._mpe_vals = np.load(os.path.join(
             final_dir, "mpe_vals.npy"))
-        self._masked_scans = np.load(os.path.join(
-            final_dir, "masked_scans.npy"))
-        self._filled_scans = np.load(os.path.join(
-            final_dir, "filled_scans.npy"))
-        self._masked_scans_marginal = np.load(os.path.join(
-            final_dir, "masked_scans_marginal_vals.npy"))
-        self._masked_scans_mpe = np.load(os.path.join(
-            final_dir, "masked_scans_mpe_vals.npy"))
+        # NOTE: We ignore the following results for now.
+        # self._masked_scans = np.load(os.path.join(
+        #     final_dir, "masked_scans.npy"))
+        # self._filled_scans = np.load(os.path.join(
+        #     final_dir, "filled_scans.npy"))
+        # self._masked_scans_marginal = np.load(os.path.join(
+        #     final_dir, "masked_scans_marginal_vals.npy"))
+        # self._masked_scans_mpe = np.load(os.path.join(
+        #     final_dir, "masked_scans_mpe_vals.npy"))
 
     @property
     def submodel_class(self):
@@ -81,10 +90,11 @@ class Results:
         for d in datas:
             if datas[0].subset != d.subset:
                 raise Exception("Datas have different subset")
+        # NOTE: We do not use masked scans for now
         # Check if masked scans for all classes are the same
-        for r in self._submodel_results:
-            if np.sum(self._submodel_results[0].masked_scans != r.masked_scans) > 0:
-                raise Exception("Masked scans do not match across classes")
+        # for r in self._submodel_results:
+        #     if np.sum(self._submodel_results[0].masked_scans != r.masked_scans) > 0:
+        #         raise Exception("Masked scans do not match across classes")
         # Extract some info from results
         self._num_classes = len(submodel_results)
         self._known_classes = [r.submodel_class for r in submodel_results]
@@ -399,6 +409,92 @@ class Results:
         np.save(os.path.join(self._results_dir, 'novelty_results'),
                 all_together)
 
+
+    def get_classification_results_for_graphs(self):
+        # Get first data as representative of all data
+        data = self._datas[0].data
+        test_rooms = self._datas[0].test_rooms
+
+        graph_results = {}  # rid (i.e. graph id) -> {node id -> [groundtruth, prediction, likelihoods(normalized)]}
+        for i, d in enumerate(data):
+            rid = d[0]
+            rclass = d[1]
+            # Test sample?
+            if rid in test_rooms:
+
+                if rid not in graph_results:
+                    graph_results[rid] = {}
+
+                node_id = d[-1]
+                # Get values for masked scan from each submodel
+                # NOTE: use MPE result for now.
+                # marginal_vals = np.array([float(r.marginal_vals[i])
+                #                           for r in self._submodel_results])
+                mpe_vals = np.array([float(r.mpe_vals[i])
+                                     for r in self._submodel_results])
+                # Get max class (weighted)
+                max_class_mpe_weighted = self._known_classes[np.argmax(mpe_vals +
+                                                                       np.log(self._class_weights))]
+                # Normalize the likelihoods; The normalization basically turns the likelihoods
+                # from log space into normal space by taking exp(); These likelihoods can be
+                # fed into GraphSPN directly; All values fed into an SPN will be taken log().
+                likelihoods = list(interpret(mpe_vals))
+
+                graph_results[rid][node_id] = [rclass, max_class_mpe_weighted, likelihoods]
+
+        # Computing statistics
+        stats = {}
+        total_cases = 0
+        total_correct = 0
+        total_per_class = {}
+        for graph_id in graph_results:
+            graph_cases = 0
+            graph_correct = 0
+            graph_per_class = {}
+            for nid in graph_results[graph_id]:
+                groundtruth = graph_results[graph_id][nid][0]
+                # We skip unknown cases
+                if groundtruth not in self._known_classes:
+                    continue
+                if groundtruth not in total_per_class:
+                    total_per_class[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                if groundtruth not in graph_per_class:
+                    graph_per_class[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                
+                # We have one more test case
+                total_cases += 1
+                graph_cases += 1
+                total_per_class[groundtruth][0] += 1
+                graph_per_class[groundtruth][0] += 1
+                
+                prediction = graph_results[graph_id][nid][1]
+                if prediction == groundtruth:
+                    graph_correct += 1
+                    total_correct += 1
+                    total_per_class[groundtruth][1] += 1
+                    graph_per_class[groundtruth][1] += 1
+                total_per_class[groundtruth][2] = total_per_class[groundtruth][1] / total_per_class[groundtruth][0]
+                graph_per_class[groundtruth][2] = graph_per_class[groundtruth][1] / graph_per_class[groundtruth][0]
+            
+            stats[graph_id] = {'num_cases': graph_cases,
+                               'num_correct': graph_correct,
+                               'accuracy': graph_correct / graph_cases,
+                               'class_results': graph_per_class}
+        stats.update({'num_cases': total_cases,
+                      'num_correct': total_correct,
+                      'accuracy': total_correct / total_cases,
+                      'class_results': total_per_class})
+
+        print("- Overall statistics")
+        pp.pprint(stats)
+
+        # Save
+        os.makedirs(os.path.join(self._results_dir, "graphs"), exist_ok=True)
+        for graph_id in graph_results:
+            with open(os.path.join(self._results_dir, "graphs", graph_id + "likelihoods.json"), 'w') as f:
+                json.dump(graph_results[graph_id], f)
+
+
     def _plot_roc(self, fpr, tpr, filename):
         plt.figure(figsize=(4, 4))
         plt.plot(fpr, tpr, label='ROC curve (area = %0.2f)' %
@@ -411,3 +507,5 @@ class Results:
         plt.legend(loc="lower right")
         plt.savefig(filename, dpi=200, bbox_inches='tight')
         plt.close()
+
+

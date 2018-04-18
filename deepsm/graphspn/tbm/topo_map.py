@@ -9,7 +9,7 @@ import random
 import yaml
 import os
 import sys
-import spn_topo.util as util
+import deepsm.util as util
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.lines as lines
@@ -18,8 +18,8 @@ import math
 import itertools
 from collections import deque
 
-from spn_topo.tbm.template import SingleEdgeTemplate, EdgeRelationTemplate, ThreeNodeTemplate
-from spn_topo.util import CategoryManager
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, EdgeRelationTemplate, ThreeNodeTemplate
+from deepsm.util import CategoryManager
 
 
 class TopologicalMap:
@@ -498,7 +498,7 @@ class TopologicalMap:
         if img is None:
             img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
             plt.imshow(img, cmap = plt.get_cmap('gray'), origin="lower")
-            self.visualize(ax, map_spec=map_spec, img=img, dotsize=13)
+            self.visualize(ax, canonical_map_yaml_path=canonical_map_yaml_path, img=img, dotsize=13)
         
         colors = set({})
         for tmpl_node_ids in node_ids:

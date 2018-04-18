@@ -9,12 +9,12 @@ import time
 import numpy as np
 from pprint import pprint
 
-from spn_topo.tests.runner import Experiment, TestCase
-from spn_topo.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate
-from spn_topo.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn
-from spn_topo.tbm.dataset import TopoMapDataset
-from spn_topo.util import CategoryManager, ColdDatabaseManager
-from spn_topo.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
+from deepsm.graphspn.tests.runner import Experiment, TestCase
+from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate
+from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn
+from deepsm.graphspn.tbm.dataset import TopoMapDataset
+from deepsm.util import CategoryManager, ColdDatabaseManager
+from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
 
 
 class TbmExperiment(Experiment):

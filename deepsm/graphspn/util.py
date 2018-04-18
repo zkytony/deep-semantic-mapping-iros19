@@ -26,16 +26,6 @@ def computeRadii(radius, num_radial_steps, radial_increment_factor=5.0):
     for i in range(num_radial_steps):
         radii[i] = r0  + i*radial_inc
     return radii
-
-
-def pick_id(numbers, seed):
-    """
-    Pick an integer based on seed that is unique in numbers, a set of integers.
-    """
-    while seed in numbers:
-        seed += 1
-    return seed
-
     
 def transform_coordinates(gx, gy, map_spec, img):
     # Given point (gx, gy) in the gmapping coordinate system (in meters), convert it
@@ -47,16 +37,3 @@ def transform_coordinates(gx, gy, map_spec, img):
     originY = float(map_spec['origin'][1])
     # Transform from gmapping coordinates to pixel cooridnates.
     return ((gx - originX) / res, imgHeight - (gy - originY) / res)
-
-
-
-
-class ColdDatabaseManager:
-    # Used to obtain cold database file paths
-
-    def __init__(self, db_name, db_root):
-        self.db_root = db_root
-        self.db_name = db_name
-
-    def groundtruth_file(self, floor, filename):
-        return os.path.join(self.db_root, self.db_name, 'groundtruth', floor, filename)

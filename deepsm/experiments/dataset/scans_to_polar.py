@@ -110,6 +110,17 @@ def process_sequence(datapath, outpath, db_name, seq_id):
 
 
 
+def print_params():
+    print("=============")
+    print(" Parameters  ")
+    print("=============")
+    print("                Resultion: %.3f" % common.resolution)
+    print(" Number of Anglular Cells: %d" % common.num_angle_cells)
+    print("               Min Radius: %.3f" % common.min_radius)
+    print("               Max Radius: %.3f" % common.max_radius)
+    print("            Radius factor: %.3f" % common.radius_factor)
+    print("   Number of Radial Cells: %d" % common.num_radius_cells)
+
 if __name__ == "__main__":
     """
     Convert virtual scans to polar scans and save to output
@@ -137,6 +148,8 @@ if __name__ == "__main__":
     parser.add_argument('outpath', type=str, help='path to output directory that will contain polar scans.')
     parser.add_argument('db_name', type=str, help='e.g. Freiburg')
     args = parser.parse_args()
+
+    print_params()
     
     seq_ids = sorted(os.listdir(args.datapath))
     for seq_id in seq_ids:

@@ -18,6 +18,14 @@ def sure_add(dictionary, key, value):
     else:
         dictionary[key] = set({value})
 
+def pick_id(numbers, seed):
+    """
+    Pick an integer based on seed that is unique in numbers, a set of integers.
+    """
+    while seed in numbers:
+        seed += 1
+    return seed
+
 
 ##########Topo-map related##########
 def compute_view_number(node, neighbor, divisions=8):
@@ -342,8 +350,9 @@ class CategoryManager:
 
     @staticmethod
     def category_color(category):
-        if CategoryManager.category_map(category) in CategoryManager.CAT_COLOR:
-            return CategoryManager.CAT_COLOR[CategoryManager.category_map(category)]
+        catg_num = CategoryManager.category_map(category, checking=True)
+        if catg_num in CategoryManager.CAT_COLOR:
+            return CategoryManager.CAT_COLOR[catg_num]
         else:  # unknown
             return CategoryManager.CAT_COLOR[CategoryManager.category_map('UN')]
         
@@ -357,3 +366,18 @@ class CategoryManager:
     def novel_categories():
         """Novel categories are all represented by the 'unknown' class"""
         return ['UN']
+
+
+class ColdDatabaseManager:
+    # Used to obtain cold database file paths
+
+    def __init__(self, db_name, db_root, gt_root=None):
+        self.db_root = db_root
+        self.db_name = db_name
+        self.gt_root = gt_root
+
+    def groundtruth_file(self, floor, filename):
+        if self.gt_root is None:
+            return os.path.join(self.db_root, self.db_name, 'groundtruth', floor, filename)
+        else:
+            return os.path.join(self.gt_root, self.db_name, 'groundtruth', floor, filename)

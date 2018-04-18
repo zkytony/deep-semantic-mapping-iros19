@@ -491,7 +491,7 @@ class Results:
         # Save
         os.makedirs(os.path.join(self._results_dir, "graphs"), exist_ok=True)
         for graph_id in graph_results:
-            with open(os.path.join(self._results_dir, "graphs", graph_id + "likelihoods.json"), 'w') as f:
+            with open(os.path.join(self._results_dir, "graphs", graph_id + "_likelihoods.json"), 'w') as f:
                 json.dump(graph_results[graph_id], f)
 
 

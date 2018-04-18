@@ -17,9 +17,10 @@ import random
 import copy
 import os
 
-from spn_topo.spn_model import SpnModel, mod_compute_graph_up
-from spn_topo.tbm.template import EdgeTemplate, NodeTemplate, SingleEdgeTemplate
-from spn_topo.util import CategoryManager, ColdDatabaseManager
+from deepsm.graphspn.spn_model import SpnModel, mod_compute_graph_up
+from deepsm.graphspn.tbm.template import EdgeTemplate, NodeTemplate, SingleEdgeTemplate
+from deepsm.util import CategoryManager, ColdDatabaseManager
+from deepsm.experiments.common import GROUNDTRUTH_ROOT, COLD_ROOT
 
 
 class TemplateSpn(SpnModel):
@@ -187,8 +188,87 @@ class TemplateSpn(SpnModel):
             sess.run(self._reset_accumulators)
         return likelihoods_log
 
+    @staticmethod
+    def _dup_fun_up(inpt, *args, conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], labels=[[]]):
+        """
+        Purely for template spn copying only. Supports template with multiple types of IVs.
+        Requires that the template SPN contains only one concat node where all inputs go through.
 
+        labels: (2D list) variable's numerical label, used to locate the variable's position in the big IVs.
+                If there are multiple types of IVs, then this should be a 2D list, where each inner
+                list is the label (starting from 0) for one type of IVs, and each outer list represents
+                one type of IVs.
+        """
+        # Know what range of indices each variable takes
+        node, indices = inpt
+        if node.is_op:
+            if isinstance(node, spn.Sum):
+                # [2:] is to skip the weights node and the explicit IVs node for this sum.
+                return spn.Sum(*args[2:], weights=args[0])
+            elif isinstance(node, spn.Product):
+                return spn.Product(*args)
+            elif isinstance(node, spn.Concat):
+                # For each index in indices, find its corresponding variable index by dividing
+                # it by tmpl_num_vals.
+                ranges = []  # stores the start (inclusive) index of the range of indices taken by a type of iv
+                start = 0
+                for i in range(len(tmpl_num_vars)):
+                    ranges.append(start)
+                    start += tmpl_num_vars[i]*tmpl_num_vals[i]
+                big_indices = []
+                for indx in indices:
+                    iv_type = -1
+                    for i, start in enumerate(ranges):
+                        if indx < start + tmpl_num_vars[i]*tmpl_num_vals[i]:
+                            iv_type = i
+                            break
+                    if iv_type == -1:
+                        raise ValueError("Oops. Something wrong. Index out of range.")
+                    # Find corresponding variable index, and offset (i.e. which indicator of that variable)
+                    varidx = indx // tmpl_num_vals[iv_type]
+                    offset = indx - varidx * tmpl_num_vals[iv_type]
+                    varlabel = labels[iv_type][varidx] # THIS IS the actual position of the variable's inputs in the big Concat.
+                    # ASSUMING continous block of the (big) concat node, find the index in it.
+                    big_indices.append(ranges[iv_type] + varlabel * tmpl_num_vals[iv_type] + offset)
+                return spn.Input(conc, big_indices)
+        elif isinstance(node, spn.Weights):
+            return node
+        else:
+            raise ValueError("We don't intend to deal with IVs here. Please remove them from the concat.")
+    # END fun_up
+    
 
+    @classmethod    
+    def duplicate_template_spns(cls, ispn, tspns, template, supergraph, nodes_covered):
+        """
+        Convenient method for copying template spns. Modified `nodes_covered`.
+        """    
+        roots = []
+        if ispn._template_mode == NodeTemplate.code():
+            __i = 0
+            for compound_nid in supergraph.nodes:
+                nids = supergraph.nodes[compound_nid].to_place_id_list()
+                ispn._template_nodes_map[ispn._id_incr] = nids
+
+                # Make the right indices (with respect to the full conc node)
+                labels = []
+                for nid in nids:
+                    # The ivs is arranged like: [...(num_catgs)] * num_nodes
+                    label = ispn._node_label_map[nid]
+                    num_catg = CategoryManager.NUM_CATEGORIES
+                    nodes_covered.add(nid)
+                    labels.append(label)
+
+                print("Duplicating... %d" % (__i+1))
+                copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
+                                                        TemplateSpn._dup_fun_up, tmpl_num_vars=[len(nids)], tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
+                                                        conc=ispn._conc_inputs,
+                                                        labels=[labels])
+                assert copied_tspn_root.is_valid()
+                roots.append(copied_tspn_root)
+                __i+=1
+                ispn._id_incr += 1
+        return roots
 
 # -- END TemplateSpn -- #
 
@@ -946,86 +1026,7 @@ class InstanceSpn(SpnModel):
            extra_partition_multiplyer (int): Used to multiply num_partitions so that more partitions
                                              are tried and ones with higher coverage are picked.
         """
-        def fun_up(inpt, *args, conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], labels=[[]]):
-            """
-            Purely for template spn copying only. Supports template with multiple types of IVs.
-            Requires that the template SPN contains only one concat node where all inputs go through.
-
-            labels: (2D list) variable's numerical label, used to locate the variable's position in the big IVs.
-                    If there are multiple types of IVs, then this should be a 2D list, where each inner
-                    list is the label (starting from 0) for one type of IVs, and each outer list represents
-                    one type of IVs.
-            """
-            # Know what range of indices each variable takes
-            node, indices = inpt
-            if node.is_op:
-                if isinstance(node, spn.Sum):
-                    # [2:] is to skip the weights node and the explicit IVs node for this sum.
-                    return spn.Sum(*args[2:], weights=args[0])
-                elif isinstance(node, spn.Product):
-                    return spn.Product(*args)
-                elif isinstance(node, spn.Concat):
-                    # For each index in indices, find its corresponding variable index by dividing
-                    # it by tmpl_num_vals.
-                    ranges = []  # stores the start (inclusive) index of the range of indices taken by a type of iv
-                    start = 0
-                    for i in range(len(tmpl_num_vars)):
-                        ranges.append(start)
-                        start += tmpl_num_vars[i]*tmpl_num_vals[i]
-                    big_indices = []
-                    for indx in indices:
-                        iv_type = -1
-                        for i, start in enumerate(ranges):
-                            if indx < start + tmpl_num_vars[i]*tmpl_num_vals[i]:
-                                iv_type = i
-                                break
-                        if iv_type == -1:
-                            raise ValueError("Oops. Something wrong. Index out of range.")
-                        # Find corresponding variable index, and offset (i.e. which indicator of that variable)
-                        varidx = indx // tmpl_num_vals[iv_type]
-                        offset = indx - varidx * tmpl_num_vals[iv_type]
-                        varlabel = labels[iv_type][varidx] # THIS IS the actual position of the variable's inputs in the big Concat.
-                        # ASSUMING continous block of the (big) concat node, find the index in it.
-                        big_indices.append(ranges[iv_type] + varlabel * tmpl_num_vals[iv_type] + offset)
-                    return spn.Input(conc, big_indices)
-            elif isinstance(node, spn.Weights):
-                return node
-            else:
-                raise ValueError("We don't intend to deal with IVs here. Please remove them from the concat.")
-
             
-        def _duplicate_template_spns(ispn, tspn, template, supergraph, nodes_covered):
-            """
-            Convenient method for copying template spns. Modified `nodes_covered`.
-            """
-            roots = []
-            if ispn._template_mode == NodeTemplate.code():
-                __i = 0
-                for compound_nid in supergraph.nodes:
-                    nids = supergraph.nodes[compound_nid].to_place_id_list()
-                    ispn._template_nodes_map[ispn._id_incr] = nids
-
-                    # Make the right indices (with respect to the full conc node)
-                    labels = []
-                    for nid in nids:
-                        # The ivs is arranged like: [...(num_catgs)] * num_nodes
-                        label = ispn._node_label_map[nid]
-                        num_catg = CategoryManager.NUM_CATEGORIES
-                        nodes_covered.add(nid)
-                        labels.append(label)
-
-                    print("Duplicating... %d" % (__i+1))
-                    copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
-                                                            fun_up, tmpl_num_vars=[len(nids)], tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
-                                                            conc=ispn._conc_inputs,
-                                                            labels=[labels])
-                    assert copied_tspn_root.is_valid()
-                    roots.append(copied_tspn_root)
-                    __i+=1
-                    self._id_incr += 1
-            return roots
-            
-
         # Create vars and maps
         if self._template_mode == 0:  ## NodeTemplate
             self._catg_inputs = spn.IVs(num_vars=len(self._topo_map.nodes), num_vals=CategoryManager.NUM_CATEGORIES)
@@ -1039,7 +1040,7 @@ class InstanceSpn(SpnModel):
                 self._label_node_map[_i] = nid
                 _i += 1
 
-        """Try partition the graph 10 times more than what is asked for. Then pick the top `num_partitions` with the highest
+        """Try partition the graph `extra_partition_multiplyer` times more than what is asked for. Then pick the top `num_partitions` with the highest
         coverage of the main template."""
         print("Partitioning the graph... (Selecting %d from %d attempts)" % (num_partitions, extra_partition_multiplyer*num_partitions))
         partitioned_results = {}
@@ -1082,8 +1083,7 @@ class InstanceSpn(SpnModel):
             import matplotlib.pyplot as plt
             rcParams['figure.figsize'] = 22, 14
             # Now, we create a cold database manager used to draw the map
-            COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"#"/home/kaiyu/Documents/Projects/Research/SaraRobotics/repo/spn_topo/experiments/data/groundtruth"#
-            coldmgr = ColdDatabaseManager(db_name, COLD_ROOT)
+            coldmgr = ColdDatabaseManager(db_name, COLD_ROOT, GROUNDTRUTH_ROOT)
             
 
         """Making an SPN"""
@@ -1097,7 +1097,18 @@ class InstanceSpn(SpnModel):
                 template_spn_roots = []
                 main_template_spn = self._spns[0][0]
                 print("Will duplicate %s %d times." % (main_template.__name__, len(supergraph.nodes)))
-                template_spn_roots.extend(_duplicate_template_spns(self, tspns, main_template, supergraph, nodes_covered))
+                template_spn_roots.extend(TemplateSpn.duplicate_template_spns(self, tspns, main_template, supergraph, nodes_covered))
+                
+                ## TEST CODE: COMMENT OUT WHEN ACTUALLY RUNNING
+                # original_tspn_root = tspns[main_template.__name__][0]
+                # duplicated_tspn_root = template_spn_roots[-1]
+                # original_tspn_weights = sess.run(original_tspn_root.weights.node.get_value())
+                # duplicated_tspn_weights = sess.run(duplicated_tspn_root.weights.node.get_value())
+                # print(original_tspn_weights)
+                # print(duplicated_tspn_weights)
+                # print(original_tspn_weights == duplicated_tspn_weights)
+                # import pdb; pdb.set_trace()
+                
                 tmp_graph = unused_graph
                 """If visualize"""
                 if visualize_partitions_dirpath:
@@ -1112,7 +1123,18 @@ class InstanceSpn(SpnModel):
                 for template_spn, template in self._spns[1:]:  # skip main template
                     supergraph_2nd, unused_graph_2nd = tmp_graph.partition(template, get_unused=True)
                     print("Will duplicate %s %d times." % (template.__name__, len(supergraph_2nd.nodes)))
-                    template_spn_roots.extend(_duplicate_template_spns(self, tspns, template, supergraph_2nd, nodes_covered))
+                    template_spn_roots.extend(TemplateSpn.duplicate_template_spns(self, tspns, template, supergraph_2nd, nodes_covered))
+                    
+                    ## TEST CODE: COMMENT OUT WHEN ACTUALLY RUNNING
+                    # original_tspn_root = tspns[template.__name__][0]
+                    # duplicated_tspn_root = template_spn_roots[-1]
+                    # original_tspn_weights = sess.run(original_tspn_root.weights.node.get_value())
+                    # duplicated_tspn_weights = sess.run(duplicated_tspn_root.weights.node.get_value())
+                    # print(original_tspn_weights)
+                    # print(duplicated_tspn_weights)
+                    # print(original_tspn_weights == duplicated_tspn_weights)
+                    # import pdb; pdb.set_trace()
+
                     tmp_graph = unused_graph_2nd
                     """If visualize"""
                     if visualize_partitions_dirpath:

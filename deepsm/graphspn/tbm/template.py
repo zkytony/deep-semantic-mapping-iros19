@@ -4,7 +4,7 @@
 from abc import ABC, abstractmethod
 import random
 from collections import deque
-from spn_topo.util import abs_view_distance, compute_view_number, CategoryManager
+from deepsm.util import abs_view_distance, compute_view_number, CategoryManager
 import itertools
 
 ########################################

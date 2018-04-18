@@ -9,7 +9,8 @@ import numpy as np
 import argparse
 import time
 import os, sys
-import json
+import json, yaml
+from pprint import pprint
 import tensorflow as tf
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, InstanceSpn
@@ -22,17 +23,17 @@ from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_DIR, GRAPHSPN_RESU
 
 
 def load_likelihoods(results_dir, graph_id, categories):
-    with open(os.path.join(results_dir, "graphs", "%s_likelihoods.json" % graph_id)) as f:
+    with open(os.path.join(results_dir, "graphs", "%s_likelihoods.json" % graph_id.lower())) as f:
         # lh is formatted as {node id -> [groundtruth, prediction, likelihoods(normalized)]}
         # We only need the likelihoods
         lh = json.load(f)
     lh_out = {}
     for nid in lh:
-        lh_out[nid] = np.zeros((util.CategoryManager.NUM_CATEGORIES,))
-        for i in lh[nid][2]:
+        lh_out[int(nid)] = np.zeros((util.CategoryManager.NUM_CATEGORIES,))
+        for i in range(len(lh[nid][2])):
             catg = categories[i]
             indx = util.CategoryManager.category_map(catg)
-            lh_out[nid][indx] = lh[nid][2][i]
+            lh_out[int(nid)][indx] = lh[nid][2][i]
     return lh_out
 
 
@@ -60,21 +61,25 @@ class GraphSPNToyExperiment(TbmExperiment):
             instance_spn = kwargs.get('instance_spn', None)
             topo_map = kwargs.get('topo_map', None)
             graph_id = kwargs.get('graph_id', None)
+            categories = kwargs.get('categories', None)
 
             total_correct, total_cases = 0, 0
             __record = {
                 'results':{
-                    util.CategoryManager.category_map(k, rev=True):[0,0,0] for k in range(CategoryManager.NUM_CATEGORIES)
+                    util.CategoryManager.category_map(k, rev=True):[0,0,0] for k in range(util.CategoryManager.NUM_CATEGORIES)
                 },
                 'instance':{}
             }
             
             # We query for all nodes using marginal inference
-            query_lh = load_likelihoods(DGSM_RESULTS_DIR, graph_id)
+            print("Preparing inputs for marginal inference")
+            query_lh = load_likelihoods(DGSM_RESULTS_DIR, graph_id, categories)
             query_nids = list(topo_map.nodes.keys())
             query = {k:-1 for k in query_nids}
+            print("Performing marginal inference...")
             marginals = instance_spn.marginal_inference(sess, query_nids,
                                                         query, query_lh=query_lh)
+            
             # Record
             __record['instance']['_marginals_'] = marginals
             __record['instance']['likelihoods'] = query_lh
@@ -83,11 +88,11 @@ class GraphSPNToyExperiment(TbmExperiment):
                 result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
             true_catg_map = topo_map.current_category_map()
             for nid in true_catg_map:
-                true_catg = CategoryManager.category_map(true_catg_map[nid], rev=True) # (str)
-                infrd_catg = CategoryManager.category_map(result_catg_map[nid], rev=True)
+                true_catg = util.CategoryManager.category_map(true_catg_map[nid], rev=True) # (str)
+                infrd_catg = util.CategoryManager.category_map(result_catg_map[nid], rev=True)
 
                 if true_catg == infrd_catg:
-                    __record['results'][true_catg][1] += 1
+                    __record['results'][true_catg][0] += 1
                     total_correct += 1
                 __record['results'][true_catg][1] += 1
                 __record['results'][true_catg][2] = __record['results'][true_catg][0] / __record['results'][true_catg][1]
@@ -150,7 +155,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 template_spn._conc_inputs.set_inputs()
 
             # Test
-            exp.load_testing_data(test_kwargs['db_name'])
+            exp.load_testing_data(test_kwargs['db_name'], skip_unknown=True)
             test_instances = exp.get_test_instances(db_name=test_kwargs['db_name'],
                                                     amount=amount,
                                                     seq_id=seq_id,
@@ -197,6 +202,7 @@ def main():
     train_kwargs = {
         'db_names': ['Stockholm456'],
         'trained_categories': ['1PO', 'CR'],
+        'load_if_exists': True,
 
         # spn structure
         "num_decomps": 1,
@@ -207,12 +213,12 @@ def main():
     test_kwargs = {
         'db_name': 'Stockholm7',
         'test_name': 'toy',
-        'num_partitions': 5,
+        'num_partitions': 1,
         'timestamp': timestamp
     }
 
-    
-    templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
+    query_lh = load_likelihoods(DGSM_RESULTS_DIR, "stockholm7_floor7_cloudy_b", ['1PO', 'CR'])
+    templates = [SingletonTemplate, PairTemplate]#, ThreeNodeTemplate, StarTemplate]
 
     exp_name = args.exp_name
     run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,

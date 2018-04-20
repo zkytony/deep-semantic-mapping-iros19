@@ -46,9 +46,10 @@ if __name__ == "__main__":
         os.symlink(original_set_defs_path, symlink_set_defs_path)
 
         results_dir = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
-                                                             args.db_name,
-                                                             config['test_case'].split("-")[0],
-                                                             config['test_case'].split("-")[1])
+                                                              args.db_name,
+                                                              config['submodel_class'],
+                                                              config['test_case'].split("-")[0],
+                                                              config['test_case'].split("-")[1])
 
         # Print arguments:
         print("============")

@@ -64,10 +64,12 @@ def path_to_dgsm_set_defs_same_building(dgsm_dataset_same_building_path,
 
 def path_to_dgsm_result_same_building(num_categories,
                                       building_name,
+                                      submodel_class,
                                       train_floors,
                                       test_floor):
     return os.path.join(DGSM_RESULTS_ROOT,
                         "%dclasses" % num_categories,
                         "same_building",
                         building_name,
-                        "%s-%s" % (train_floors, test_floor))
+                        "%s-%s" % (train_floors, test_floor),
+                        submodel_class)

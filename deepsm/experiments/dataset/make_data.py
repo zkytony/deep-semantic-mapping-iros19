@@ -3,22 +3,13 @@
 import re
 import pickle
 import os
+import json
 import argparse
 from deepsm.experiments.common import DGSM_DB_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT, COLD_ROOT
 from deepsm.experiments.dataset.dgsm_dataset import DGSMDataset
 import deepsm.experiments.paths as paths
 from deepsm.util import CategoryManager
-
-def get_floor_plans(rooms):
-    """rooms, a dictionary loaded from labels.json in groundtruth"""
-    # Process rooms info
-    floor_plans = {}
-    for room_id in rooms:
-        floor = int(room_id.split("-")[0])
-        if floor not in floor_plans:
-            floor_plans[floor] = []
-        floor_plans[floor].append(room_id)
-    return floor_plans
+from deepsm.graphspn.tbm.dataset import TopoMapDataset
 
 def get_db_info(db_name):
     db_info = {'floors':{}, 'rooms':{}}
@@ -35,9 +26,9 @@ def get_db_info(db_name):
         for seq_id in os.listdir(os.path.join(COLD_ROOT, db_name, "data")):
             db_info['floors'][floor_number].append(seq_id)
         #rooms
-        with open(os.path.join(GROUNDTRUTH_ROOT, db_name, floor, "labels.json")) as f:
+        with open(os.path.join(GROUNDTRUTH_ROOT, db_name, "groundtruth", floor, "labels.json")) as f:
             rooms = json.load(f)
-        db_info['rooms'][floor_number] = rooms
+        db_info['rooms'][floor_number] = sorted(list(rooms['rooms'].keys()))
     return db_info
     
 
@@ -54,7 +45,7 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     db_info (dict):
        'floors': {floor# -> [..., seq_id, ...]}  (Note: floor# is a number)
        'floor_prefix': (str) (e.g. "seq" or "floor")
-       'rooms': {floor# -> dictionary (loaded from labels.json in groundtruth)}
+       'rooms': {floor# -> [ ... room_id ...]}
     """
     # Initialize dataset objects
     topo_dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
@@ -80,7 +71,7 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
         print("Test floor: %d" % floor_testing)
         print("Train floors: %s" % floors_training)
         
-        for seq_id in db_info['floors'][fl]:
+        for seq_id in sorted(db_info['floors'][fl]):
             print("    Adding topo map scans (%s)" % seq_id)
             seq_scans = dgsm_dataset.load_one_sequence(db_name, seq_id)
             topo_map = topo_dataset.get(db_name, seq_id)            
@@ -92,13 +83,13 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
         # Now create set_defs where fl is the test floor
         print("    Creating set_defs")
         seqs_testing = db_info['floors'][fl]
-        floor_plan = get_floor_plans(db_info['rooms'][fl])
+        floor_plan = db_info['rooms'] #get_floor_plans(db_info['rooms'][fl])
         set_defs = DGSMDataset.make_set_defs({db_name: floor_plan},
                                              {db_name: floors_training},
-                                             {db_name: seqs_testing})
+                                             {db_name + str(fl): seqs_testing})
         # save set_defs
         path_to_set_defs = paths.path_to_dgsm_set_defs_same_building(db_data_path,
-                                                                     "".join(floors_training),
+                                                                     "".join(map(str, floors_training)),
                                                                      floor_testing)
         os.makedirs(path_to_set_defs, exist_ok=True)
         with open(os.path.join(path_to_set_defs, "set_defs"), 'wb') as f:
@@ -121,4 +112,4 @@ if __name__ == "__main__":
     what = args.what
     if what == "DGSM_SAME_BUILDING":
         db_info = get_db_info(args.db_name)
-        create_datasets_same_building(db_name, db_info, dim=args.dim)
+        create_datasets_same_building(args.db_name, db_info, dim=args.dim)

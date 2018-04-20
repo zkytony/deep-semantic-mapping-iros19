@@ -32,9 +32,11 @@ num_radius_cells = len(radiuses)-1
 # Gerlach
 GROUNDTRUTH_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/cold-groundtruth"
 COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
-GRAPHSPN_RESULTS_DIR = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/graphspn"
-DGSM_RESULTS_DIR = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/dgsm/4classes_results"
+GRAPHSPN_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/graphspn"
+DGSM_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/dgsm/4classes_results"
 TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/topo_map"
+DGSM_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/dgsm"
+
 # BP_EXEC_PATH = "/home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/ft"
 # BP_RESULT_DIR = "/home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r"
 

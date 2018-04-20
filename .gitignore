@@ -1,5 +1,9 @@
 *~
-\#*
+*\#*
+deepsm/experiments/dataset/dgsm
+deepsm/experiments/dataset/topo_map
+deepsm/experiments/dataset/cold-groundtruth
+deepsm/experiments/results
 
 # Python project
 *.egg-info

@@ -11,7 +11,8 @@ from pprint import pprint
 
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 import deepsm.util as util
-from deepsm.graphspn.util import ColdDatabaseManager
+from deepsm.util import ColdDatabaseManager
+from deepsm.experiments.common import DGSM_DB_ROOT
 
 class DGSMDataset:
 
@@ -40,6 +41,7 @@ class DGSMDataset:
         self.datapaths[db_name] = polar_datapath
 
     def seq_path(self, db_name, seq_id):
+        db_name = db_name.lower()
         return os.path.join(self.datapaths[db_name], seq_id + "_scans.pkl")
 
     def load_sequences(self, db_names):
@@ -167,7 +169,7 @@ class DGSMDataset:
     def make_set_defs(db_floor_plans, db_floors_training, db_seqs_testing):
         """Create a set_defs dictionary. We will only have one subset (1)
 
-        `db_floor_plans`: map from db_name to {floor -> room_id}; The room_id here is not prefixed by db_name
+        `db_floor_plans`: map from db_name to {floor -> [room_id]}; The room_id here is NOT prefixed by db_name
         `db_floors_training`: map from db_name to list of floors, where
               the rooms will be used for trianing;
         `db_seqs_testing`: map from db_name to list of sequence_ids, which is
@@ -186,7 +188,7 @@ class DGSMDataset:
         return set_defs
 
     @staticmethod
-    def make_dataset(scans, outpath):
+    def make_dataset(scans):
         """
         Dump the data as a single pickle file, with classes mapped to the canonical
         category under the room class scheme defined in deepsm.util.CategoryManager
@@ -199,9 +201,7 @@ class DGSMDataset:
         for vscan in scans:
             canonical_class = util.CategoryManager.canonical_category(vscan[1], checking=True)  # data[i][1] is the room class
             vscan[1] = canonical_class
-        os.makedirs(outpath, exist_ok=True)
-        with open(os.path.join(outpath, "real_data"), 'wb') as f:
-            pickle.dump(scans, f)
+        return scans
 
 
 #---------------------------------------------------------------------------------
@@ -220,7 +220,8 @@ def test(VISUALIZE=False):
     topo_dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
     topo_dataset.load("Stockholm", skip_unknown=True)
     topo_map = topo_dataset.get("Stockholm", "floor7_cloudy_b")
-
+    import pdb; pdb.set_trace()
+ 
     # Test creating a dataset of vscans corresponding to topological graph nodes
     floor7cb_scans = dgsm_dataset.load_one_sequence("small", "floor7_cloudy_b")
     graph_scans = dgsm_dataset.polar_scans_from_graph("small", "floor7_cloudy_b", floor7cb_scans, topo_map)
@@ -236,7 +237,12 @@ def test(VISUALIZE=False):
 
     seq_data = dgsm_dataset.load_sequences(["small"])
     seq_data.extend(graph_scans)
-    dgsm_dataset.make_dataset(seq_data, outpath)
+    
+    real_data = dgsm_dataset.make_dataset(seq_data, outpath)
+    os.makedirs(outpath, exist_ok=True)
+    with open(os.path.join(outpath, "real_data"), 'wb') as f:
+        pickle.dump(real_data, f)
+    
     set_defs = dgsm_dataset.make_set_defs({"small": {"floor4":["4-CR-1", "4-1PO-2"],
                                                      "floor7":["4-CR-1", "4-1PO-2"]}},
                                           {"small": ["floor4"]},

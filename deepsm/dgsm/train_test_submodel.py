@@ -15,7 +15,7 @@ from deepsm.util import CategoryManager
 KNOWN_CLASSES = CategoryManager.known_categories()
 
 
-def parse_args():
+def create_parser():
     parser = argparse.ArgumentParser(description='Train and test an SPN place model.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -103,9 +103,18 @@ def parse_args():
     other_params = parser.add_argument_group(title="other")
     other_params.add_argument('--save-masked', action='store_true',
                               help='Save masked scans')
+    return parser
 
+    
+def parse_args(parser=None, args_list=None):
+    if parser is None:
+        parser = create_parser()
+    
     # Parse
-    args = parser.parse_args()
+    if args_list is None:
+        args = parser.parse_args()
+    else:
+        args = parser.parse_args(args_list)
 
     # Check
     if args.submodel_class not in KNOWN_CLASSES:
@@ -192,9 +201,10 @@ def create_directories(args):
     if args.save_masked:
         os.makedirs(os.path.join(args.results_dir, 'masked_scans'), exist_ok=True)
 
-
-def main():
-    args = parse_args()
+        
+def main(args=None):
+    if args is None:
+        args = parse_args()
     print_args(args)
     create_directories(args)
 

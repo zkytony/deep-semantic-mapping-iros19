@@ -50,6 +50,17 @@ def get_category_map_from_lh(lh):
     return category_map
 
 
+def normalize_marginals(marginals):
+    result = {}
+    for nid in marginals:
+        likelihoods = np.array(marginals[nid]).flatten()
+        normalized = np.exp(likelihoods -   # plus and minus the max is to prevent overflow
+                           (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
+        result[nid] = normalized
+    return result
+
+
+
 class GraphSPNToyExperiment(TbmExperiment):
     
     def __init__(self, db_root, *spns, **kwargs):
@@ -119,6 +130,7 @@ class GraphSPNToyExperiment(TbmExperiment):
 
             # Record
             __record['instance']['_marginals_'] = marginals
+            __record['instance']['_marginals_normalized_'] = normalize_marginals(marginals)
             __record['instance']['likelihoods'] = query_lh
             __record['instance']['true'] = true_catg_map
             __record['instance']['query'] = get_category_map_from_lh(query_lh)
@@ -254,7 +266,7 @@ def main():
     test_kwargs = {
         'db_name': 'Stockholm7',
         'test_name': 'toy',
-        'num_partitions': 1,
+        'num_partitions': 5,
         'timestamp': timestamp,
         'graph_results_dir': paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
                                                                      "Stockholm",
@@ -266,7 +278,7 @@ def main():
     query_lh = load_likelihoods(test_kwargs['graph_results_dir'],
                                 "stockholm7_floor7_cloudy_b",
                                 train_kwargs['trained_categories'])
-    templates = [SingletonTemplate, PairTemplate]#, ThreeNodeTemplate, StarTemplate]
+    templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
 
     exp_name = args.exp_name
     run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,

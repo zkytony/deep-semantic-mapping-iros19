@@ -5,7 +5,10 @@
 
 import matplotlib
 matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from pylab import rcParams
 import numpy as np
+import re
 import argparse
 import time
 import os, sys
@@ -18,12 +21,13 @@ from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTe
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.graphspn.tests.runner import TestCase
 import deepsm.util as util
+import deepsm.experiments.paths as paths
 
-from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_DIR, GRAPHSPN_RESULTS_DIR, TOPO_MAP_DB_ROOT
+from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
 
 
 def load_likelihoods(results_dir, graph_id, categories):
-    with open(os.path.join(results_dir, "graphs", "%s_likelihoods.json" % graph_id.lower())) as f:
+    with open(os.path.join(results_dir, "%s_likelihoods.json" % graph_id.lower())) as f:
         # lh is formatted as {node id -> [groundtruth, prediction, likelihoods(normalized)]}
         # We only need the likelihoods
         lh = json.load(f)
@@ -35,6 +39,15 @@ def load_likelihoods(results_dir, graph_id, categories):
             indx = util.CategoryManager.category_map(catg)
             lh_out[int(nid)][indx] = lh[nid][2][i]
     return lh_out
+
+
+def get_category_map_from_lh(lh):
+    """lh is a dictionary { nid -> [ ... likelihood for class N... ]}"""
+    category_map = {}   # nid -> numerical value of the category with highest likelihood
+    for nid in lh:
+        class_index = np.argmax(lh[nid])
+        category_map[nid] = class_index
+    return category_map
 
 
 class GraphSPNToyExperiment(TbmExperiment):
@@ -57,11 +70,17 @@ class GraphSPNToyExperiment(TbmExperiment):
                 graph_id (str)
                 instance_spn (InstanceSpn)
                 categories (list of strings)
+                graph_results_dir (str)
             """
             instance_spn = kwargs.get('instance_spn', None)
             topo_map = kwargs.get('topo_map', None)
             graph_id = kwargs.get('graph_id', None)
             categories = kwargs.get('categories', None)
+            graph_results_dir = kwargs.get('graph_results_dir', None)
+            self._topo_map = topo_map
+            self._graph_id = graph_id
+
+            true_catg_map = topo_map.current_category_map()
 
             total_correct, total_cases = 0, 0
             __record = {
@@ -73,20 +92,17 @@ class GraphSPNToyExperiment(TbmExperiment):
             
             # We query for all nodes using marginal inference
             print("Preparing inputs for marginal inference")
-            query_lh = load_likelihoods(DGSM_RESULTS_DIR, graph_id, categories)
+            query_lh = load_likelihoods(graph_results_dir, graph_id, categories)
             query_nids = list(topo_map.nodes.keys())
             query = {k:-1 for k in query_nids}
             print("Performing marginal inference...")
             marginals = instance_spn.marginal_inference(sess, query_nids,
                                                         query, query_lh=query_lh)
             
-            # Record
-            __record['instance']['_marginals_'] = marginals
-            __record['instance']['likelihoods'] = query_lh
             result_catg_map = {}
             for nid in query:
                 result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
-            true_catg_map = topo_map.current_category_map()
+            
             for nid in true_catg_map:
                 true_catg = util.CategoryManager.category_map(true_catg_map[nid], rev=True) # (str)
                 infrd_catg = util.CategoryManager.category_map(result_catg_map[nid], rev=True)
@@ -100,17 +116,42 @@ class GraphSPNToyExperiment(TbmExperiment):
             __record['results']['_overall_'] = total_correct / max(total_cases,1)
             __record['results']['_total_correct_'] = total_correct
             __record['results']['_total_inferred_'] = total_cases
+
+            # Record
+            __record['instance']['_marginals_'] = marginals
+            __record['instance']['likelihoods'] = query_lh
+            __record['instance']['true'] = true_catg_map
+            __record['instance']['query'] = get_category_map_from_lh(query_lh)
+            __record['instance']['result'] = result_catg_map
+            
             self._record = __record
 
         def _report(self):
             return self._record
 
         def save_results(self, save_path):
+            def save_vis(topo_map, category_map, graph_id, save_path, name, consider_placeholders):
+                floor = re.search("(seq|floor)[1-9]+", graph_id).group()
+                db_name = re.search("(stockholm|freiburg|saarbrucken)", graph_id, re.IGNORECASE).group().capitalize()
+                ColdMgr = util.ColdDatabaseManager(db_name, COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
+                topo_map.assign_categories(category_map)
+                rcParams['figure.figsize'] = 22, 14
+                topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(floor, 'map.yaml'), consider_placeholders=consider_placeholders)
+                plt.savefig(os.path.join(save_path, '%s_%s.png' % (graph_id, name)))
+                plt.clf()
+                print("Saved %s visualization for %s." % (name, graph_id))
+                
             report = self._report()
             with open(os.path.join(save_path, "report.log"), "w") as f:
                 yaml.dump(report['results'], f)
             with open(os.path.join(save_path, "test_instance.log"), "w") as f:
                 pprint(report['instance'], stream=f)
+
+            # Save visualizations
+            save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  False)
+            save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', False)
+            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no            
+                
             return report
 
 
@@ -131,7 +172,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
 
     # Build experiment object
     exp = GraphSPNToyExperiment(TOPO_MAP_DB_ROOT, *spns,
-                                root_dir=GRAPHSPN_RESULTS_DIR, name=exp_name)
+                                root_dir=GRAPHSPN_RESULTS_ROOT, name=exp_name)
     
     util.print_in_box(["Experiment %s" % exp_name])
     util.print_banner("Start", ch='v')
@@ -201,7 +242,7 @@ def main():
     # Configuration
     train_kwargs = {
         'db_names': ['Stockholm456'],
-        'trained_categories': ['1PO', 'CR'],
+        'trained_categories': ['1PO', 'CR', '2PO', 'DW'],
         'load_if_exists': True,
 
         # spn structure
@@ -214,10 +255,17 @@ def main():
         'db_name': 'Stockholm7',
         'test_name': 'toy',
         'num_partitions': 1,
-        'timestamp': timestamp
+        'timestamp': timestamp,
+        'graph_results_dir': paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                     "Stockholm",
+                                                                     "graphs",
+                                                                     "456",
+                                                                     "7")
     }
 
-    query_lh = load_likelihoods(DGSM_RESULTS_DIR, "stockholm7_floor7_cloudy_b", ['1PO', 'CR'])
+    query_lh = load_likelihoods(test_kwargs['graph_results_dir'],
+                                "stockholm7_floor7_cloudy_b",
+                                train_kwargs['trained_categories'])
     templates = [SingletonTemplate, PairTemplate]#, ThreeNodeTemplate, StarTemplate]
 
     exp_name = args.exp_name

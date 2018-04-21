@@ -238,7 +238,7 @@ def test(VISUALIZE=False):
     seq_data = dgsm_dataset.load_sequences(["small"])
     seq_data.extend(graph_scans)
     
-    real_data = dgsm_dataset.make_dataset(seq_data, outpath)
+    real_data = dgsm_dataset.make_dataset(seq_data)
     os.makedirs(outpath, exist_ok=True)
     with open(os.path.join(outpath, "real_data"), 'wb') as f:
         pickle.dump(real_data, f)

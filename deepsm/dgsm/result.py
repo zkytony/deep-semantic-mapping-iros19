@@ -5,6 +5,7 @@ import sklearn.metrics
 import matplotlib.pyplot as plt
 import sys
 import json
+import deepsm.util as util  # TODO: REMOVE
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -418,7 +419,7 @@ class Results:
         graph_results = {}  # rid (i.e. graph id) -> {node id -> [groundtruth, prediction, likelihoods(normalized)]}
         for i, d in enumerate(data):
             rid = d[0]
-            rclass = d[1]
+            rclass = util.CategoryManager.canonical_category(d[1], checking=True) ## TODO: WE DON"T NEED CATEGORYMANAGER HERE
             # Test sample?
             if rid in test_rooms:
 

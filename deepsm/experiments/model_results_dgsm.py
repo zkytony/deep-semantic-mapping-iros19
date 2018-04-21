@@ -18,4 +18,4 @@
 import deepsm.dgsm.model_results as dgsm_results
 
 if __name__ == "__main__":
-    dgsm_results.main(trained_classes=['1PO', 'CR'])
+    dgsm_results.main(trained_classes=['1PO', 'CR', '2PO', 'DW'])

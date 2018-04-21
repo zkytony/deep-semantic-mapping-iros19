@@ -24,7 +24,9 @@ def get_db_info(db_name):
         db_info['floors'][floor_number] = []
         #seqs
         for seq_id in os.listdir(os.path.join(COLD_ROOT, db_name, "data")):
-            db_info['floors'][floor_number].append(seq_id)
+            seq_floor = int(re.search("[1-9]+", seq_id).group())
+            if seq_floor == floor_number:
+                db_info['floors'][floor_number].append(seq_id)
         #rooms
         with open(os.path.join(GROUNDTRUTH_ROOT, db_name, "groundtruth", floor, "labels.json")) as f:
             rooms = json.load(f)
@@ -95,7 +97,9 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
         with open(os.path.join(path_to_set_defs, "set_defs"), 'wb') as f:
             pickle.dump(set_defs, f)
             print("    set_defs saved to %s/set_defs" % path_to_set_defs)
+
     # Now save real_data
+    scans = DGSMDataset.make_dataset(scans)
     with open(os.path.join(db_data_path, "real_data"), 'wb') as f:
         pickle.dump(scans, f)
         print("real_data saved to %s/real_data" % db_data_path)

@@ -12,7 +12,7 @@ from pprint import pprint
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 import deepsm.util as util
 from deepsm.util import ColdDatabaseManager
-from deepsm.experiments.common import DGSM_DB_ROOT
+from deepsm.experiments.common import DGSM_DB_ROOT, TOPO_MAP_DB_ROOT, COLD_ROOT
 
 class DGSMDataset:
 
@@ -68,7 +68,7 @@ class DGSMDataset:
     def polar_scans_from_graph(self, db_name, seq_id, seq_data, topo_map):
         """
         Create a sequence of polar scans where each corresponds to a node in the
-        topological map graph.
+        topological map graph. NOTE: Placeholders do not have matched scans.
         """
         db_name = db_name.lower()
         graph_scans = []
@@ -83,18 +83,19 @@ class DGSMDataset:
         for nid in topo_map.nodes:
             # Find the closest scan with THE SAME CLASS;
             #   scan is of the format [room_id, room_class, [scan], (x,y)]
-            x, y = topo_map.nodes[nid].pose
-            node_class = topo_map.nodes[nid].label
-            if node_class not in seq_data_grouped:
-                raise ValueError("%s is not an expected class!" % node_class)
-            closest_scan = min(seq_data_grouped[node_class], key=lambda s: (s[3][0]-x)**2 + (s[3][1]-y)**2)
-            # To comply with the DGSM framework, which groups polar scans by rooms, because we
-            # want to test the whole graph together, we should name all scans in the graph using
-            # the same room. We will just use the {db_name}_{seq_id} as the room name. Additionally, we
-            # add node id {nid} at the end of the scan for later result analysis.
-            graph_scan = ["%s_%s" % (db_name, seq_id)] + closest_scan[1:] + [nid]
-            assert graph_scan[1] == node_class, "Room class does not match! %s != %s" % (graph_scan[2], room_class)
-            graph_scans.append(graph_scan)
+            if not topo_map.nodes[nid].placeholder:
+                x, y = topo_map.nodes[nid].pose
+                node_class = topo_map.nodes[nid].label
+                if node_class not in seq_data_grouped:
+                    raise ValueError("%s is not an expected class!" % node_class)
+                closest_scan = min(seq_data_grouped[node_class], key=lambda s: (s[3][0]-x)**2 + (s[3][1]-y)**2)
+                # To comply with the DGSM framework, which groups polar scans by rooms, because we
+                # want to test the whole graph together, we should name all scans in the graph using
+                # the same room. We will just use the {db_name}_{seq_id} as the room name. Additionally, we
+                # add node id {nid} at the end of the scan for later result analysis.
+                graph_scan = ["%s_%s" % (db_name, seq_id)] + closest_scan[1:] + [nid]
+                assert graph_scan[1] == node_class, "Room class does not match! %s != %s" % (graph_scan[1], room_class)
+                graph_scans.append(graph_scan)
         return graph_scans
 
 
@@ -113,7 +114,7 @@ class DGSMDataset:
             map_spec = yaml.load(f)
         if img is None:
             img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
-        topo_map.visualize(ax, canonical_map_yaml_path=canonical_map_yaml_path,
+        topo_map.visualize(ax, canonical_map_yaml_path=canonical_map_yaml_path, consider_placeholders=True,
                            img=img, **kwargs)
         # For each vscan in graph_scan, use the stored node id to reference the "true location"
         for vscan in graph_scans:
@@ -207,11 +208,9 @@ class DGSMDataset:
 #---------------------------------------------------------------------------------
 def test(VISUALIZE=False):
     # Testing. DO NOT DELETE.
-    COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
-    TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/spn_topo/experiments/data/topo_map"
-    datapath1 = "/home/zkytony/Documents/thesis/experiments/Data/polar_scans_small"
-    outpath = "./4classes"
-
+    outpath = "tmp_tests"
+    datapath1 = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/dgsm/polar_scans/polar_scans_small"
+    
     ColdMgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
 
     dgsm_dataset = DGSMDataset()
@@ -220,7 +219,6 @@ def test(VISUALIZE=False):
     topo_dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
     topo_dataset.load("Stockholm", skip_unknown=True)
     topo_map = topo_dataset.get("Stockholm", "floor7_cloudy_b")
-    import pdb; pdb.set_trace()
  
     # Test creating a dataset of vscans corresponding to topological graph nodes
     floor7cb_scans = dgsm_dataset.load_one_sequence("small", "floor7_cloudy_b")
@@ -254,4 +252,4 @@ def test(VISUALIZE=False):
         print("set_defs saved to %s" % os.path.join(outpath, "set_defs"))
     
 if __name__ == "__main__":
-    test(VISUALIZE=False)
+    test(VISUALIZE=True)

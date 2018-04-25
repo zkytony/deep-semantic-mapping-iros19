@@ -366,7 +366,7 @@ def main():
                            seq_id=seq_id)
             num_seqs_tested += 1
             if num_seqs_tested >= args.num_test_seqs:
-                print("Test sequence limit of %d is reached" % num_test_seqs)
+                print("Test sequence limit of %d is reached" % num_seqs_tested)
                 return
 
 

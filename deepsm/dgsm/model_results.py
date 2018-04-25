@@ -14,7 +14,7 @@ from deepsm.util import CategoryManager
 KNOWN_CLASSES = CategoryManager.known_categories()
 
 
-def parse_args():
+def create_parser():
     parser = argparse.ArgumentParser(description='Generate result stats.',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
@@ -43,8 +43,19 @@ def parse_args():
     data_params.add_argument('--radius-factor', type=float, default=1.15,
                              help='')
 
+    return parser
+
+
+def parse_args(parser=None, args_list=None):
+
+    if parser is None:
+        parser = create_parser()
+        
     # Parse
-    args = parser.parse_args()
+    if args_list is None:
+        args = parser.parse_args()
+    else:
+        args = parser.parse_args(args_list)
 
     # Check
     try:
@@ -74,8 +85,9 @@ def print_args(args):
     print("* Radius factor: %s" % args.radius_factor)
 
 
-def main(trained_classes=KNOWN_CLASSES):
-    args = parse_args()
+def main(args=None, trained_classes=KNOWN_CLASSES):
+    if args is None:
+        args = parse_args()
     print_args(args)
 
     # Load and process data for each class

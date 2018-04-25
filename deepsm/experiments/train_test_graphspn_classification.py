@@ -294,19 +294,34 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     except KeyboardInterrupt as ex:
         print("Terminating...\n")
 
-def init_experiment(templates, exp_name, seed, spn_params):
-    return exp
+
+def print_args(args):
+    util.print_in_box(["Arguments"])
+    print("Database name: %s" % args.db_name)
+    print("  Sequence ID: %s" % args.seq_id)
+    print("   Test floor: %s" % args.test_floor)
+    print(" Train floors: %s" % args.train_floors)
+    print("-------- Optional --------")
+    print("            Seed: %s" % args.seed)
+    print(" Experiment name: %s" % args.exp_name)
+    print("     Relax Level: %s" % args.relax_level)
+    time.sleep(3)
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
+    parser.add_argument('db_name', type=str, help="e.g. Stockholm")
+    parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
+    parser.add_argument('test_floor', type=str, help="e.g. 4")
+    parser.add_argument('train_floors', type=str, help="e.g. 567")
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)
     parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
                         default="GraphSPNToyExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
-    parser.add_argument('-N', '--num-test-seqs', type=int, help="Total number of sequences to test on", default=-1)
     args = parser.parse_args()
+
+    print_args(args)
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
@@ -338,36 +353,25 @@ def main():
 
     templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
 
-    # Run all experiments for the entire Stockholm building
-    db_name = "Stockholm"
-    floors = {4, 5, 6, 7}
-    num_seqs_tested = 0
-    for test_floor in sorted(floors):
-        for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
+    train_kwargs['db_names'] = ["%s%s" % (args.db_name, args.train_floors)]
+    test_kwargs['db_name'] = "%s%s" % (args.db_name, args.test_floor)
 
-            train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
-            train_kwargs['db_names'] = ["%s%s" % (db_name, train_floors_str)]
-            test_kwargs['db_name'] = "%s%d" % (db_name, test_floor)
-            
-            test_kwargs['graph_results_dir'] \
-                = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
-                                                          db_name,
-                                                          "graphs",
-                                                          train_floors_str,
-                                                          test_floor)
-            graph_id = "%s%d_%s" % (db_name.lower(), test_floor, seq_id)
-            query_lh, dgsm_result = load_likelihoods(test_kwargs['graph_results_dir'],
-                                                     graph_id,
-                                                     train_kwargs['trained_categories'],
-                                                     relax_level=test_kwargs['relax_level'],
-                                                     return_dgsm_result=True)
-            exp_name = args.exp_name
-            run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,
-                           seq_id=seq_id)
-            num_seqs_tested += 1
-            if num_seqs_tested >= args.num_test_seqs:
-                print("Test sequence limit of %d is reached" % num_seqs_tested)
-                return
+    test_kwargs['graph_results_dir'] \
+        = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                  args.db_name,
+                                                  "graphs",
+                                                  args.train_floors,
+                                                  args.test_floor)
+    graph_id = "%s%s_%s" % (args.db_name.lower(), args.test_floor, args.seq_id)
+    query_lh, dgsm_result = load_likelihoods(test_kwargs['graph_results_dir'],
+                                             graph_id,
+                                             train_kwargs['trained_categories'],
+                                             relax_level=test_kwargs['relax_level'],
+                                             return_dgsm_result=True)
+    exp_name = args.exp_name
+    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,
+                   seq_id=args.seq_id)
+
 
 
 if __name__ == "__main__":

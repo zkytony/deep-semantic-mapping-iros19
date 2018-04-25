@@ -180,6 +180,7 @@ class GraphSPNToyExperiment(TbmExperiment):
             __record['results']['_overall_'] = total_correct / max(total_cases,1)
             __record['results']['_total_correct_'] = total_correct
             __record['results']['_total_inferred_'] = total_cases
+            __record['results']['_dgsm_results_'] = dgsm_result
 
             # Record
             __record['instance']['_marginals_'] = marginals
@@ -188,7 +189,6 @@ class GraphSPNToyExperiment(TbmExperiment):
             __record['instance']['true'] = true_catg_map
             __record['instance']['query'] = get_category_map_from_lh(query_lh)
             __record['instance']['result'] = result_catg_map
-            __record['dgsm_results'] = dgsm_result
             
             self._record = __record
 

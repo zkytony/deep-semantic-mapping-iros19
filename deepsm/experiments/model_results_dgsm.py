@@ -15,7 +15,60 @@
 #
 # Refer to dgsm/result.py:Result:get_classification_results_for_graphs()
 
+import os
+import argparse
 import deepsm.dgsm.model_results as dgsm_results
+import deepsm.util as util
+import deepsm.experiments.paths as paths
+
 
 if __name__ == "__main__":
-    dgsm_results.main(trained_classes=['1PO', 'CR', '2PO', 'DW'])
+
+    parser = argparse.ArgumentParser(description="Get DGSM test results for graphs")
+    parser.add_argument('db_name', type=str, help='e.g. Freiburg (case-sensitive)')
+    parser.add_argument('--config', type=str, help='Quoted string in the form of a Python dictionary,'\
+                        'that provides key-value pair for configurations (e.g. "{\'test_case\': \'456-7\'}"',
+                        default="{}")
+    args = parser.parse_args()
+
+    """
+    Configurations:
+    "test_case": (str) e.g. '456-7'
+    """
+    config = eval(args.config)
+    
+    # We need the real_data and set_defs to be in the ./tmp_experiment_dgsm" directory
+    tmp_data_dir = ".tmp_experiment_dgsm"
+    os.makedirs(tmp_data_dir, exist_ok=True)
+    
+    original_real_data_path = os.path.join(paths.path_to_dgsm_dataset_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                                    args.db_name), 'real_data')
+    original_set_defs_path = os.path.join(os.path.dirname(original_real_data_path),
+                                          config['test_case'], "set_defs")
+    symlink_real_data_path = os.path.join(tmp_data_dir, "real_data")
+    symlink_set_defs_path = os.path.join(tmp_data_dir, "set_defs")
+
+    if os.path.exists(symlink_real_data_path):
+        os.remove(symlink_real_data_path)
+    if os.path.exists(symlink_set_defs_path):
+        os.remove(symlink_set_defs_path)
+    os.symlink(original_real_data_path, symlink_real_data_path)
+    os.symlink(original_set_defs_path, symlink_set_defs_path)
+
+    results_dir = os.path.dirname(paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                          args.db_name,
+                                                                          "CR",
+                                                                          config['test_case'].split("-")[0],
+                                                                          config['test_case'].split("-")[1]))
+    
+    classes = []
+    for i in range(util.CategoryManager.NUM_CATEGORIES):
+        classes.append(util.CategoryManager.category_map(i, rev=True))
+
+
+    dgsm_args_parser = dgsm_results.create_parser()
+    dgsm_args = dgsm_results.parse_args(parser=dgsm_args_parser,
+                                        args_list=[tmp_data_dir,
+                                                   results_dir,
+                                                   '1'])
+    dgsm_results.main(args=dgsm_args, trained_classes=classes)

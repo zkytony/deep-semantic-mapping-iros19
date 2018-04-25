@@ -452,7 +452,7 @@ class TopologicalMap:
 
 
     #--- Visualizations ---#
-    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, img=None, consider_placeholders=False):
+    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, img=None, consider_placeholders=False, show_nids=False):
         """Visualize the topological map `self`. Nodes are colored by labels, if possible."""
         # Open the yaml file
         with open(canonical_map_yaml_path) as f:
@@ -468,11 +468,14 @@ class TopologicalMap:
         for nid in self.nodes:
             if included_nodes is not None and nid not in included_nodes:
                 continue
+
+            nid_text = str(nid) if show_nids else None
                 
             place = self.nodes[nid]
             node_color = util.CategoryManager.category_color(place.label) if not (consider_placeholders and place.placeholder) else util.CategoryManager.PLACEHOLDER_COLOR
             pose_x, pose_y = place.pose  # gmapping coordinates
-            plot_x, plot_y = util.plot_dot(ax, pose_x, pose_y, map_spec, img, dotsize=dotsize, color=node_color, zorder=2, linewidth=1.0, edgecolor='black')
+            plot_x, plot_y = util.plot_dot(ax, pose_x, pose_y, map_spec, img,
+                                           dotsize=dotsize, color=node_color, zorder=2, linewidth=1.0, edgecolor='black', label_text=nid_text)
 
             # Plot the edges
             for neighbor_id in self.__conns[nid]:

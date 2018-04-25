@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.lines as lines
+import matplotlib.patheffects as path_effects
 
 ##########Convenient##########
 def sure_add(dictionary, key, value):
@@ -129,10 +130,18 @@ def random_unique_color(colors, ctype=1):
 
 
 ################# Plotting ##################
-def plot_dot(ax, rx, ry, map_spec, img, color='blue', dotsize=2, fill=True, zorder=0, linewidth=0, edgecolor=None):
+def plot_dot(ax, rx, ry, map_spec, img, color='blue', dotsize=2, fill=True, zorder=0, linewidth=0, edgecolor=None, label_text=None):
     px, py = transform_coordinates(rx, ry, map_spec, img)
     very_center = plt.Circle((px, py), dotsize, facecolor=color, fill=fill, zorder=zorder, linewidth=linewidth, edgecolor=edgecolor)
     ax.add_artist(very_center)
+    if label_text:
+        text = ax.text(px, py, label_text, color='white',
+                        ha='center', va='center', size=7, weight='bold')
+        text.set_path_effects([path_effects.Stroke(linewidth=1, foreground='black'),
+                               path_effects.Normal()])
+        
+        # t = ax.text(px-5, py-5, label_text, fontdict=font)
+        # t.set_bbox(dict(facecolor='red', alpha=0.5, edgecolor='red'))
     return px, py
 
 

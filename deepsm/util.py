@@ -1,5 +1,6 @@
 import os
 import math
+import re
 import random
 import numpy as np
 import matplotlib.pyplot as plt
@@ -373,7 +374,7 @@ class ColdDatabaseManager:
 
     def __init__(self, db_name, db_root, gt_root=None):
         self.db_root = db_root
-        self.db_name = db_name
+        self.db_name = re.search("(Stockholm|Freiburg|Saarbrucken)", db_name).group()
         self.gt_root = gt_root
 
     def groundtruth_file(self, floor, filename):

@@ -25,12 +25,30 @@ import deepsm.experiments.paths as paths
 
 from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
 
+def normalize(a):
+    return a / np.sum(a)
 
-def load_likelihoods(results_dir, graph_id, categories):
+def load_likelihoods(results_dir, graph_id, categories, relax_level=None, return_dgsm_result=False):
+    """
+    Load likelihoods which are outputs from DGSM when feeding scans related to a graph
+    identified by `graph_id`. The likelihoods should be normalized and sum to 1.
+
+    Args:
+        results_dir (str) directory for DGSM output for graph scan results
+        graph_id (str) {building}_{seq_id}
+        categories (list) list of string categories
+        relax_level (None or float): If not none, adds this value to every likelihood value
+                                     and then re-normalize all likelihoods (for each node).
+    """
     with open(os.path.join(results_dir, "%s_likelihoods.json" % graph_id.lower())) as f:
         # lh is formatted as {node id -> [groundtruth, prediction, likelihoods(normalized)]}
         # We only need the likelihoods
         lh = json.load(f)
+
+    total_cases = 0
+    total_correct = 0
+    dgsm_result = {}
+        
     lh_out = {}
     for nid in lh:
         lh_out[int(nid)] = np.zeros((util.CategoryManager.NUM_CATEGORIES,))
@@ -38,7 +56,31 @@ def load_likelihoods(results_dir, graph_id, categories):
             catg = categories[i]
             indx = util.CategoryManager.category_map(catg)
             lh_out[int(nid)][indx] = lh[nid][2][i]
-    return lh_out
+        groundtruth = lh[nid][0]
+        prediction = lh[nid][1]
+        if groundtruth not in dgsm_result:
+            dgsm_result[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+        if groundtruth == prediction:
+            total_correct += 1
+            dgsm_result[groundtruth][1] += 1
+        total_cases += 1
+        dgsm_result[groundtruth][0] += 1
+        dgsm_result[groundtruth][2] = dgsm_result[groundtruth][1] / dgsm_result[groundtruth][0]
+    dgsm_result['_total_cases_'] = total_cases
+    dgsm_result['_total_correct_'] = total_correct
+    dgsm_result['_overall_'] = total_cases / total_correct
+
+    # Apply relaxation
+    if relax_level is not None:
+        for nid in lh_out:
+            lh_out[nid] += relax_level
+            lh_out[nid] = normalize(lh_out[nid])
+
+    # Return
+    if return_dgsm_result:
+        return lh_out, dgsm_result
+    else:
+        return lh_out
 
 
 def get_category_map_from_lh(lh):
@@ -82,12 +124,14 @@ class GraphSPNToyExperiment(TbmExperiment):
                 instance_spn (InstanceSpn)
                 categories (list of strings)
                 graph_results_dir (str)
+                relax_level (float) optional
             """
             instance_spn = kwargs.get('instance_spn', None)
             topo_map = kwargs.get('topo_map', None)
             graph_id = kwargs.get('graph_id', None)
             categories = kwargs.get('categories', None)
             graph_results_dir = kwargs.get('graph_results_dir', None)
+            relax_level = kwargs.get('relax_level', None)
             self._topo_map = topo_map
             self._graph_id = graph_id
 
@@ -103,7 +147,14 @@ class GraphSPNToyExperiment(TbmExperiment):
             
             # We query for all nodes using marginal inference
             print("Preparing inputs for marginal inference")
-            query_lh = load_likelihoods(graph_results_dir, graph_id, categories)
+            query_lh, dgsm_result = load_likelihoods(graph_results_dir, graph_id, categories, relax_level=relax_level, return_dgsm_result=True)
+            # Add uniform likelihoods for placeholders
+            for nid in topo_map.nodes:
+                if nid not in query_lh:
+                    if topo_map.nodes[nid].placeholder:
+                        query_lh[nid] = normalize(np.full((util.CategoryManager.NUM_CATEGORIES,), 1.0))
+                    else:
+                        raise ValueError("Node %d has no associated likelihoods. Something wrong in DGSM output?" % nid)
             query_nids = list(topo_map.nodes.keys())
             query = {k:-1 for k in query_nids}
             print("Performing marginal inference...")
@@ -115,6 +166,8 @@ class GraphSPNToyExperiment(TbmExperiment):
                 result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
             
             for nid in true_catg_map:
+                if topo_map.nodes[nid].placeholder:
+                    continue  # skip placeholder when calculating accuracy
                 true_catg = util.CategoryManager.category_map(true_catg_map[nid], rev=True) # (str)
                 infrd_catg = util.CategoryManager.category_map(result_catg_map[nid], rev=True)
 
@@ -135,6 +188,7 @@ class GraphSPNToyExperiment(TbmExperiment):
             __record['instance']['true'] = true_catg_map
             __record['instance']['query'] = get_category_map_from_lh(query_lh)
             __record['instance']['result'] = result_catg_map
+            __record['dgsm_results'] = dgsm_result
             
             self._record = __record
 
@@ -160,9 +214,10 @@ class GraphSPNToyExperiment(TbmExperiment):
                 pprint(report['instance'], stream=f)
 
             # Save visualizations
-            save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  False)
-            save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', False)
-            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no            
+            save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  True)
+            save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', True)
+            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no
+            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'exclude_ph_result', True)  # All nodes are no
                 
             return report
 
@@ -235,7 +290,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 print("Initializing Ops. Will take a while...")
                 instance_spn.init_ops(no_mpe=True)
 
-                exp.test(GraphSPNToyExperiment.TestCase_Classification, sess, **test_kwargs)
+                report = exp.test(GraphSPNToyExperiment.TestCase_Classification, sess, **test_kwargs)
     except KeyboardInterrupt as ex:
         print("Terminating...\n")
 
@@ -245,17 +300,28 @@ def init_experiment(templates, exp_name, seed, spn_params):
 
 def main():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
-    parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100", default=100)
-    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment", default="GraphSPNToyExperiment")
+    parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
+                        default=100)
+    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
+                        default="GraphSPNToyExperiment")
+    parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
+    parser.add_argument('-N', '--num-test-seqs', type=int, help="Total number of sequences to test on", default=-1)
     args = parser.parse_args()
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
+    classes = []
+    for i in range(util.CategoryManager.NUM_CATEGORIES):
+        classes.append(util.CategoryManager.category_map(i, rev=True))
+
+
+    # Global configs:
     # Configuration
     train_kwargs = {
-        'db_names': ['Stockholm456'],
-        'trained_categories': ['1PO', 'CR', '2PO', 'DW'],
+        'trained_categories': classes,
         'load_if_exists': True,
+        'shuffle': True,
+        "save": True,
 
         # spn structure
         "num_decomps": 1,
@@ -264,25 +330,44 @@ def main():
         "num_input_mixtures": 5
     }
     test_kwargs = {
-        'db_name': 'Stockholm7',
-        'test_name': 'toy',
+        'test_name': 'fullstockholm',
         'num_partitions': 5,
         'timestamp': timestamp,
-        'graph_results_dir': paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
-                                                                     "Stockholm",
-                                                                     "graphs",
-                                                                     "456",
-                                                                     "7")
+        'relax_level': args.relax_level if args.relax_level else None
     }
 
-    query_lh = load_likelihoods(test_kwargs['graph_results_dir'],
-                                "stockholm7_floor7_cloudy_b",
-                                train_kwargs['trained_categories'])
     templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
 
-    exp_name = args.exp_name
-    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,
-                   seq_id='floor7_cloudy_b')
+    # Run all experiments for the entire Stockholm building
+    db_name = "Stockholm"
+    floors = {4, 5, 6, 7}
+    num_seqs_tested = 0
+    for test_floor in sorted(floors):
+        for seq_id in os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor))):
+
+            train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
+            train_kwargs['db_names'] = ["%s%s" % (db_name, train_floors_str)]
+            test_kwargs['db_name'] = "%s%d" % (db_name, test_floor)
+            
+            test_kwargs['graph_results_dir'] \
+                = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                          db_name,
+                                                          "graphs",
+                                                          train_floors_str,
+                                                          test_floor)
+            graph_id = "%s%d_%s" % (db_name.lower(), test_floor, seq_id)
+            query_lh, dgsm_result = load_likelihoods(test_kwargs['graph_results_dir'],
+                                                     graph_id,
+                                                     train_kwargs['trained_categories'],
+                                                     relax_level=test_kwargs['relax_level'],
+                                                     return_dgsm_result=True)
+            exp_name = args.exp_name
+            run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,
+                           seq_id=seq_id)
+            num_seqs_tested += 1
+            if num_seqs_tested >= args.num_test_seqs:
+                print("Test sequence limit of %d is reached" % num_test_seqs)
+                return
 
 
 if __name__ == "__main__":

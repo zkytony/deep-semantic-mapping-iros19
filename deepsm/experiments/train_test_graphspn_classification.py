@@ -68,7 +68,7 @@ def load_likelihoods(results_dir, graph_id, categories, relax_level=None, return
         dgsm_result[groundtruth][2] = dgsm_result[groundtruth][1] / dgsm_result[groundtruth][0]
     dgsm_result['_total_cases_'] = total_cases
     dgsm_result['_total_correct_'] = total_correct
-    dgsm_result['_overall_'] = total_cases / total_correct
+    dgsm_result['_overall_'] = total_correct / total_cases
 
     # Apply relaxation
     if relax_level is not None:
@@ -343,7 +343,7 @@ def main():
     floors = {4, 5, 6, 7}
     num_seqs_tested = 0
     for test_floor in sorted(floors):
-        for seq_id in os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor))):
+        for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
 
             train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
             train_kwargs['db_names'] = ["%s%s" % (db_name, train_floors_str)]

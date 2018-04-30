@@ -308,7 +308,7 @@ def print_args(args):
     time.sleep(3)
 
 
-def main():
+def same_building():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
     parser.add_argument('db_name', type=str, help="e.g. Stockholm")
     parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
@@ -374,6 +374,84 @@ def main():
     run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,
                    seq_id=args.seq_id)
 
+
+
+def across_bulidings():
+    parser = argparse.ArgumentParser(description='Run instance-SPN test.')
+    parser.add_argument('db_name', type=str, help="e.g. Stockholm, which means Freiburg and Saarbrucken will be used for training.")
+    parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
+                        default=100)
+    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
+                        default="GraphSPNToyExperiment")
+    parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
+    parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
+                        default="mytest")
+    args = parser.parse_args()
+
+    print_args(args)
+
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    classes = []
+    for i in range(util.CategoryManager.NUM_CATEGORIES):
+        classes.append(util.CategoryManager.category_map(i, rev=True))
+
+
+    # Global configs:
+    # Configuration
+    train_kwargs = {
+        'trained_categories': classes,
+        'load_if_exists': True,
+        'shuffle': True,
+        "save": True,
+
+        # spn structure
+        "num_decomps": 1,
+        "num_subsets": 3,
+        "num_mixtures": 5,
+        "num_input_mixtures": 5
+    }
+    test_kwargs = {
+        'test_name': args.test_name,
+        'num_partitions': 5,
+        'timestamp': timestamp,
+        'relax_level': args.relax_level if args.relax_level else None
+    }
+
+    templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
+
+    all_db = {'Freiburg', 'Saarbrucken', 'Stockholm'}
+    train_kwargs['db_names'] = sorted(list(all_db - {args.db_name}))
+    test_kwargs['db_name'] = args.db_name
+
+    test_kwargs['graph_results_dir'] \
+        = paths.path_to_dgsm_result_across_buildings(util.CategoryManager.NUM_CATEGORIES,
+                                                     "graphs",
+                                                     train_kwargs['db_names'],
+                                                     test_kwargs['db_name'])
+    exp_name = args.exp_name
+    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name)
+
+
+
+def main():
+    available_commands = {
+        'samebuilding': same_building,
+        'acrossbuildings': across_buildings
+    }
+    parser = argparse.ArgumentParser(description="Run GraphSPN experiments in"\
+                                     "the full spatial knowledge framework",
+                                     usage="%s <command> [<args>]]" % sys.args[0])
+    parser.add_argument("command", help="What command to run. Commands: %s" % sorted(available_commands.keys()))
+    args = parser.parse_args(sys.argv[1:2])  # Exclude the rest of args to focus only on <command>.
+    
+    if args.command not in available_commands:
+        print("Unrecognized command %s" % args.command)
+        parser.print_help()
+        sys.exit(1)
+
+    # Run command
+    available_commands[args.command]()
 
 
 if __name__ == "__main__":

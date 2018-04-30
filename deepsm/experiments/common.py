@@ -3,18 +3,18 @@
 import numpy as np
 
 # 56x21
-# resolution      = 0.02
-# num_angle_cells = 56
-# min_radius      = 0.3
-# max_radius      = 5
-# radius_factor   = 1.15
-
-# 32x8
 resolution      = 0.02
-num_angle_cells = 32
+num_angle_cells = 56
 min_radius      = 0.3
 max_radius      = 5
-radius_factor   = 1.874
+radius_factor   = 1.15
+
+# 32x8
+# resolution      = 0.02
+# num_angle_cells = 32
+# min_radius      = 0.3
+# max_radius      = 5
+# radius_factor   = 1.874
 
 angles = np.linspace(-180, 180, num_angle_cells+1)
 r=min_radius

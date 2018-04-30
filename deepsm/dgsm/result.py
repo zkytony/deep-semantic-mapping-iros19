@@ -441,7 +441,7 @@ class Results:
                 # fed into GraphSPN directly; All values fed into an SPN will be taken log().
                 likelihoods = list(interpret(mpe_vals))
 
-                graph_results[rid][node_id] = [rclass, max_class_mpe_weighted, likelihoods]
+                graph_results[rid][node_id] = [rclass, max_class_mpe_weighted, likelihoods, list(mpe_vals)]
 
         # Computing statistics
         stats = {}

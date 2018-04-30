@@ -172,10 +172,10 @@ class GraphSPNToyExperiment(TbmExperiment):
                 infrd_catg = util.CategoryManager.category_map(result_catg_map[nid], rev=True)
 
                 if true_catg == infrd_catg:
-                    __record['results'][true_catg][0] += 1
+                    __record['results'][true_catg][1] += 1
                     total_correct += 1
-                __record['results'][true_catg][1] += 1
-                __record['results'][true_catg][2] = __record['results'][true_catg][0] / __record['results'][true_catg][1]
+                __record['results'][true_catg][0] += 1
+                __record['results'][true_catg][2] = __record['results'][true_catg][1] / __record['results'][true_catg][0]
                 total_cases += 1
             __record['results']['_overall_'] = total_correct / max(total_cases,1)
             __record['results']['_total_correct_'] = total_correct
@@ -319,6 +319,8 @@ def main():
     parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
                         default="GraphSPNToyExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
+    parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
+                        default="mytest")
     args = parser.parse_args()
 
     print_args(args)
@@ -345,7 +347,7 @@ def main():
         "num_input_mixtures": 5
     }
     test_kwargs = {
-        'test_name': 'fullstockholm',
+        'test_name': args.test_name,
         'num_partitions': 5,
         'timestamp': timestamp,
         'relax_level': args.relax_level if args.relax_level else None

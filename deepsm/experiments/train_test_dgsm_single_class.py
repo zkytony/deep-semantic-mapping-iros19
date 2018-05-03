@@ -10,7 +10,7 @@ from pprint import pprint
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train DGSM and produce test results")
-    parser.add_argument('what', type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING)')
+    parser.add_argument('what', type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
     parser.add_argument('-d', '--db_name', type=str, help='e.g. Freiburg (case-sensitive)')
     parser.add_argument('--config', type=str, help='Quoted string in the form of a Python dictionary,'\
                         'that provides key-value pair for configurations (e.g. "{\'test_case\': \'456-7\'}"',

@@ -140,17 +140,20 @@ def create_datasets_across_buildings(db_info, dim="56x21"):
 
     for test_building in sorted(db_info):
         # Build up real_data to include graph scans
-        seqs_testing = []
+        seqs_testing = []  # Just pick two sequences from each floor
         for fl in sorted(db_info[test_building]['floors']):
+            count = 0
             for test_seq_id in sorted(db_info[test_building]['floors'][fl]):
                 seq_scans = dgsm_dataset.load_one_sequence(test_building, test_seq_id)
                 topo_map = topo_dataset.get(test_building, test_seq_id)
-                topo_map_scans = dgsm_dataset.polar_scans_from_graph(db_name,
+                topo_map_scans = dgsm_dataset.polar_scans_from_graph(test_building,
                                                                      test_seq_id,
                                                                      seq_scans,
                                                                      topo_map)
                 scans.extend(topo_map_scans)
-                seqs_testing.append(test_seq_id)
+                if count < 2:
+                    seqs_testing.append(test_seq_id)
+                    count += 1
 
         # set_defs.
         train_buildings = sorted(list(db_names - {test_building}))
@@ -164,6 +167,7 @@ def create_datasets_across_buildings(db_info, dim="56x21"):
                                                                         train_buildings,
                                                                         test_building)
         os.makedirs(path_to_set_defs, exist_ok=True)
+        
         # Save set_defs
         with open(os.path.join(path_to_set_defs, "set_defs"), "wb") as f:
             pickle.dump(set_defs, f)

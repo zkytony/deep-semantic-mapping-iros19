@@ -9,7 +9,7 @@ dataset_root/
     experiment_data/
         Nclasses/
             same_building/
-                stockholm/
+                Stockholm/
                     real_data    [[{building}_{room_id} ... ], ... [{building#}_{seq_id} ... ] ...]
                     456-7/
                         set_defs
@@ -17,15 +17,15 @@ dataset_root/
                 ... (freiburg, saarbrucken)
             across_buildings/
                 real_data
-                stockholm_freiburg-saarbrucken     (stockholm for testing, freiburg saarbrucken for training)
+                Stockholm_Freiburg-Saarbrucken     (stockholm for testing, freiburg saarbrucken for training)
                     set_defs
-                ... (freiburg_, saarbrucken_)
+                ... (Freiburg_, Saarbrucken_)
 
 Result path
 results_root/
     Nclasses/
         same_building/
-            stockholm/
+            Stockholm/
                 456-7/
                     1PO/
                     CR/
@@ -35,7 +35,7 @@ results_root/
                 ...
             ...
         across_buildings/
-            stockholm_freiburg-saarbrucken     (stockholm for testing, freiburg saarbrucken for training)
+            Stockholm_Freiburg-Saarbrucken     (stockholm for testing, freiburg saarbrucken for training)
                 1PO/
                 CR/
                 ...
@@ -101,21 +101,25 @@ def path_to_dgsm_set_defs_across_buildings(dgsm_dataset_across_buildings_path,
                                            test_building):
     """
     Args:
-       train_floors (str): For example, 456 means floor4, floor5, floor6 (or seq#)
-       test_floor (str): For example 7 means floor7
+       train_buildings (list): list of buildings for training (e.g. ['Stockholm','Freiburg'])
+       test_building (str): building for testing (e.g. 'Saarbrucken')
     """
     case_dir = "%s_%s" % (test_building, "-".join(train_buildings))
     return os.path.join(dgsm_dataset_across_buildings_path,
                         case_dir)
 
 def path_to_dgsm_result_across_buildings(num_categories,
-                                      building_name,
-                                      submodel_class,
-                                      train_floors,
-                                      test_floor):
+                                         submodel_class,
+                                         train_buildings,
+                                         test_building):
+    """
+    Args:
+       train_buildings (list): list of buildings for training (e.g. ['Stockholm','Freiburg'])
+       test_building (str): building for testing (e.g. 'Saarbrucken')
+    """
+    case_dir = "%s_%s" % (test_building, "-".join(train_buildings))
     return os.path.join(DGSM_RESULTS_ROOT,
                         "%dclasses" % num_categories,
                         "across_buildings",
-                        building_name,
-                        "%s-%s" % (train_floors, test_floor),
+                        case_dir,
                         submodel_class)

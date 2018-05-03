@@ -25,42 +25,71 @@ import deepsm.experiments.paths as paths
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Get DGSM test results for graphs")
-    parser.add_argument('db_name', type=str, help='e.g. Freiburg (case-sensitive)')
+    parser.add_argument('what', type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
+    parser.add_argument('-d', '--db_name', type=str, help='e.g. Freiburg (case-sensitive)')
     parser.add_argument('--config', type=str, help='Quoted string in the form of a Python dictionary,'\
                         'that provides key-value pair for configurations (e.g. "{\'test_case\': \'456-7\'}"',
                         default="{}")
     args = parser.parse_args()
 
-    """
-    Configurations:
-    "test_case": (str) e.g. '456-7'
-    """
     config = eval(args.config)
+    what = args.what
     
     # We need the real_data and set_defs to be in the ./tmp_experiment_dgsm" directory
     tmp_data_dir = ".tmp_experiment_dgsm"
     os.makedirs(tmp_data_dir, exist_ok=True)
-    
-    original_real_data_path = os.path.join(paths.path_to_dgsm_dataset_same_building(util.CategoryManager.NUM_CATEGORIES,
-                                                                                    args.db_name), 'real_data')
-    original_set_defs_path = os.path.join(os.path.dirname(original_real_data_path),
-                                          config['test_case'], "set_defs")
-    symlink_real_data_path = os.path.join(tmp_data_dir, "real_data")
-    symlink_set_defs_path = os.path.join(tmp_data_dir, "set_defs")
 
-    if os.path.exists(symlink_real_data_path):
-        os.remove(symlink_real_data_path)
-    if os.path.exists(symlink_set_defs_path):
-        os.remove(symlink_set_defs_path)
-    os.symlink(original_real_data_path, symlink_real_data_path)
-    os.symlink(original_set_defs_path, symlink_set_defs_path)
+    if what == "DGSM_SAME_BUILDING":
+        """
+        Configurations:
+        "test_case": (str) e.g. '456-7'
+        """
+        original_real_data_path = os.path.join(paths.path_to_dgsm_dataset_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                                        args.db_name), 'real_data')
+        original_set_defs_path = os.path.join(os.path.dirname(original_real_data_path),
+                                              config['test_case'], "set_defs")
+        symlink_real_data_path = os.path.join(tmp_data_dir, "real_data")
+        symlink_set_defs_path = os.path.join(tmp_data_dir, "set_defs")
 
-    results_dir = os.path.dirname(paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
-                                                                          args.db_name,
-                                                                          "CR",
-                                                                          config['test_case'].split("-")[0],
-                                                                          config['test_case'].split("-")[1]))
-    
+        if os.path.exists(symlink_real_data_path):
+            os.remove(symlink_real_data_path)
+        if os.path.exists(symlink_set_defs_path):
+            os.remove(symlink_set_defs_path)
+        os.symlink(original_real_data_path, symlink_real_data_path)
+        os.symlink(original_set_defs_path, symlink_set_defs_path)
+
+        results_dir = os.path.dirname(paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                              args.db_name,
+                                                                              "CR",
+                                                                              config['test_case'].split("-")[0],
+                                                                              config['test_case'].split("-")[1]))
+
+    elif what == "DGSM_ACROSS_BUILDINGS":
+        """
+        Configurations:
+        "test_case": (str) e.g. 'Stockholm_Freiburg-Saarbrucken'
+        """
+        test_building = config['test_case'].split("_")[0]
+        train_buildings = sorted(config['test_case'].split("_")[1].split("-"))
+        
+        original_real_data_path = os.path.join(paths.path_to_dgsm_dataset_across_buildings(util.CategoryManager.NUM_CATEGORIES),
+                                               'real_data')
+        original_set_defs_path = os.path.join(os.path.dirname(original_real_data_path),
+                                              config['test_case'], "set_defs")
+        symlink_real_data_path = os.path.join(tmp_data_dir, "real_data")
+        symlink_set_defs_path = os.path.join(tmp_data_dir, "set_defs")
+
+        if os.path.exists(symlink_real_data_path):
+            os.remove(symlink_real_data_path)
+        if os.path.exists(symlink_set_defs_path):
+            os.remove(symlink_set_defs_path)
+        os.symlink(original_real_data_path, symlink_real_data_path)
+        os.symlink(original_set_defs_path, symlink_set_defs_path)
+
+        results_dir = os.path.dirname(paths.path_to_dgsm_result_across_buildings(util.CategoryManager.NUM_CATEGORIES,
+                                                                                 "CR",
+                                                                                 train_buildings,
+                                                                                 test_building))
     classes = []
     for i in range(util.CategoryManager.NUM_CATEGORIES):
         classes.append(util.CategoryManager.category_map(i, rev=True))

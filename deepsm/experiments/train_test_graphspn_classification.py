@@ -297,14 +297,15 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
 
 def print_args(args):
     util.print_in_box(["Arguments"])
-    print("Database name: %s" % args.db_name)
-    print("  Sequence ID: %s" % args.seq_id)
-    print("   Test floor: %s" % args.test_floor)
-    print(" Train floors: %s" % args.train_floors)
-    print("-------- Optional --------")
-    print("            Seed: %s" % args.seed)
-    print(" Experiment name: %s" % args.exp_name)
-    print("     Relax Level: %s" % args.relax_level)
+    print(args)
+    # print("Database name: %s" % args.db_name)
+    # print("  Sequence ID: %s" % args.seq_id)
+    # print("   Test floor: %s" % args.test_floor)
+    # print(" Train floors: %s" % args.train_floors)
+    # print("-------- Optional --------")
+    # print("            Seed: %s" % args.seed)
+    # print(" Experiment name: %s" % args.exp_name)
+    # print("     Relax Level: %s" % args.relax_level)
     time.sleep(3)
 
 
@@ -317,11 +318,11 @@ def same_building():
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)
     parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
-                        default="GraphSPNToyExperiment")
+                        default="SameBuildingExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
     parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
                         default="mytest")
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[2:])
 
     print_args(args)
 
@@ -376,17 +377,18 @@ def same_building():
 
 
 
-def across_bulidings():
+def across_buildings():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
     parser.add_argument('db_name', type=str, help="e.g. Stockholm, which means Freiburg and Saarbrucken will be used for training.")
+    parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)
     parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
-                        default="GraphSPNToyExperiment")
+                        default="AcrossBuildingsExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
     parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
                         default="mytest")
-    args = parser.parse_args()
+    args = parser.parse_args(sys.argv[2:])
 
     print_args(args)
 
@@ -430,7 +432,7 @@ def across_bulidings():
                                                      train_kwargs['db_names'],
                                                      test_kwargs['db_name'])
     exp_name = args.exp_name
-    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name)
+    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name, seq_id=args.seq_id)
 
 
 
@@ -441,7 +443,7 @@ def main():
     }
     parser = argparse.ArgumentParser(description="Run GraphSPN experiments in"\
                                      "the full spatial knowledge framework",
-                                     usage="%s <command> [<args>]]" % sys.args[0])
+                                     usage="%s <command> [<args>]]" % sys.argv[0])
     parser.add_argument("command", help="What command to run. Commands: %s" % sorted(available_commands.keys()))
     args = parser.parse_args(sys.argv[1:2])  # Exclude the rest of args to focus only on <command>.
     

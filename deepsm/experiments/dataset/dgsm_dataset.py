@@ -8,6 +8,7 @@ import pickle
 import os
 import yaml
 from pprint import pprint
+import numpy as np
 
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 import deepsm.util as util
@@ -203,6 +204,31 @@ class DGSMDataset:
             canonical_class = util.CategoryManager.canonical_category(vscan[1], checking=True)  # data[i][1] is the room class
             vscan[1] = canonical_class
         return scans
+
+    @staticmethod
+    def filter_scans_by_distance(scans, distance=0.5):
+        """
+        Reduces scan frequency by filtering out scans that are too close to the previous
+        one (within `distance`); scans should be ordered by order of occurrence, and scans
+        in the same room should be next to each other.
+
+        distance (float): minimum distance (in meter) between two scans that remain after filtering
+        """
+        prev_scan = scans[0]        
+        final_scans = [prev_scan]
+        i = 1
+        while i < len(scans):
+            cur_scan = scans[i]
+            # If room class are different, we reassign prev_scan
+            if cur_scan[0] != prev_scan[0]:
+                prev_scan = cur_scan
+                continue
+            scans_dist = np.linalg.norm(np.array(prev_scan[3])-np.array(cur_scan[3]))
+            if scans_dist > distance:
+                final_scans.append(cur_scan)
+                prev_scan = cur_scan
+            i += 1
+        return final_scans
 
 
 #---------------------------------------------------------------------------------

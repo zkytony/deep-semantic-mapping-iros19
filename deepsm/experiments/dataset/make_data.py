@@ -61,6 +61,8 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     topo_dataset.load(db_name, skip_unknown=True)
     dgsm_dataset.add_datapath(paths.path_to_polar_scans(db_name, dim=dim), db_name)
     scans = dgsm_dataset.load_sequences([db_name]) # list of scans
+    print("Filtering scans by distance...")
+    scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.2)
 
     # Load graph scans and create set_defs for each floor combination
     all_set_defs = {}
@@ -184,7 +186,7 @@ def create_datasets_across_buildings(db_info, dim="56x21"):
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Make data for experiments")
-    parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING)')
+    parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
     parser.add_argument("-d", "--db_name", type=str, help='e.g. Freiburg')
     parser.add_argument("--dim", type=str, help='Dimension of polar scans. AxB where A and B are numbers.', default="56x21")
     args = parser.parse_args()

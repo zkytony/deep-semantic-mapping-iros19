@@ -10,6 +10,7 @@ from pylab import rcParams
 import os
 import re
 import argparse
+import yaml
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.experiments.factor_graph.run_factor_graph_tests import FactorGraphTest
 from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH, BP_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT
@@ -104,9 +105,11 @@ def same_building(args):
                     likelihoods[nid] = np.full((CategoryManager.NUM_CATEGORIES,), 1)
                     likelihoods[nid] = (likelihoods[nid] / np.sum(likelihoods[nid])).tolist()
             
-            fg_tester.run_instance(seq_id, topo_map, masked, groundtruth, likelihoods=likelihoods,
-                                   result_path=case_results_path, visualize=True,
-                                   avoid_placeholders=True)
+            _, stats = fg_tester.run_instance(seq_id, topo_map, masked, groundtruth, likelihoods=likelihoods,
+                                              result_path=case_results_path, visualize=True,
+                                              avoid_placeholders=True)
+            with open(os.path.join(case_results_path, 'report.log'), 'w') as f:
+                yaml.dump(stats, f)
 
 
 

@@ -32,6 +32,14 @@ from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH,
 
 COUNT = 0
 
+def get_category_map_from_lh(lh):
+    """lh is a dictionary { nid -> [ ... likelihood for class N... ]}"""
+    category_map = {}   # nid -> numerical value of the category with highest likelihood
+    for nid in lh:
+        class_index = np.argmax(lh[nid])
+        category_map[nid] = class_index
+    return category_map
+
 class FactorGraphTest:
 
     COUNT = 0
@@ -263,7 +271,7 @@ class FactorGraphTest:
         if masked:
             save_vis(topo_map, masked, self._db_test, seq_id, save_path, 'query', consider_placeholders)
         if result:
-            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', False)
+            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', consider_placeholders)
 
 
     def run_instance(self, seq_id, topo_map, masked, groundtruth, likelihoods=None,
@@ -293,13 +301,13 @@ class FactorGraphTest:
         
         # Create a .fg file
         if likelihoods:
-            fg_path = self._create_fg(topo_map, seq_id, varlabels, likelihoods=likelihoods)  # use default path
-            tab_path = self._create_tab(topo_map, seq_id, varlabels, masked, likelihoods=likelihoods)  # use default path
+            fg_path = self._create_fg(topo_map, seq_id, varlabels, likelihoods=likelihoods)
+            tab_path = self._create_tab(topo_map, seq_id, varlabels, masked, likelihoods=likelihoods)
 
         else:
-            fg_path = self._create_fg(topo_map, seq_id, varlabels)  # use default path
-            tab_path = self._create_tab(topo_map, seq_id, varlabels, masked)  # use default path
-            
+            fg_path = self._create_fg(topo_map, seq_id, varlabels)
+            tab_path = self._create_tab(topo_map, seq_id, varlabels, masked)
+        
 
         if result_path is None:
             result_path = self._result_dir
@@ -320,8 +328,10 @@ class FactorGraphTest:
                                       avoid_placeholders=avoid_placeholders, topo_map=topo_map)
         # If visualize: save some images
         if visualize:
-            self._visualize_test_case(seq_id, topo_map, groundtruth=groundtruth, masked=masked, result=res_catg_map,
-                                      save_path=result_path)
+            self._visualize_test_case(seq_id, topo_map, groundtruth=groundtruth, masked=get_category_map_from_lh(likelihoods),
+                                      result=res_catg_map,
+                                      save_path=result_path,
+                                      consider_placeholders=avoid_placeholders or consider_placeholders)
         topo_map.reset_categories()
         return res_catg_map, stats
 

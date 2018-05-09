@@ -36,9 +36,8 @@ GRAPHSPN_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semanti
 DGSM_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/dgsm/"
 TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/topo_map"
 DGSM_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/dgsm"
-
-# BP_EXEC_PATH = "/home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/ft"
-# BP_RESULT_DIR = "/home/zkytony/Documents/thesis/experiments/spn_topo/spn_topo/tests/tbm/factor_graph/r"
+BP_EXEC_PATH = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/factor_graph/fg_topo"
+BP_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/factor_graph"
 
 # Laptop
 # COLD_ROOT = "/home/kaiyu/Documents/Projects/Research/SaraRobotics/repo/spn_topo/experiments/data/groundtruth"

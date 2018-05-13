@@ -11,6 +11,7 @@ import argparse
 import subprocess
 import time
 import deepsm.util as util
+import deepsm.experiments.paths as paths
 from deepsm.experiments.common import TOPO_MAP_DB_ROOT
 
 def experiment_proc(what,
@@ -52,7 +53,7 @@ def same_buliding(args):
         floors = {4, 5, 6, 7}
     elif db_name == "Freiburg":
         floors = {1, 2, 3}
-    elif db_name == "Saarbruken":
+    elif db_name == "Saarbrucken":
         floors = {1, 2, 3, 4}
 
     if args.seq_id is None:    
@@ -60,9 +61,15 @@ def same_buliding(args):
         for test_floor in sorted(floors):
             for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
 
-                print("...%s..." % seq_id)
-
                 train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
+                dirpath_to_dgsm_result = os.path.dirname(paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                                                 db_name, "CR",
+                                                                                                 train_floors_str, str(test_floor)))
+                if not os.path.exists(dirpath_to_dgsm_result):
+                    print("Skipping %s. No DGSM result found." % seq_id)
+                    continue
+
+                print("...%s..." % seq_id)
                 proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
                                        args.seed, args.exp_name, args.test_name, args.relax_level,
                                        test_floor=test_floor, train_floors_str=train_floors_str)

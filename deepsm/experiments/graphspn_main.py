@@ -60,10 +60,11 @@ def same_buliding(args):
         num_seqs_tested = 0
         for test_floor in sorted(floors):
             for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
+                train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
                 dirpath_to_dgsm_graphs_result = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
                                                                                         db_name, "graphs",
                                                                                         train_floors_str, str(test_floor))
-                if not os.path.exists(os.path.join(dirpath_to_dgsm_result, "%s%d_%s_likelihoods.json" % (db_name, test_floor, seq_id))):
+                if not os.path.exists(os.path.join(dirpath_to_dgsm_graphs_result, "%s%d_%s_likelihoods.json" % (db_name.lower(), test_floor, seq_id))):
                     print("Skipping %s. No DGSM result found." % seq_id)
                     continue
 

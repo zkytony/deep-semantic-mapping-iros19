@@ -211,7 +211,7 @@ class GraphSPNToyExperiment(TbmExperiment):
             with open(os.path.join(save_path, "report.log"), "w") as f:
                 yaml.dump(report['results'], f)
             with open(os.path.join(save_path, "test_instance.log"), "w") as f:
-                pprint(report['instance'], stream=f)
+                yaml.dump(report['instance'], f)
 
             # Save visualizations
             save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  True)

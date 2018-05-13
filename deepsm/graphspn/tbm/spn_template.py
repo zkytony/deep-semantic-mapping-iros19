@@ -125,7 +125,7 @@ class TemplateSpn(SpnModel):
         Do nothing if already expanded.
         """
         if not self._expanded:
-            self._likelihood_inputs = spn.ContVars(num_vars=self._num_nodes * CategoryManager.NUM_CATEGORIES,
+            self._likelihood_inputs = spn.RawInput(num_vars=self._num_nodes * CategoryManager.NUM_CATEGORIES,
                                                    name=self.vn['LH_CONT'])
             self._semantic_inputs = spn.IVs(num_vars=self._num_nodes, num_vals=CategoryManager.NUM_CATEGORIES,
                                             name=self.vn['SEMAN_IVS'])
@@ -1383,7 +1383,7 @@ class InstanceSpn(SpnModel):
 
             num_vars = len(self._topo_map.nodes)
             self._semantic_inputs = spn.IVs(num_vars=num_vars, num_vals=CategoryManager.NUM_CATEGORIES)
-            self._likelihood_inputs = spn.ContVars(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
+            self._likelihood_inputs = spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
 
             prods = []
             for i in range(num_vars):

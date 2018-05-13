@@ -131,6 +131,40 @@ class TopologicalMap:
             pairs = set(itertools.combinations(edges, 2))
             node_edge_pairs[nid] = pairs
         return node_edge_pairs
+
+
+    #-- High level graph properties --#
+    def connected_components(self):
+        """
+        Returns the connected components in this graph, each as a separate TopologicalMap instance.
+        """
+        # Uses BFS to find connected components
+        copy_map = self.copy()
+        to_cover = set(copy_map.nodes.keys())
+        components = []
+        while len(to_cover) > 0:
+            start_nid = random.sample(to_cover, 1)[0]
+            q = deque()
+            q.append(start_nid)
+            component_nodes = {start_nid:copy_map.nodes[start_nid]}
+            component_conns = {start_nid:set()}
+            visited = set()
+            while len(q) > 0:
+                nid = q.popleft()
+                neighbors = copy_map.neighbors(nid)
+                for neighbor_nid in neighbors:
+                    if nid not in component_conns:
+                        component_conns[nid] = set()
+                    component_conns[nid].add((neighbor_nid,
+                                              util.compute_view_number(copy_map.nodes[nid], copy_map.nodes[neighbor_nid])))
+                    if neighbor_nid not in visited:
+                        visited.add(neighbor_nid)
+                        component_nodes[neighbor_nid] = copy_map.nodes[neighbor_nid]
+                        q.append(neighbor_nid)
+            component = TopologicalMap(component_nodes, component_conns)
+            components.append(component)
+            to_cover -= set(component.nodes.keys())
+        return components
     
     
     #--- Partition ---#

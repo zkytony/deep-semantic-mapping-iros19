@@ -228,7 +228,7 @@ class TopoMapDataset:
                 return {seq_id: self._topo_maps_data[db_name][seq_id]}
 
 
-    def load_tiny_graphs(self, db_name, seq_ids=None, skip_unknown=False, limit=None, num_nodes=2):
+    def load_tiny_graphs(self, db_name, seq_ids=None, skip_unknown=False, skip_placeholders=False, limit=None, num_nodes=2):
         """
         Load and break graphs into samples of only `num_nodes`.
 
@@ -240,12 +240,12 @@ class TopoMapDataset:
             for db_seq_id in seq_ids:
                 db_name = db_seq_id.split("-")[0]
                 if db_name not in self._topo_maps_data:
-                    self.load(db_name, skip_unknown=skip_unknown, limit=limit)
+                    self.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, limit=limit)
                 self._using_tiny_graphs[db_name] = True
         else:
             self._using_tiny_graphs[db_name] = True
             if db_name not in self._topo_maps_data:
-                self.load(db_name, skip_unknown=skip_unknown, limit=limit)
+                self.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, limit=limit)
         # Break each topological map into multiple tiny ones
         tiny_graphs = {}
         topo_maps = {}
@@ -311,17 +311,23 @@ class TopoMapDataset:
             self._topo_maps_data[db_name] = tiny_graphs[db_name]
 
 
-    def load(self, db_name, skip_unknown=False, limit=None, segment=False):
+    def load(self, db_name, skip_unknown=False, skip_placeholders=False, limit=None, segment=False, single_component=True):
         """
         loads data. The loaded data is stored in self.topo_maps_data, a dictionary
         where keys are database names and values are data.
 
         If 'skip_unknown' is set to True, then we skip nodes whose labels map to unknown category.
 
+        If 'skip_placeholders' is set to True, then we skip nodes that are placeholders
+
         'limit' is the max number of topo maps to be loaded.
 
         If `segment` is True, the topological map will be segmented such that each node in the graph
            is a whole room, and there is no doorway node.
+
+        If `single_component` is True, then will make sure the loaded graph is a single, connected graph. If the
+           raw graph contains multiple components, will select the largest component as the topological map, and
+           discard smaller ones.
 
         CSV format should be:
         "
@@ -349,13 +355,17 @@ class TopoMapDataset:
 
                 # We may want to skip nodes with unknown classes. This means we need to first
                 # pick out those nodes that are skipped. So we iterate twice.
-                if skip_unknown:
-                    for row in nodes_data_raw:
-                        nid = int(row[0])
-                        label = row[8]
+                for row in nodes_data_raw:
+                    nid = int(row[0])
+                    label = row[8]
+                    placeholder = bool(int(row[1]))
+                    if skip_unknown:
                         if CategoryManager.category_map(label, checking=True) == CategoryManager.category_map('UN', checking=True):
                             skipped.add(nid)
-                    f.seek(0)
+                    if skip_placeholders:
+                        if placeholder:
+                            skipped.add(nid)
+                f.seek(0)
 
                 for row in nodes_data_raw:
                     node = {
@@ -400,7 +410,13 @@ class TopoMapDataset:
                 topo_map = TopologicalMap(nodes, conn)
                 if segment:
                     topo_map = topo_map.segment(remove_doorway=True)
-                topo_maps[seq_id] = topo_map
+                # There may be multiple connected components in the topological map (due to skipping nodes).
+                # If single_component is True, we only keep the largest component.
+                if single_component:
+                    components = topo_map.connected_components()
+                    topo_maps[seq_id] = max(components, key=lambda c:len(c.nodes))
+                else:
+                    topo_maps[seq_id] = topo_map
 
         # Save the loaded topo maps
         self._topo_maps_data[db_name] = topo_maps

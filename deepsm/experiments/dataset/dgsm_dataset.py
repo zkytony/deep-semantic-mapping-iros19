@@ -6,6 +6,7 @@ import matplotlib.image as mpimg
 import matplotlib.lines as lines
 import pickle
 import os
+import re
 import yaml
 from pprint import pprint
 import numpy as np
@@ -45,18 +46,25 @@ class DGSMDataset:
         db_name = db_name.lower()
         return os.path.join(self.datapaths[db_name], seq_id + "_scans.pkl")
 
-    def load_sequences(self, db_names):
+    def load_sequences(self, db_names, max_seqs_per_floor=-1):
         """
         Returns a single list that combines scans of all sequences in each db_name
         """
         seq_data = []
         for db_name in db_names:
             db_name = db_name.lower()
+            seqs_per_floor = {}
             for s in sorted(os.listdir(self.datapaths[db_name])):
+                floor = re.search("(seq|floor)[1-9]+", s).group()
+                if floor not in seqs_per_floor:
+                    seqs_per_floor[floor] = 0
+                if max_seqs_per_floor > 0 and seqs_per_floor[floor] >= max_seqs_per_floor:
+                    continue
                 fname = os.path.join(self.datapaths[db_name], s)
                 with open(fname, 'rb') as f:
                     d = pickle.load(f)
                     seq_data.extend(d)
+                    seqs_per_floor[floor] += 1
         return seq_data
 
     def load_one_sequence(self, db_name, seq_id):

@@ -144,7 +144,7 @@ class TbmExperiment(Experiment):
                     return 0  # the model is already trained. Didn't load any training data.
         
 
-    def load_training_data(self, *db_names, skip_unknown=False, segment=False, mix_ratio=None):
+    def load_training_data(self, *db_names, skip_unknown=False, skip_placeholders=False, segment=False, mix_ratio=None):
         """
         Load training data from given dbs
         
@@ -155,7 +155,7 @@ class TbmExperiment(Experiment):
                            percentage
         """
         for db_name in db_names:
-            self._dataset.load(db_name, skip_unknown=skip_unknown, segment=segment)
+            self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment)
             self._train_db.append(db_name)
             if mix_ratio is None:
                 print("Loaded %d training sequences from database %s" % (len(self._dataset.get_topo_maps(db_name=db_name, amount=-1)),
@@ -166,7 +166,7 @@ class TbmExperiment(Experiment):
                                                                       
 
 
-    def load_testing_data(self, *db_names, skip_unknown=False, tiny_size=0, segment=False):
+    def load_testing_data(self, *db_names, skip_unknown=False, skip_placeholders=False, tiny_size=0, segment=False):
         """
         Load training data from given dbs. If mixed_ratio is provided when calling load_training_data, this function will
         load from sequences unused for training in the training dbs, and the provided `db_names` will be ignored.
@@ -193,7 +193,7 @@ class TbmExperiment(Experiment):
         for db_name in db_names:
             if tiny_size <= 0:
                 # We want to test on full graphs.
-                self._dataset.load(db_name, skip_unknown=skip_unknown, segment=segment)
+                self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment)
             else:
                 # We want to test on tiny graphs.
                 self._dataset.load_tiny_graphs(db_name, skip_unknown=skip_unknown, num_nodes=tiny_size)

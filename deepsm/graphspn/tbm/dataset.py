@@ -327,7 +327,7 @@ class TopoMapDataset:
 
         If `single_component` is True, then will make sure the loaded graph is a single, connected graph. If the
            raw graph contains multiple components, will select the largest component as the topological map, and
-           discard smaller ones.
+           discard smaller ones. This is by default True.
 
         CSV format should be:
         "

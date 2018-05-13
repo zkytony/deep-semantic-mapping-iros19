@@ -202,7 +202,7 @@ class CategoryManager:
     # classes should be `known` and there is no 'UN' label.
     SKIP_UNKNOWN = True
     # TYPE of label mapping scheme. Offers SIMPLE and FULL.
-    TYPE = 'FULL'
+    TYPE = 'SIMPLE'
     
     # Category mappings
     CAT_MAP_ALL = {
@@ -212,7 +212,7 @@ class CategoryManager:
                 'OC': -1,  # occluded
                 'DW': 0,
                 'CR': 1,
-                'PT' : 1,
+                # 'PT' : 1,
                 '1PO': 2,
                 '2PO': 3,
                 'MPO': 3,

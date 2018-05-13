@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+#
 # Create datasets for DGSM training and testing on a single floor
 
 import matplotlib.pyplot as plt
@@ -60,9 +62,9 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     # Load data
     topo_dataset.load(db_name, skip_unknown=True)
     dgsm_dataset.add_datapath(paths.path_to_polar_scans(db_name, dim=dim), db_name)
-    scans = dgsm_dataset.load_sequences([db_name]) # list of scans
-    print("Filtering scans by distance...")
-    scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.2)
+    scans = dgsm_dataset.load_sequences([db_name], max_seqs_per_floor=2) # list of scans
+    # print("Filtering scans by distance...")
+    scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.3)
 
     # Load graph scans and create set_defs for each floor combination
     all_set_defs = {}

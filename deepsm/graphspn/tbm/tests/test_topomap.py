@@ -22,6 +22,9 @@ import numpy as np
 
 from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT
 
+# Global variables
+SINGLE_COMPONENT = False
+
 
 def doorway_policy(topo_map, node):
     return node.label == "DW"
@@ -179,28 +182,71 @@ def TEST_topo_map_visualization(dataset, coldmgr, seq_id=None):
         print("Saved %s.png" % seq_id)
 
 def TEST_connected_components(dataset, coldmgr):
-    seq_id = "floor4_cloudy_a2"
-    topo_maps = dataset.get_topo_maps(db_name="Stockholm", amount=1, seq_id=seq_id)
+    seq_id = "seq2_cloudy1"#"floor4_cloudy_a2"
+    topo_maps = dataset.get_topo_maps(db_name="Saarbrucken", amount=1, seq_id=seq_id)
     topo_map = topo_maps[seq_id]
     components = topo_map.connected_components()
-    assert len(components) == 2
+    if not SINGLE_COMPONENT:
+        assert len(components) == 2
+    else:
+        assert len(components) == 1
+
+    node_ids = set()
     for i in range(len(components)):
         print("Component %d size: %d" % (i+1, len(components[i].nodes)))
         components[i].visualize(plt.gca(), coldmgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'))
         plt.savefig('%s-%d.png' % (seq_id, i))
         plt.clf()
         print("Saved %s-%d.png" % (seq_id, i))
-    
+
+        node_ids.update(components[i].nodes.keys())
+
+    # Make sure the node_ids from the components combined is the same as original topo map
+    assert node_ids == topo_map.nodes.keys()
+
+def TEST_node_id_unique():
+    """
+    node_id should be unique and refer to the same node regardless of how the topological map
+    dataset is loaded.
+    """
+    # Load the dataset three times. The 3rd has the most complete graph
+    dataset1 = TopoMapDataset(TOPO_MAP_DB_ROOT)
+    dataset1.load("Stockholm", skip_unknown=True, skip_placeholders=True, single_component=True)
+    dataset2 = TopoMapDataset(TOPO_MAP_DB_ROOT)
+    dataset2.load("Stockholm", skip_unknown=True, skip_placeholders=False, single_component=True)
+    dataset3 = TopoMapDataset(TOPO_MAP_DB_ROOT)
+    dataset3.load("Stockholm", skip_unknown=False, skip_placeholders=False, single_component=False)
+
+    seq_id = "floor4_cloudy_a2"
+    topo_map1 = dataset1.get("Stockholm", seq_id)
+    topo_map2 = dataset2.get("Stockholm", seq_id)
+    topo_map3 = dataset3.get("Stockholm", seq_id)
+
+    for nid in topo_map1.nodes:
+        node1 = topo_map1.nodes[nid]
+        node3 = topo_map3.nodes[nid]
+        assert node1.pose == node3.pose
+        assert node1.label == node3.label
+
+    for nid in topo_map2.nodes:
+        node2 = topo_map2.nodes[nid]
+        node3 = topo_map3.nodes[nid]
+        assert node2.pose == node3.pose
+        assert node2.label == node3.label
+    print("Done!")
+
 
 if __name__ == "__main__":
 
-    coldmgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
+    coldmgr = ColdDatabaseManager("Saarbrucken", COLD_ROOT)
 
     dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
-    dataset.load("Stockholm", skip_unknown=True, skip_placeholders=True)
+    dataset.load("Stockholm", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
+    dataset.load("Saarbrucken", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
     #TEST_refine_partition(dataset, coldmgr)
     #TEST_topo_map_copy(dataset)
     TEST_partition_by_edge_relations(dataset)
     # TEST_segmentation(dataset, coldmgr)
     # TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor4_cloudy_a2")
     TEST_connected_components(dataset, coldmgr)
+    TEST_node_id_unique()

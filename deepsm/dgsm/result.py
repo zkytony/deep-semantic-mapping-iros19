@@ -436,10 +436,11 @@ class Results:
                 # Get max class (weighted)
                 max_class_mpe_weighted = self._known_classes[np.argmax(mpe_vals +
                                                                        np.log(self._class_weights))]
-                # Normalize the likelihoods; The normalization basically turns the likelihoods
-                # from log space into normal space by taking exp(); These likelihoods can be
-                # fed into GraphSPN directly; All values fed into an SPN will be taken log().
-                likelihoods = list(interpret(mpe_vals))
+                # # Normalize the likelihoods; The normalization basically turns the likelihoods
+                # # from log space into normal space by taking exp(); These likelihoods can be
+                # # fed into GraphSPN directly; All values fed into an SPN will be taken log().
+                # likelihoods = list(interpret(mpe_vals))
+                likelihoods = list(mpe_vals)
 
                 graph_results[rid][node_id] = [rclass, max_class_mpe_weighted, likelihoods, list(mpe_vals)]
 

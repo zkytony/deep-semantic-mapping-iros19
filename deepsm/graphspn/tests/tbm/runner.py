@@ -155,7 +155,7 @@ class TbmExperiment(Experiment):
                            percentage
         """
         for db_name in db_names:
-            self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment)
+            self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment, single_component=True)
             self._train_db.append(db_name)
             if mix_ratio is None:
                 print("Loaded %d training sequences from database %s" % (len(self._dataset.get_topo_maps(db_name=db_name, amount=-1)),
@@ -193,7 +193,7 @@ class TbmExperiment(Experiment):
         for db_name in db_names:
             if tiny_size <= 0:
                 # We want to test on full graphs.
-                self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment)
+                self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment, single_component=True)
             else:
                 # We want to test on tiny graphs.
                 self._dataset.load_tiny_graphs(db_name, skip_unknown=skip_unknown, num_nodes=tiny_size)

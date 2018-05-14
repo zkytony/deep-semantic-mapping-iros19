@@ -60,7 +60,10 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     dgsm_dataset = DGSMDataset()
 
     # Load data
-    topo_dataset.load(db_name, skip_unknown=True)
+    # NOTE: below, single_component is set to False, because we want to load as much scans as possible
+    # into real_data, so that the index of the scans can be fixed. For example, the i-th scan will refer to
+    # the same scan whether or not we run GraphSPN over graphs with single component.
+    topo_dataset.load(db_name, skip_unknown=True, skip_placeholders=False, single_component=False)
     dgsm_dataset.add_datapath(paths.path_to_polar_scans(db_name, dim=dim), db_name)
     scans = dgsm_dataset.load_sequences([db_name], max_seqs_per_floor=2) # list of scans
     # print("Filtering scans by distance...")
@@ -84,7 +87,9 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
         for seq_id in sorted(db_info['floors'][fl]):
             print("    Adding topo map scans (%s)" % seq_id)
             seq_scans = dgsm_dataset.load_one_sequence(db_name, seq_id)
-            topo_map = topo_dataset.get(db_name, seq_id)            
+            topo_map = topo_dataset.get(db_name, seq_id)
+            # NOTE: The topo_map_scans will NEVER contain scans matched to placeholders;
+            # Because placeholders are not yet visited by the robot.
             topo_map_scans = dgsm_dataset.polar_scans_from_graph(db_name + str(fl),  # e.g. stockholm7
                                                                  seq_id,
                                                                  seq_scans,

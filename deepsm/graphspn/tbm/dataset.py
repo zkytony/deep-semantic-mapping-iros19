@@ -414,6 +414,8 @@ class TopoMapDataset:
                 # If single_component is True, we only keep the largest component.
                 if single_component:
                     components = topo_map.connected_components()
+                    if len(components) > 1:
+                        print("%s is broken into %d components" % (seq_id, len(components)))
                     topo_maps[seq_id] = max(components, key=lambda c:len(c.nodes))
                 else:
                     topo_maps[seq_id] = topo_map

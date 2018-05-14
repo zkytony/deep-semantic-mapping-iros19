@@ -22,7 +22,9 @@ def experiment_proc(what,
                     test_name,
                     relax_level,
                     test_floor=None,
-                    train_floors_str=None,):
+                    train_floors_str=None,
+                    skip_placeholders=True):
+    skip_placeholder_arg = ['--skip-placeholders'] if skip_placeholders else []
     if what == "DGSM_SAME_BUILDING":
         proc = subprocess.Popen(['./train_test_graphspn_classification.py',
                                  "samebuilding",
@@ -33,7 +35,7 @@ def experiment_proc(what,
                                  '-s', str(seed),
                                  '-e', exp_name,
                                  '-r', str(relax_level),
-                                 '-t', test_name])
+                                 '-t', test_name] + skip_placeholder_arg)
     elif what == "DGSM_ACROSS_BUILDINGS":
         proc = subprocess.Popen(['./train_test_graphspn_classification.py',
                                  "acrossbuildings",
@@ -42,7 +44,7 @@ def experiment_proc(what,
                                  '-s', str(seed),
                                  '-e', exp_name,
                                  '-r', str(relax_level),
-                                 '-t', test_name])
+                                 '-t', test_name] + skip_placeholder_arg)
     return proc
 
 
@@ -118,6 +120,7 @@ def main():
     parser.add_argument('-N', '--num-test-seqs', type=int, help="Total number of sequences to test on",
                         default=-1)
     parser.add_argument('--seq-id', type=str, help="Sequence ID to run on; If supplied, -N is suppressed.")
+    parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
     args = parser.parse_args()
 
     if args.what == "DGSM_SAME_BUILDING":

@@ -415,7 +415,11 @@ class Results:
         # Get first data as representative of all data
         data = self._datas[0].data
         test_rooms = self._datas[0].test_rooms
+        
+        # Confusion matrices
+        cm_mpe_weighted = np.zeros((self._num_classes, self._num_classes))
 
+        # Go through each data and determine if it's test data
         graph_results = {}  # rid (i.e. graph id) -> {node id -> [groundtruth, prediction, likelihoods(normalized)]}
         for i, d in enumerate(data):
             rid = d[0]
@@ -443,6 +447,10 @@ class Results:
                 likelihoods = list(mpe_vals)
 
                 graph_results[rid][node_id] = [rclass, max_class_mpe_weighted, likelihoods, list(mpe_vals)]
+
+                # Record in confusion matrix
+                cm_mpe_weighted[self._known_classes.index(rclass),
+                                self._known_classes.index(max_class_mpe_weighted)] += 1
 
         # Computing statistics
         stats = {}
@@ -489,6 +497,12 @@ class Results:
 
         print("- Overall statistics")
         pp.pprint(stats)
+
+        # Confusion matrix
+        print("- Confusion matrix for MPE (weighted):")
+        pp.pprint(self._known_classes)
+        pp.pprint(cm_mpe_weighted)
+        pp.pprint(norm_cm(cm_mpe_weighted) * 100.0)
 
         # Save
         os.makedirs(os.path.join(self._results_dir, "graphs"), exist_ok=True)

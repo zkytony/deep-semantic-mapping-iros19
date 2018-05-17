@@ -28,7 +28,7 @@ from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RES
 def normalize(a):
     return a / np.sum(a)
 
-def load_likelihoods(results_dir, graph_id, categories, relax_level=None, return_dgsm_result=False):
+def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=None, return_dgsm_result=False):
     """
     Load likelihoods which are outputs from DGSM when feeding scans related to a graph
     identified by `graph_id`. The likelihoods should be normalized and sum to 1.
@@ -36,6 +36,7 @@ def load_likelihoods(results_dir, graph_id, categories, relax_level=None, return
     Args:
         results_dir (str) directory for DGSM output for graph scan results
         graph_id (str) {building}_{seq_id}
+        topo_map (TopologicalMap) The topological map for this graph; Used to filter out nodes that we don't need to count
         categories (list) list of string categories
         relax_level (None or float): If not none, adds this value to every likelihood value
                                      and then re-normalize all likelihoods (for each node).
@@ -51,6 +52,8 @@ def load_likelihoods(results_dir, graph_id, categories, relax_level=None, return
         
     lh_out = {}
     for nid in lh:
+        if int(nid) not in topo_map.nodes:
+            continue
         lh_out[int(nid)] = np.zeros((util.CategoryManager.NUM_CATEGORIES,))
         for i in range(len(lh[nid][2])):
             catg = categories[i]
@@ -147,7 +150,7 @@ class GraphSPNToyExperiment(TbmExperiment):
             
             # We query for all nodes using marginal inference
             print("Preparing inputs for marginal inference")
-            query_lh, dgsm_result = load_likelihoods(graph_results_dir, graph_id, categories, relax_level=relax_level, return_dgsm_result=True)
+            query_lh, dgsm_result = load_likelihoods(graph_results_dir, graph_id, topo_map, categories, relax_level=relax_level, return_dgsm_result=True)
             # Add uniform likelihoods for placeholders
             for nid in topo_map.nodes:
                 if nid not in query_lh:
@@ -223,7 +226,7 @@ class GraphSPNToyExperiment(TbmExperiment):
 
 
 def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
-                   amount=1, seq_id=None):
+                   amount=1, seq_id=None, skip_placeholders=False):
     """Run experiment
 
     Arguments:
@@ -245,7 +248,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     util.print_banner("Start", ch='v')
     
     # Load training data
-    exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True)
+    exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True, skip_placeholders=False)  # We don't need to skip placeholders in training, because we know their groundtruth values.
     spn_paths = {model.template.__name__:exp.model_save_path(model) for model in spns}
 
     try:
@@ -263,7 +266,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 template_spn._conc_inputs.set_inputs()
 
             # Test
-            exp.load_testing_data(test_kwargs['db_name'], skip_unknown=True)
+            exp.load_testing_data(test_kwargs['db_name'], skip_unknown=True, skip_placeholders=skip_placeholders)
             test_instances = exp.get_test_instances(db_name=test_kwargs['db_name'],
                                                     amount=amount,
                                                     seq_id=seq_id,
@@ -322,6 +325,7 @@ def same_building():
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
     parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
                         default="mytest")
+    parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
     args = parser.parse_args(sys.argv[2:])
 
     print_args(args)
@@ -365,15 +369,9 @@ def same_building():
                                                   "graphs",
                                                   args.train_floors,
                                                   args.test_floor)
-    graph_id = "%s%s_%s" % (args.db_name.lower(), args.test_floor, args.seq_id)
-    query_lh, dgsm_result = load_likelihoods(test_kwargs['graph_results_dir'],
-                                             graph_id,
-                                             train_kwargs['trained_categories'],
-                                             relax_level=test_kwargs['relax_level'],
-                                             return_dgsm_result=True)
     exp_name = args.exp_name
     run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name,
-                   seq_id=args.seq_id)
+                   seq_id=args.seq_id, skip_placeholders=args.skip_placeholders)
 
 
 

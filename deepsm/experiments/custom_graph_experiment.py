@@ -12,12 +12,17 @@ import numpy as np
 import tensorflow as tf
 import argparse
 import yaml
-import os, re
+import time
+import os, re, sys
 from pprint import pprint
-from deepsm.graphspn.tests.tbm.runner import TbmExperiment
+from deepsm.graphspn.spn_model import SpnModel
+from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, InstanceSpn
+from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate
+from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
 from deepsm.graphspn.tbm.graph_builder import build_graph
-from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
+from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
+import deepsm.util as util
 
 class CustomGraphExperiment(TbmExperiment):
     
@@ -45,7 +50,6 @@ class CustomGraphExperiment(TbmExperiment):
             topo_map = kwargs.get('topo_map', None)
             query_lh = kwargs.get('likelihoods', None)
             graph_id = kwargs.get('graph_id', None)
-            graph_results_dir = kwargs.get('graph_results_dir', None)
             relax_level = kwargs.get('relax_level', None)
             self._topo_map = topo_map
             self._graph_id = graph_id
@@ -87,7 +91,6 @@ class CustomGraphExperiment(TbmExperiment):
             __record['results']['_overall_'] = total_correct / max(total_cases,1)
             __record['results']['_total_correct_'] = total_correct
             __record['results']['_total_inferred_'] = total_cases
-            __record['results']['_dgsm_results_'] = dgsm_result
 
             # Record
             __record['instance']['_marginals_'] = marginals
@@ -130,7 +133,7 @@ class CustomGraphExperiment(TbmExperiment):
 
 
 
-def run_experiment(train_kwargs, test_kwargs, exp_name):
+def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name):
 
     # specify path to a .ug file
     # build topological map
@@ -191,6 +194,7 @@ def run_experiment(train_kwargs, test_kwargs, exp_name):
             test_kwargs['graph_id'] = db_name + "_" + seq_id
             test_kwargs['topo_map'] = topo_map
             test_kwargs['subname'] = '%s-%s' % (test_kwargs['test_name'], seq_id)
+            test_kwargs['likelihoods'] = likelihoods
             
             instance_spn.expand()
             
@@ -219,7 +223,6 @@ def custom_graph():
     # Global configs:
     # Configuration
     train_kwargs = {
-        'trained_categories': classes,
         'load_if_exists': True,
         'shuffle': True,
         "save": True,
@@ -242,13 +245,8 @@ def custom_graph():
     templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
 
     all_db = {'Freiburg', 'Saarbrucken', 'Stockholm'}
-    train_kwargs['db_names'] = sorted(list(all_db - {args.db_name}))
-    test_kwargs['db_name'] = args.db_name
+    train_kwargs['db_names'] = sorted(['Freiburg', 'Stockholm', 'Saarbrucken'])
+    test_kwargs['db_name'] = 'Fake'
 
-    test_kwargs['graph_results_dir'] \
-        = paths.path_to_dgsm_result_across_buildings(util.CategoryManager.NUM_CATEGORIES,
-                                                     "graphs",
-                                                     train_kwargs['db_names'],
-                                                     test_kwargs['db_name'])
     exp_name = args.exp_name
-    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name, seq_id=args.seq_id)
+    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name)

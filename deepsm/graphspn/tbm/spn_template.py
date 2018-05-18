@@ -5,6 +5,10 @@
 #
 # TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn, EdgeRelationTemplateSpn, InstanceSpn
 #
+# Note: All likelihoods fed into the network should be in the log space. We use
+# the spn.RawInput which directly feeds the log value into the SPN which preserves
+# precision.
+#
 # author: Kaiyu Zheng
 
 import sys

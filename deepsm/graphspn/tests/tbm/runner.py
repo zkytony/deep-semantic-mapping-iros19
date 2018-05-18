@@ -770,3 +770,27 @@ def get_noisification_level(high_likelihood_correct, low_likelihood_correct,
         }
     }
     return result
+
+
+def get_category_map_from_lh(lh):
+    """Computes the category map (from nid to numerical value of the
+    category) given a dictionary of likelihoods (`lh`);
+
+    lh is a dictionary { nid -> [ ... likelihood for class N... ]}"""
+    category_map = {}   # nid -> numerical value of the category with highest likelihood
+    for nid in lh:
+        class_index = np.argmax(lh[nid])
+        category_map[nid] = class_index
+    return category_map
+
+
+def normalize_marginals(marginals):
+    """Given an array of log values, take the values out of the log space,
+    and normalize them so that they sum up to 1"""
+    result = {}
+    for nid in marginals:
+        likelihoods = np.array(marginals[nid]).flatten()
+        normalized = np.exp(likelihoods -   # plus and minus the max is to prevent overflow
+                           (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
+        result[nid] = normalized
+    return result

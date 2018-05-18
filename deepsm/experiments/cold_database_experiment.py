@@ -18,7 +18,7 @@ import tensorflow as tf
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, InstanceSpn
 from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate
-from deepsm.graphspn.tests.tbm.runner import TbmExperiment
+from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
 import deepsm.util as util
 import deepsm.experiments.paths as paths
@@ -74,7 +74,7 @@ class ColdDatabaseExperiment(TbmExperiment):
             for nid in topo_map.nodes:
                 if nid not in query_lh:
                     if topo_map.nodes[nid].placeholder:
-                        query_lh[nid] = normalize(np.full((util.CategoryManager.NUM_CATEGORIES,), 1.0))
+                        query_lh[nid] = np.log(util.normalize(np.full((util.CategoryManager.NUM_CATEGORIES,), 1.0)))
                     else:
                         raise ValueError("Node %d has no associated likelihoods. Something wrong in DGSM output?" % nid)
             query_nids = list(topo_map.nodes.keys())
@@ -352,10 +352,6 @@ def across_buildings():
     run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name, seq_id=args.seq_id)
 
 
-
-def normalize(a):
-    return a / np.sum(a)
-
 def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=None, return_dgsm_result=False):
     """
     Load likelihoods which are outputs from DGSM when feeding scans related to a graph
@@ -412,22 +408,3 @@ def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=No
         return lh_out, dgsm_result
     else:
         return lh_out
-
-
-def get_category_map_from_lh(lh):
-    """lh is a dictionary { nid -> [ ... likelihood for class N... ]}"""
-    category_map = {}   # nid -> numerical value of the category with highest likelihood
-    for nid in lh:
-        class_index = np.argmax(lh[nid])
-        category_map[nid] = class_index
-    return category_map
-
-
-def normalize_marginals(marginals):
-    result = {}
-    for nid in marginals:
-        likelihoods = np.array(marginals[nid]).flatten()
-        normalized = np.exp(likelihoods -   # plus and minus the max is to prevent overflow
-                           (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
-        result[nid] = normalized
-    return result

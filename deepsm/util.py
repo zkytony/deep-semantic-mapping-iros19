@@ -29,6 +29,10 @@ def pick_id(numbers, seed):
     return seed
 
 
+def normalize(a):
+    return a / np.sum(a)
+
+
 ##########Topo-map related##########
 def compute_view_number(node, neighbor, divisions=8):
     """

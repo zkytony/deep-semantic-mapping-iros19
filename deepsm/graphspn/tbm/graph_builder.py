@@ -147,7 +147,7 @@ def _parse_likelihood(line, likelihoods, classes, nodes, use_log):
             use_log = True
             likelihood = float(likelihood[1:])
         else:
-            likelihood = float(likelihood)
+            likelihood = float(np.log(likelihood)) # we want log likelihood
     likelihoods[nid][class_index] = likelihood
     return use_log
                             

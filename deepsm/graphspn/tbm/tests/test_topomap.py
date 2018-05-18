@@ -5,12 +5,13 @@
 # author: Kaiyu Zheng
 
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 from pylab import rcParams
 #matplotlib.use('Agg')
 
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate
+from deepsm.graphspn.tbm.graph_builder import build_graph
 #from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.util import CategoryManager, ColdDatabaseManager
 import csv
@@ -20,7 +21,7 @@ from pprint import pprint
 import random
 import numpy as np
 
-from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT
+from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
 
 # Global variables
 SINGLE_COMPONENT = False
@@ -236,17 +237,28 @@ def TEST_node_id_unique():
     print("Done!")
 
 
+def TEST_build_graph_from_file():
+    coldmgr = ColdDatabaseManager("Fake", COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
+    graph_file_path = "simple.ug"
+    topo_map, likelihoods = build_graph(graph_file_path)
+    pprint(likelihoods)
+    topo_map.visualize(plt.gca(), coldmgr.groundtruth_file("env1", 'map.yaml'))
+    plt.show()
+    
+
+
 if __name__ == "__main__":
 
-    coldmgr = ColdDatabaseManager("Saarbrucken", COLD_ROOT)
+    # coldmgr = ColdDatabaseManager("Saarbrucken", COLD_ROOT)
 
-    dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
-    dataset.load("Stockholm", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
-    dataset.load("Saarbrucken", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
-    #TEST_refine_partition(dataset, coldmgr)
-    #TEST_topo_map_copy(dataset)
-    TEST_partition_by_edge_relations(dataset)
-    # TEST_segmentation(dataset, coldmgr)
-    # TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor4_cloudy_a2")
-    TEST_connected_components(dataset, coldmgr)
-    TEST_node_id_unique()
+    # dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
+    # dataset.load("Stockholm", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
+    # dataset.load("Saarbrucken", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
+    # #TEST_refine_partition(dataset, coldmgr)
+    # #TEST_topo_map_copy(dataset)
+    # TEST_partition_by_edge_relations(dataset)
+    # # TEST_segmentation(dataset, coldmgr)
+    # # TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor4_cloudy_a2")
+    # TEST_connected_components(dataset, coldmgr)
+    # TEST_node_id_unique()
+    TEST_build_graph_from_file()

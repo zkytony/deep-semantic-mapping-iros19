@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
-#
 # Takes DGSM output marginals as input, produce
 # GraphSPN marginals.
+#
+# author: Kaiyu Zheng
 
 import matplotlib
 matplotlib.use('Agg')
@@ -25,88 +25,7 @@ import deepsm.experiments.paths as paths
 
 from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
 
-def normalize(a):
-    return a / np.sum(a)
-
-def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=None, return_dgsm_result=False):
-    """
-    Load likelihoods which are outputs from DGSM when feeding scans related to a graph
-    identified by `graph_id`. The likelihoods should be normalized and sum to 1.
-
-    Args:
-        results_dir (str) directory for DGSM output for graph scan results
-        graph_id (str) {building}_{seq_id}
-        topo_map (TopologicalMap) The topological map for this graph; Used to filter out nodes that we don't need to count
-        categories (list) list of string categories
-        relax_level (None or float): If not none, adds this value to every likelihood value
-                                     and then re-normalize all likelihoods (for each node).
-    """
-    with open(os.path.join(results_dir, "%s_likelihoods.json" % graph_id.lower())) as f:
-        # lh is formatted as {node id -> [groundtruth, prediction, likelihoods(normalized)]}
-        # We only need the likelihoods
-        lh = json.load(f)
-
-    total_cases = 0
-    total_correct = 0
-    dgsm_result = {}
-        
-    lh_out = {}
-    for nid in lh:
-        if int(nid) not in topo_map.nodes:
-            continue
-        lh_out[int(nid)] = np.zeros((util.CategoryManager.NUM_CATEGORIES,))
-        for i in range(len(lh[nid][2])):
-            catg = categories[i]
-            indx = util.CategoryManager.category_map(catg)
-            lh_out[int(nid)][indx] = lh[nid][2][i]
-        groundtruth = lh[nid][0]
-        prediction = lh[nid][1]
-        if groundtruth not in dgsm_result:
-            dgsm_result[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
-        if groundtruth == prediction:
-            total_correct += 1
-            dgsm_result[groundtruth][1] += 1
-        total_cases += 1
-        dgsm_result[groundtruth][0] += 1
-        dgsm_result[groundtruth][2] = dgsm_result[groundtruth][1] / dgsm_result[groundtruth][0]
-    dgsm_result['_total_cases_'] = total_cases
-    dgsm_result['_total_correct_'] = total_correct
-    dgsm_result['_overall_'] = total_correct / total_cases
-
-    # Apply relaxation
-    if relax_level is not None:
-        for nid in lh_out:
-            lh_out[nid] += relax_level
-            lh_out[nid] = normalize(lh_out[nid])
-
-    # Return
-    if return_dgsm_result:
-        return lh_out, dgsm_result
-    else:
-        return lh_out
-
-
-def get_category_map_from_lh(lh):
-    """lh is a dictionary { nid -> [ ... likelihood for class N... ]}"""
-    category_map = {}   # nid -> numerical value of the category with highest likelihood
-    for nid in lh:
-        class_index = np.argmax(lh[nid])
-        category_map[nid] = class_index
-    return category_map
-
-
-def normalize_marginals(marginals):
-    result = {}
-    for nid in marginals:
-        likelihoods = np.array(marginals[nid]).flatten()
-        normalized = np.exp(likelihoods -   # plus and minus the max is to prevent overflow
-                           (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
-        result[nid] = normalized
-    return result
-
-
-
-class GraphSPNToyExperiment(TbmExperiment):
+class ColdDatabaseExperiment(TbmExperiment):
     
     def __init__(self, db_root, *spns, **kwargs):
         """
@@ -241,8 +160,8 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
         spns.append(tspn)
 
     # Build experiment object
-    exp = GraphSPNToyExperiment(TOPO_MAP_DB_ROOT, *spns,
-                                root_dir=GRAPHSPN_RESULTS_ROOT, name=exp_name)
+    exp = ColdDatabaseExperiment(TOPO_MAP_DB_ROOT, *spns,
+                                 root_dir=GRAPHSPN_RESULTS_ROOT, name=exp_name)
     
     util.print_in_box(["Experiment %s" % exp_name])
     util.print_banner("Start", ch='v')
@@ -293,7 +212,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 print("Initializing Ops. Will take a while...")
                 instance_spn.init_ops(no_mpe=True)
 
-                report = exp.test(GraphSPNToyExperiment.TestCase_Classification, sess, **test_kwargs)
+                report = exp.test(ColdDatabaseExperiment.TestCase_Classification, sess, **test_kwargs)
     except KeyboardInterrupt as ex:
         print("Terminating...\n")
 
@@ -320,7 +239,7 @@ def same_building():
     parser.add_argument('train_floors', type=str, help="e.g. 567")
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)
-    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
+    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: ColdDatabaseExperiment",
                         default="SameBuildingExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
     parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
@@ -381,7 +300,7 @@ def across_buildings():
     parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)
-    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
+    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: ColdDatabaseExperiment",
                         default="AcrossBuildingsExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
     parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
@@ -434,25 +353,81 @@ def across_buildings():
 
 
 
-def main():
-    available_commands = {
-        'samebuilding': same_building,
-        'acrossbuildings': across_buildings
-    }
-    parser = argparse.ArgumentParser(description="Run GraphSPN experiments in"\
-                                     "the full spatial knowledge framework",
-                                     usage="%s <command> [<args>]]" % sys.argv[0])
-    parser.add_argument("command", help="What command to run. Commands: %s" % sorted(available_commands.keys()))
-    args = parser.parse_args(sys.argv[1:2])  # Exclude the rest of args to focus only on <command>.
-    
-    if args.command not in available_commands:
-        print("Unrecognized command %s" % args.command)
-        parser.print_help()
-        sys.exit(1)
+def normalize(a):
+    return a / np.sum(a)
 
-    # Run command
-    available_commands[args.command]()
+def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=None, return_dgsm_result=False):
+    """
+    Load likelihoods which are outputs from DGSM when feeding scans related to a graph
+    identified by `graph_id`. The likelihoods should be normalized and sum to 1.
+
+    Args:
+        results_dir (str) directory for DGSM output for graph scan results
+        graph_id (str) {building}_{seq_id}
+        topo_map (TopologicalMap) The topological map for this graph; Used to filter out nodes that we don't need to count
+        categories (list) list of string categories
+        relax_level (None or float): If not none, adds this value to every likelihood value
+                                     and then re-normalize all likelihoods (for each node).
+    """
+    with open(os.path.join(results_dir, "%s_likelihoods.json" % graph_id.lower())) as f:
+        # lh is formatted as {node id -> [groundtruth, prediction, likelihoods(normalized)]}
+        # We only need the likelihoods
+        lh = json.load(f)
+
+    total_cases = 0
+    total_correct = 0
+    dgsm_result = {}
+        
+    lh_out = {}
+    for nid in lh:
+        if int(nid) not in topo_map.nodes:
+            continue
+        lh_out[int(nid)] = np.zeros((util.CategoryManager.NUM_CATEGORIES,))
+        for i in range(len(lh[nid][2])):
+            catg = categories[i]
+            indx = util.CategoryManager.category_map(catg)
+            lh_out[int(nid)][indx] = lh[nid][2][i]
+        groundtruth = lh[nid][0]
+        prediction = lh[nid][1]
+        if groundtruth not in dgsm_result:
+            dgsm_result[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+        if groundtruth == prediction:
+            total_correct += 1
+            dgsm_result[groundtruth][1] += 1
+        total_cases += 1
+        dgsm_result[groundtruth][0] += 1
+        dgsm_result[groundtruth][2] = dgsm_result[groundtruth][1] / dgsm_result[groundtruth][0]
+    dgsm_result['_total_cases_'] = total_cases
+    dgsm_result['_total_correct_'] = total_correct
+    dgsm_result['_overall_'] = total_correct / total_cases
+
+    # Apply relaxation
+    if relax_level is not None:
+        for nid in lh_out:
+            lh_out[nid] += relax_level
+            lh_out[nid] = normalize(lh_out[nid])
+
+    # Return
+    if return_dgsm_result:
+        return lh_out, dgsm_result
+    else:
+        return lh_out
 
 
-if __name__ == "__main__":
-    main()
+def get_category_map_from_lh(lh):
+    """lh is a dictionary { nid -> [ ... likelihood for class N... ]}"""
+    category_map = {}   # nid -> numerical value of the category with highest likelihood
+    for nid in lh:
+        class_index = np.argmax(lh[nid])
+        category_map[nid] = class_index
+    return category_map
+
+
+def normalize_marginals(marginals):
+    result = {}
+    for nid in marginals:
+        likelihoods = np.array(marginals[nid]).flatten()
+        normalized = np.exp(likelihoods -   # plus and minus the max is to prevent overflow
+                           (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
+        result[nid] = normalized
+    return result

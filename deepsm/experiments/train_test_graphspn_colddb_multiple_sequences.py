@@ -26,7 +26,7 @@ def experiment_proc(what,
                     skip_placeholders=True):
     skip_placeholder_arg = ['--skip-placeholders'] if skip_placeholders else []
     if what == "DGSM_SAME_BUILDING":
-        proc = subprocess.Popen(['./train_test_graphspn_classification.py',
+        proc = subprocess.Popen(['./train_test_graphspn.py',
                                  "samebuilding",
                                  db_name,
                                  seq_id,
@@ -37,7 +37,7 @@ def experiment_proc(what,
                                  '-r', str(relax_level),
                                  '-t', test_name] + skip_placeholder_arg)
     elif what == "DGSM_ACROSS_BUILDINGS":
-        proc = subprocess.Popen(['./train_test_graphspn_classification.py',
+        proc = subprocess.Popen(['./train_test_graphspn.py',
                                  "acrossbuildings",
                                  db_name,
                                  seq_id,
@@ -107,8 +107,8 @@ def across_buildings(args):
 
 def main():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
-    parser.add_argument('db_name', type=str, help="e.g. Stockholm")
     parser.add_argument('what', type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
+    parser.add_argument('-d', '--db_name', type=str, help="e.g. Stockholm")
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)
     parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: GraphSPNToyExperiment",
@@ -127,7 +127,6 @@ def main():
         same_buliding(args)
     elif args.what == "DGSM_ACROSS_BUILDINGS":
         across_buildings(args)
-            
 
 if __name__ == "__main__":
     main()

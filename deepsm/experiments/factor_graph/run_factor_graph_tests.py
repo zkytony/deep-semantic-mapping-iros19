@@ -28,7 +28,7 @@ import json
 from pprint import pprint
 import argparse
 
-from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH, BP_RESULTS_ROOT
+from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH, BP_RESULTS_ROOT, GROUNDTRUTH_ROOT
 
 COUNT = 0
 
@@ -254,7 +254,7 @@ class FactorGraphTest:
                              result=None, consider_placeholders=False, save_path=None):
         """Visualize"""
         def save_vis(topo_map, category_map, db_name, seq_id, save_path, name,  consider_placeholders):
-            ColdMgr = ColdDatabaseManager(db_name, COLD_ROOT)
+            ColdMgr = ColdDatabaseManager(db_name, COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
             topo_map.assign_categories(category_map)
             rcParams['figure.figsize'] = 22, 14
             topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'), consider_placeholders=consider_placeholders)

@@ -383,7 +383,13 @@ class ColdDatabaseManager:
 
     def __init__(self, db_name, db_root, gt_root=None):
         self.db_root = db_root
-        self.db_name = re.search("(Stockholm|Freiburg|Saarbrucken)", db_name).group()
+        self.db_name = db_name
+        s = re.search("(Stockholm|Freiburg|Saarbrucken)", db_name)
+        if s is not None:
+            # We know we may append floor number(s) after db_name. But we may
+            # also use some custom db_name which could also have groundtruth
+            # files.
+            self.db_name = s.group()
         self.gt_root = gt_root
 
     def groundtruth_file(self, floor, filename):

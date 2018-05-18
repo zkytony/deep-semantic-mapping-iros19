@@ -127,7 +127,6 @@ class CustomGraphExperiment(TbmExperiment):
             save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  True)
             save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', True)
             save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no
-            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'exclude_ph_result', True)  # All nodes are no
                 
             return report
 

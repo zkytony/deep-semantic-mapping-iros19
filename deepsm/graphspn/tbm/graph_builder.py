@@ -19,7 +19,8 @@ def build_graph(graph_file_path):
     --
     <Node_Id> <pos_x> <pos_y> <class>
     --
-    <Node_Id> <class> <likelihood>
+    Log (or Linear)
+    <Node_Id> <likelihood_class0> <likelihood_class1> ...
     --
     <Node_Id_1> <Node_Id_2>
     
@@ -27,18 +28,19 @@ def build_graph(graph_file_path):
     and <class> is a numerical value to represent the class string. The <class>
     must be starting from 0 and the class in a new line is incremented by one.
 
-    The second part specifies the nodes. It is required that Node_Id
+    The second part specifies the nodes. It is not required that Node_Id
     starts from 0. Also pos_x and pos_y should be in metric coordinates. <class>
     is the label for that node. <Node_Id> is of type int, <pos_x> and <pos_y> are
     of type float. <class> is the groundtruth class of the node, an integer.
 
     The third part specifies likelihoods of labels for each node (evidence).
-    <class> is of type int (Better to be within the range from 0 to
-    util.CategoryManager.NUM_CATEGORIES-1. You need to specify
-    a likelihood value for that class (if the value starts with 'l', then it is
-    considered as a log-likelihood value). Therefore, we can have multiple lines
-    about the same node but different classes with different likelihoods. If there
-    is a log likelihood value, then all likelihoods must also be log likelihoods.
+    The first line of this part indicates whether the likelihood values are in
+    the log scale or linear scale. This line can either be "Log" or "Linear".
+    For subsequent lines, each starts with a Node_Id followed by a whitespace-separated list of
+    likelihood values. The first likelihood value is for class 0, second for
+    class 1, etc.  Eventually likelihoods will be converted into log likelihoods
+    when this function returns.
+    
     
     The fourth part specifies the edges. The edge is undirected, and
     the node ids should be defined in the first part of the file.
@@ -56,7 +58,7 @@ def build_graph(graph_file_path):
     likelihoods = {} # Map from node id to a map from class to likelihood
     nodes = {}  # Map from node id to an actual node object
     conns = {}  # Map from node id to set of tuples (neighbor node id, view number)
-    use_log = False
+    use_log = None
         
     state = "classes"
     for i, line in enumerate(lines):
@@ -129,28 +131,29 @@ def _parse_node(line, nodes, likelihoods, classes):
 
 def _parse_likelihood(line, likelihoods, classes, nodes, use_log):
     """
-    <Node_Id> <class> <likelihood>
+    Log (or Linear)
+    <Node_Id> <likelihood_class0> <likelihood_class1> ...
+
+    Returns true if likelihood is in log space.
     """
+    if use_log is None:
+        if line == "Log":
+            return True
+        else:
+            return False
+        
     tokens = line.split()  # split on whitespaces
-    nid, class_index, likelihood = int(tokens[0]), int(tokens[1]), tokens[2]
+    if len(tokens)-1 != len(classes):
+        raise ValueError("Expecting %d likelihood values but got %d" % (len(classes), len(tokens)-1))
+
+    nid = int(tokens[0])
     if nid not in nodes:
         raise ValueError("Node %d is undefined" % (nid))
-    if class_index < 0 or class_index >= len(classes):
-        raise ValueError("Invalid class index %d" % class_index)
-    if use_log:
-        if not likelihood.startswith("l"):
-            raise ValueError("Expecting log likelihood (begin with 'l')" % (linum))
-        else:
-            likelihood = float(likelihood[1:])
-    else:
-        if likelihood.startswith("l"):
-            use_log = True
-            likelihood = float(likelihood[1:])
-        else:
-            likelihood = float(np.log(likelihood)) # we want log likelihood
-    likelihoods[nid][class_index] = likelihood
+    node_likelihoods = list(map(float, tokens[1:]))
+    if not use_log:
+        node_likelihoods = np.log(node_likelihoods)
+    likelihoods[nid] = node_likelihoods
     return use_log
-                            
 
 def _parse_edge(line, conns, nodes):
     """

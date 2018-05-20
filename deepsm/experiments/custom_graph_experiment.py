@@ -18,7 +18,7 @@ from pprint import pprint
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, InstanceSpn
 from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate
-from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, get_category_map_from_lh
+from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, normalize_marginals_remain_log, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
 from deepsm.graphspn.tbm.graph_builder import build_graph
 from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
@@ -95,6 +95,7 @@ class CustomGraphExperiment(TbmExperiment):
             # Record
             __record['instance']['_marginals_'] = marginals
             __record['instance']['_marginals_normalized_'] = normalize_marginals(marginals)
+            __record['instance']['_marginals_normalized_log_'] = normalize_marginals_remain_log(marginals)
             __record['instance']['likelihoods'] = query_lh
             __record['instance']['true'] = true_catg_map
             __record['instance']['query'] = get_category_map_from_lh(query_lh)
@@ -213,8 +214,6 @@ def custom_graph():
     parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: CustomGraphExperiment",
                         default="CustomGraphExperiment")
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
-    parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
-                        default="mytest")
     args = parser.parse_args(sys.argv[2:])
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -233,7 +232,7 @@ def custom_graph():
         "num_input_mixtures": 5
     }
     test_kwargs = {
-        'test_name': args.test_name,
+        'test_name': os.path.basename(args.graph_file),
         'num_partitions': 5,
         'timestamp': timestamp,
         'db_seq_id': 'Fake-floor1_happy',
@@ -243,7 +242,8 @@ def custom_graph():
 
     templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
 
-    all_db = {'Freiburg', 'Saarbrucken', 'Stockholm'}
+    # Remember to change the databases for training as you want.
+    all_db = {'Stockholm456'} #}#{'Freiburg', 'Saarbrucken', 'Stockholm'}
     train_kwargs['db_names'] = sorted(['Freiburg', 'Stockholm', 'Saarbrucken'])
     test_kwargs['db_name'] = 'Fake'
 

@@ -18,7 +18,7 @@ import tensorflow as tf
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, InstanceSpn
 from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate
-from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, get_category_map_from_lh
+from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, normalize_marginals_remain_log, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
 import deepsm.util as util
 import deepsm.experiments.paths as paths
@@ -107,6 +107,7 @@ class ColdDatabaseExperiment(TbmExperiment):
             # Record
             __record['instance']['_marginals_'] = marginals
             __record['instance']['_marginals_normalized_'] = normalize_marginals(marginals)
+            __record['instance']['_marginals_normalized_log_'] = normalize_marginals_remain_log(marginals)
             __record['instance']['likelihoods'] = query_lh
             __record['instance']['true'] = true_catg_map
             __record['instance']['query'] = get_category_map_from_lh(query_lh)
@@ -399,9 +400,12 @@ def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=No
 
     # Apply relaxation
     if relax_level is not None:
+        # Note: relax_level is not in log space. But likelihoods need to be in log space.
+        # WARNING: Using relax_level is subject to loss of information due to exponentiation
+        # and overflow.
         for nid in lh_out:
             lh_out[nid] += relax_level
-            lh_out[nid] = normalize(lh_out[nid])
+            lh_out[nid] = util.normalize(lh_out[nid])
 
     # Return
     if return_dgsm_result:

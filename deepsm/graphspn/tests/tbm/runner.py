@@ -794,3 +794,12 @@ def normalize_marginals(marginals):
                            (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods)))
         result[nid] = normalized
     return result
+
+def normalize_marginals_remain_log(marginals):
+    """Given an array of log values, normalize them but still stay in log space."""
+    result = {}
+    for nid in marginals:
+        likelihoods = np.array(marginals[nid]).flatten()
+        normalized = likelihoods - (np.log(np.sum(np.exp(likelihoods - np.max(likelihoods)))) + np.max(likelihoods))
+        result[nid] = normalized
+    return result

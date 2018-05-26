@@ -558,7 +558,45 @@ class TopologicalMap:
                                            linewidth=3, color=color, zorder=3)
 
         return img
-    
+
+
+    def visualize_edge_relation_partition(self, ax, ert_map, canonical_map_yaml_path,
+                                          dotsize=6, alpha=0.8, img=None):
+        """
+        Visualize the result of partitioning using edge relation templates. The result is specified
+        by `ert_map`, a dictionary that maps from a tuple (num_nodes, num_edge_pairs) indicating
+        the type of the template, to a list of such EdgeRelationTemplate instances.
+        """
+        # First, visualize the graph in a whole.
+        with open(canonical_map_yaml_path) as f:
+            map_spec = yaml.load(f)
+        if img is None:
+            img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
+            plt.imshow(img, cmap = plt.get_cmap('gray'), origin="lower")
+            self.visualize(ax, canonical_map_yaml_path=canonical_map_yaml_path, img=img, dotsize=13)
+
+        ctype = 2
+        colors = set({})
+        for t in sorted(ert_map):  # t is a (num_nodes, num_edge_pairs) tuple
+            color = util.random_unique_color(colors, ctype=ctype)
+            colors.add(color)
+            
+            for ert in ert_map[t]:
+                if ert.nodes is not None:
+                    # Plot dots
+                    for node in ert.nodes:
+                        rx, ry = node.pose
+                        px, py = util.transform_coordinates(rx, ry, map_spec, img)
+                        very_center = util.plot_dot(ax, rx, ry, map_spec, img, dotsize=dotsize,
+                                                    color=color, zorder=4, linewidth=1.0, edgecolor='black')
+                if ert.edge_pair is not None:
+                    # plot edge pair
+                    for edge in ert.edge_pair:
+                        node1, node2 = edge.nodes
+                        util.plot_line(ax, node1.pose, node2.pose, map_spec, img,
+                                       linewidth=3, color=color, zorder=3)
+            ctype += 1
+        return img
 
 
 ########################################

@@ -146,12 +146,12 @@ class TopoMapDataset:
     def create_edge_relation_template_dataset(self, template, num_partitions=10,
                                               db_names=None, seqs_limit=-1, return_stats=False):
         """
-        WARNING: IMPLEMENTATION OUT OF DATE
-        template (tuple): a tuple (num_nodes, num_edges) indicating the type of EdgeRelationTemplate
-                          being modeled.
+        template (AbsEdgeRelationTemplate):
+                   a class name which is a subclass of AbsEdgeRelationTemplate
 
         Returns a dictionary from database name to a list of samples (each sample is also a list
         """
+        template = template.to_tuple() # we only need to work with the tuple representation of the template
         samples = {}
         total_seqs_count = 0
         if db_names is None:

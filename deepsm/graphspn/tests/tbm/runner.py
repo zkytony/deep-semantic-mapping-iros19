@@ -10,7 +10,7 @@ import numpy as np
 from pprint import pprint
 
 from deepsm.graphspn.tests.runner import Experiment, TestCase
-from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate
+from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.util import CategoryManager, ColdDatabaseManager
@@ -283,6 +283,10 @@ class TbmExperiment(Experiment):
                 samples_dict = self._dataset.create_template_dataset(model.template,
                                                                      num_partitions=num_partitions,
                                                                      **source)
+            elif self._template_mode == EdgeRelationTemplate.code():  ## EdgeRelationTemplate
+                samples_dict = self._dataset.create_edge_relation_template_dataset(model.template,
+                                                                                  num_partitions=num_partitions,
+                                                                                  **source)
             else:
                  raise ValueError("Invalid template mode %d" % self._template_mode)
                 

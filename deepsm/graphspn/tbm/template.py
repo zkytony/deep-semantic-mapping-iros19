@@ -487,7 +487,11 @@ class EdgeRelationTemplate(AbsEdgeRelationTemplate):
         else:
             return None, self.vdist
 
-    def get_class(self):
+    @classmethod
+    def get_class(cls, template_tuple):
+        """
+        template_tuple (tuple) representation of edge relation template (num_nodes, num_edge_pair)
+        """
         class_map = {
             (3,1): ThreeRelTemplate,
             (1,1): SingleRelTemplate,
@@ -495,7 +499,7 @@ class EdgeRelationTemplate(AbsEdgeRelationTemplate):
             (0,1): RelTemplate,
         }
         try:
-            return class_map[(self.num_nodes, self.num_edge_pair)]
+            return class_map[template_tuple]
         except KeyError as ex:
             print("No corresponding class.")
             raise ex
@@ -506,14 +510,6 @@ class EdgeRelationTemplate(AbsEdgeRelationTemplate):
         This template is to be instantiated.
         """
         raise NotImplementedError
-
-    @classmethod
-    def code():
-        """
-        This template is to be instantiated.
-        """
-        raise NotImplementedError
-
             
 # Some classes for typical relation templates
 class ThreeRelTemplate(AbsEdgeRelationTemplate):

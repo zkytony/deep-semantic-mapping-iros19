@@ -22,7 +22,7 @@ import copy
 import os
 
 from deepsm.graphspn.spn_model import SpnModel, mod_compute_graph_up
-from deepsm.graphspn.tbm.template import EdgeTemplate, NodeTemplate, SingleEdgeTemplate
+from deepsm.graphspn.tbm.template import EdgeTemplate, NodeTemplate, SingleEdgeTemplate, EdgeRelationTemplate
 from deepsm.util import CategoryManager, ColdDatabaseManager
 from deepsm.experiments.common import GROUNDTRUTH_ROOT, COLD_ROOT
 
@@ -746,8 +746,8 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         """
         Initialize an EdgeRelationTemplateSpn.
 
-        template (tuple): a tuple (num_nodes, num_edges) indicating the type of EdgeRelationTemplate
-                          being modeled.
+        template (AbsEdgeRelationTemplate):
+                   a class name which is a subclass of AbsEdgeRelationTemplate
 
         **kwargs:
            seed (int): seed for the random generator. Set before generating
@@ -755,8 +755,9 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         """
         super().__init__(template, *args, **kwargs)
 
-        self._num_nodes = template[0]
-        self._num_edge_pair = template[1]  # 0 or 1
+        template_tuple = template.to_tuple()
+        self._num_nodes = template_tuple[0]
+        self._num_edge_pair = template_tuple[1]  # 0 or 1
         self._divisions = divisions
 
         self._catg_inputs = None
@@ -769,11 +770,11 @@ class EdgeRelationTemplateSpn(TemplateSpn):
     @property
     def vn(self):
         return {
-            'CATG_IVS':"Catg_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self.num_edge_pair),
-            'VIEW_IVS':"View_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self.num_edge_pair),
-            'CONC': "Conc_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self.num_edge_pair),
-            'SEMAN_IVS': "Exp_Catg_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self.num_edge_pair),
-            'LH_CONT': "Exp_Lh_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self.num_edge_pair)
+            'CATG_IVS':"Catg_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
+            'VIEW_IVS':"View_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
+            'CONC': "Conc_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
+            'SEMAN_IVS': "Exp_Catg_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
+            'LH_CONT': "Exp_Lh_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair)
         }
 
 
@@ -799,6 +800,9 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         else:
             self._root = self._dense_gen.generate(self._view_dist_input, rnd=rnd)
 
+    @property
+    def root(self):
+        return self._root
 
     def train(self, sess, *args, **kwargs):
         """
@@ -872,6 +876,35 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             raise ValueError("Nothing to infer!")
 
         
+    def evaluate(self, sess, *args, **kwargs):
+        raise NotImplementedError
+        # """
+        # Feeds inputs into the network and return the output of the network. Returns the
+        # output of the network
+
+        # sess (tf.Session): a session.
+
+        # *args:
+        #   sample (numpy.ndarray): an (n,) numpy array as a sample.
+          
+        #   <if expanded>
+        #   sample_lh ()numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
+        #                               so [?,c] is a likelihood for class c (float).
+        # """
+        # # To feed to the network, we need to reshape the samples.
+        # sample = np.array([args[0]], dtype=int)
+        
+        # if not self._expanded:
+        #     likelihood_val = sess.run(self._train_likelihood, feed_dict={self._catg_inputs: sample})
+        # else:
+        #     sample_lh = np.array([args[1].flatten()], dtype=float32)
+        #     likelihood_val = sess.run(self._train_likelihood, feed_dict={self._semantic_inputs: sample,
+        #                                                                  self._likelihood_inputs: sample_lh})
+            
+        # return likelihood_val  # TODO: likelihood_val is now a numpy array. Should be a float.
+
+        
+        
     def marginal_inference(self, sess, *args, **kwargs):
         """
         Performs marginal inference.
@@ -941,9 +974,9 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                 
         if self._num_edge_pair != 0:
             self._view_dist_input = loader.find_node(self.vn('VIEW_IVS'))
-
-
 # ---------- END EdgeRelationTemplateSpn ---------- #
+
+
 
 class InstanceSpn(SpnModel):
     """

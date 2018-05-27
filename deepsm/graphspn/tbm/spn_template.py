@@ -786,7 +786,13 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                                         name = self.vn['CATG_IVS'])
             self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs), name=self.vn['CONC'])
         if self._num_edge_pair != 0:
-            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2)  ## WARNING Assuming absolute value distance
+            # If there are 8 divisions, there could (usually) be 4 different values (1, 2, 3, 4) for the
+            # absolute distance between two views. The value 0 could only occur if two views are exactly
+            # the same, which is a case we cannot exlucde (the model should be independent from how the
+            # graph is constructed and whether there could be two colinear edges). Thus, we do + 1 and the
+            # acceptable values are 0, 1, 2, 3, 4. This is also more convenient than having to subtract 1
+            # from all view distances.
+            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2 + 1)  ## WARNING Assuming absolute value distance
             
         # Generate structure, weights, and generate learning operations.
         print("Generating SPN structure...")
@@ -973,7 +979,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                 self._semantic_inputs = loader.find_node(self.vn['SEMAN_IVS'])
                 
         if self._num_edge_pair != 0:
-            self._view_dist_input = loader.find_node(self.vn('VIEW_IVS'))
+            self._view_dist_input = loader.find_node(self.vn['VIEW_IVS'])
 # ---------- END EdgeRelationTemplateSpn ---------- #
 
 

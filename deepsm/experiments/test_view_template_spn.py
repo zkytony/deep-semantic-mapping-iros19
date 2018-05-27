@@ -17,7 +17,7 @@ import tensorflow as tf
 
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
-from deepsm.graphspn.tbm.template import EdgeRelationTemplate, ThreeRelTemplate
+from deepsm.graphspn.tbm.template import EdgeRelationTemplate, ThreeRelTemplate, SingleTemplate, SingleRelTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.graphspn.tests.runner import TestCase
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         'num_partitions': 7,#10,
         'num_batches': 10,
         'save': True,
-        'load_if_exists': True,
+        'load_if_exists': False,
         'likelihood_thres': 0.1,
         'save_training_info': True,
 

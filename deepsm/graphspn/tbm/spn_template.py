@@ -823,11 +823,15 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             stop = samples.shape[0]
 
         feed_dict = {}
+        catg_inputs = self._catg_inputs
+        if self._expanded:
+            catg_inputs = self._semantic_inputs
+        
         if self._num_nodes != 0 and self._num_edge_pair != 0:
-            feed_dict={self._catg_inputs: samples[start:stop, :self._num_nodes],
+            feed_dict={catg_inputs: samples[start:stop, :self._num_nodes],
                        self._view_dist_input: samples[start:stop, self.num_nodes:]}
         elif self._num_nodes != 0:
-            feed_dict={self._catg_inputs: samples[start:stop]}
+            feed_dict={catg_inputs: samples[start:stop]}
         else:
             feed_dict={self._view_dist_inputs: samples[start:stop]}
         return feed_dict

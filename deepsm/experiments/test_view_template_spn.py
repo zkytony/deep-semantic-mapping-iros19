@@ -218,6 +218,9 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None, 
         train_info = exp.train_models(sess, **train_kwargs)
         model = exp.get_model(test_kwargs['template'])
 
+        if test_kwargs['expand']:
+            print("Expand the model.")
+            model.expand()   # expand the model
         if test_kwargs['inference_type'] == MPE:
             model.init_mpe_states()  # init MPE ops. (after expanding)
         else:
@@ -266,7 +269,7 @@ if __name__ == "__main__":
         'num_partitions': 2,
         'inference_type': MARGINAL,
         'test_db': 'Stockholm7',
-        'expand': False
+        'expand': True
     }
     
     run_edge_relation_template_experiment(train_kwargs, test_kwargs, semantic=False, seed=seed)

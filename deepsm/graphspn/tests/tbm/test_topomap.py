@@ -10,7 +10,7 @@ from pylab import rcParams
 #matplotlib.use('Agg')
 
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
-from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, ThreeRelTemplate
 from deepsm.graphspn.tbm.graph_builder import build_graph
 #from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.util import CategoryManager, ColdDatabaseManager
@@ -166,8 +166,8 @@ def TEST_load_edgetemplate_samples(dataset):
     print(stats)
 
 
-def TEST_load_edge_rel_template_sampls(dataset):
-    samples, stats = dataset.create_edge_relation_template_dataset((3, 1), return_stats=True)
+def TEST_load_edge_rel_template_samples(dataset):
+    samples, stats = dataset.create_edge_relation_template_dataset(ThreeRelTemplate, return_stats=True)
     
     for db in samples:
         print("Loaded %d from %s." % (len(samples[db]), db))
@@ -288,7 +288,7 @@ if __name__ == "__main__":
     # TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor4_cloudy_a2")
     # TEST_connected_components(dataset, coldmgr)
     # TEST_node_id_unique()
-    TEST_topo_map_visualization(dataset, coldmgr, seq_id='floor6_base_cloudy_b')
+    # TEST_topo_map_visualization(dataset, coldmgr, seq_id='floor6_base_cloudy_b')
     # TEST_build_graph_from_file()
-    # TEST_load_edge_rel_template_sampls(dataset)
+    TEST_load_edge_rel_template_samples(dataset)
     # TEST_visualize_edge_relation_partition(dataset, coldmgr)

@@ -18,7 +18,7 @@ import math
 import itertools
 from collections import deque
 
-from deepsm.graphspn.tbm.template import SingleEdgeTemplate, EdgeRelationTemplate, ThreeNodeTemplate
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, EdgeRelationTemplateInstance, ThreeNodeTemplate
 from deepsm.util import CategoryManager
 
 
@@ -38,7 +38,7 @@ class TopologicalMap:
         @param nodes is a dictionary that maps from node id to actual node
         @param conns is a dictionary that maps from a node id to a set of tuples (neighbor_node_id, view_number)
         """
-        self.nodes = nodes        
+        self.nodes = nodes
         self.__conns = {} # conns is a map between node id and a dictionary of neighbor id -> edge object (different from the parameter!)
         self.edges = {} # edges is a map from edge id to edge. Used to conveniently partition graph by edges.
         for nid in conns:
@@ -298,7 +298,7 @@ class TopologicalMap:
                 import pdb; pdb.set_trace()
                 raise ValueError("Edge pair does not exist!")
                 
-            ert = EdgeRelationTemplate(self.nodes[center_nid], nodes = [self.nodes[nid] for nid in nids],
+            ert = EdgeRelationTemplateInstance(self.nodes[center_nid], nodes = [self.nodes[nid] for nid in nids],
                                        edge_pair = edge_pair)  # center node is meeting node
             ert_map[(3, 1)].append(ert)
             available_nodes -= set(nids)
@@ -312,7 +312,7 @@ class TopologicalMap:
                 continue
             edge_pair = random.sample(node_edge_pairs[nid], 1)[0]
             node_edge_pairs[nid].remove(edge_pair)
-            ert = EdgeRelationTemplate(self.nodes[nid], nodes=[self.nodes[nid]], edge_pair=edge_pair)
+            ert = EdgeRelationTemplateInstance(self.nodes[nid], nodes=[self.nodes[nid]], edge_pair=edge_pair)
             ert_map[(1, 1)].append(ert)
             available_nodes.remove(nid)
 
@@ -320,7 +320,7 @@ class TopologicalMap:
         ert_map[(1, 0)] = []
         while available_nodes:
             nid = available_nodes.pop()
-            ert = EdgeRelationTemplate(self.nodes[nid], nodes=[self.nodes[nid]], edge_pair=None)
+            ert = EdgeRelationTemplateInstance(self.nodes[nid], nodes=[self.nodes[nid]], edge_pair=None)
             ert_map[(1, 0)].append(ert)
         assert len(available_nodes) == 0
 
@@ -330,7 +330,7 @@ class TopologicalMap:
         for nid in node_edge_pairs:
             while node_edge_pairs[nid]:
                 edge_pair = node_edge_pairs[nid].pop()
-                ert = EdgeRelationTemplate(self.nodes[nid], nodes=None, edge_pair=edge_pair)
+                ert = EdgeRelationTemplateInstance(self.nodes[nid], nodes=None, edge_pair=edge_pair)
                 ert_map[(0, 1)].append(ert)
             # We should have no edge pairs for this node remaining.
             assert len(node_edge_pairs[nid]) == 0

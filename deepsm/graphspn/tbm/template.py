@@ -387,8 +387,13 @@ class PairEdgeTemplate(EdgeTemplate):
 ########################################
 # EdgeRelationTemplate
 ########################################
-class AbsEdgeRelationTemplate(Template):
-        
+class EdgeRelationTemplate(Template):
+
+    @classmethod
+    @abstractmethod
+    def to_tuple(cls):
+        pass
+
     @classmethod
     @abstractmethod
     def size(cls):
@@ -398,8 +403,62 @@ class AbsEdgeRelationTemplate(Template):
     def code(cls):
         return 2
 
+    @classmethod
+    def num_nodes(cls):
+        """
+        Returns the nubmer of semantic class variables in this template.
+        """
+        return cls.to_tuple()[0]
+    
+    @classmethod
+    def num_edge_pair(cls):
+        """
+        Returns the nubmer of edge pair relation variable in this template.
+        """
+        return cls.to_tuple()[1]
+            
+# Some classes for typical relation templates
+class ThreeRelTemplate(EdgeRelationTemplate):
+    @classmethod
+    def to_tuple(cls):
+        return(3, 1)
 
-class EdgeRelationTemplate(AbsEdgeRelationTemplate):
+    @classmethod
+    def size(cls):
+        return 3 # 3 nodes
+
+class SingleRelTemplate(EdgeRelationTemplate):
+    @classmethod
+    def to_tuple(cls):
+        return(1, 1)
+
+    @classmethod
+    def size(cls):
+        return 2 # 1 nodes, 1 edge pair.
+
+
+class SingleTemplate(EdgeRelationTemplate):
+    # note: different from SingletonTemplate.
+    @classmethod
+    def to_tuple(cls):
+        return(1, 0)
+
+    @classmethod
+    def size(cls):
+        return 1 # 1 node
+
+
+class RelTemplate(EdgeRelationTemplate):
+    @classmethod
+    def to_tuple(cls):
+        return(0, 1)
+
+    @classmethod
+    def size(cls):
+        return 0 # 0 nodes
+
+
+class EdgeRelationTemplateInstance:
 
     """
     Unlike the NodeTemplate and EdgeTemplate, the EdgeRelationTemplate is not an
@@ -510,43 +569,3 @@ class EdgeRelationTemplate(AbsEdgeRelationTemplate):
         This template is to be instantiated.
         """
         raise NotImplementedError
-            
-# Some classes for typical relation templates
-class ThreeRelTemplate(AbsEdgeRelationTemplate):
-    @classmethod
-    def to_tuple(cls):
-        return(3, 1)
-
-    @classmethod
-    def size(cls):
-        return 3 # 3 nodes
-
-class SingleRelTemplate(AbsEdgeRelationTemplate):
-    @classmethod
-    def to_tuple(cls):
-        return(1, 1)
-
-    @classmethod
-    def size(cls):
-        return 2 # 1 nodes, 1 edge pair.
-
-
-class SingleTemplate(AbsEdgeRelationTemplate):
-    # note: different from SingletonTemplate.
-    @classmethod
-    def to_tuple(cls):
-        return(1, 0)
-
-    @classmethod
-    def size(cls):
-        return 1 # 1 node
-
-
-class RelTemplate(AbsEdgeRelationTemplate):
-    @classmethod
-    def to_tuple(cls):
-        return(0, 1)
-
-    @classmethod
-    def size(cls):
-        return 0 # 0 nodes

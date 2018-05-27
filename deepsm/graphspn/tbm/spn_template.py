@@ -792,7 +792,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             # graph is constructed and whether there could be two colinear edges). Thus, we do + 1 and the
             # acceptable values are 0, 1, 2, 3, 4. This is also more convenient than having to subtract 1
             # from all view distances.
-            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2 + 1)  ## WARNING Assuming absolute value distance
+            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2 + 1, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
             
         # Generate structure, weights, and generate learning operations.
         print("Generating SPN structure...")
@@ -809,6 +809,29 @@ class EdgeRelationTemplateSpn(TemplateSpn):
     @property
     def root(self):
         return self._root
+
+
+    def _get_feed_dict(self, samples, start=0, stop=None):
+        """
+        samples (numpy.ndarray): If this template has both nodes and edges, then samples should
+                                   be of shape (D, n+1) where D is the number of data samples, n
+                                   is the number of nodes, and +1 is the edge view distance variable's value
+                                   at the last place. If only nodes, then shape is (D, n). If only edges,
+                                   then shape is (D, 1)
+        """
+        if stop is None:
+            stop = samples.shape[0]
+
+        feed_dict = {}
+        if self._num_nodes != 0 and self._num_edge_pair != 0:
+            feed_dict={self._catg_inputs: samples[start:stop, :self._num_nodes],
+                       self._view_dist_input: samples[start:stop, self.num_nodes:]}
+        elif self._num_nodes != 0:
+            feed_dict={self._catg_inputs: samples[start:stop]}
+        else:
+            feed_dict={self._view_dist_inputs: samples[start:stop]}
+        return feed_dict
+    
 
     def train(self, sess, *args, **kwargs):
         """
@@ -828,19 +851,10 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                                     interations to stop training. Default: 0.05
         """
         def feed_samples(self, samples, start, stop):
-            if self._num_nodes != 0 and self._num_edge_pair != 0:
-                return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                                 self._accumulate_updates],
-                                feed_dict={self._catg_inputs: samples[start:stop, :self._num_nodes],
-                                           self._view_dist_input: samples[start:stop, self.num_nodes:]})
-            elif self._num_nodes != 0:
-                return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                                 self._accumulate_updates],
-                                feed_dict={self._catg_inputs: samples[start:stop]})
-            else:
-                return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                                 self._accumulate_updates],
-                                feed_dict={self._view_dist_inputs: samples[start:stop]})
+            feed_dict = self._get_feed_dict(samples, start=start, stop=stop)
+            return sess.run([self._train_likelihood, self._avg_train_likelihood,
+                             self._accumulate_updates],
+                            feed_dict = feed_dict)
 
         samples = args[0]
         D, m = samples.shape
@@ -883,39 +897,70 @@ class EdgeRelationTemplateSpn(TemplateSpn):
 
         
     def evaluate(self, sess, *args, **kwargs):
-        raise NotImplementedError
-        # """
-        # Feeds inputs into the network and return the output of the network. Returns the
-        # output of the network
-
-        # sess (tf.Session): a session.
-
-        # *args:
-        #   sample (numpy.ndarray): an (n,) numpy array as a sample.
-          
-        #   <if expanded>
-        #   sample_lh ()numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
-        #                               so [?,c] is a likelihood for class c (float).
-        # """
-        # # To feed to the network, we need to reshape the samples.
-        # sample = np.array([args[0]], dtype=int)
-        
-        # if not self._expanded:
-        #     likelihood_val = sess.run(self._train_likelihood, feed_dict={self._catg_inputs: sample})
-        # else:
-        #     sample_lh = np.array([args[1].flatten()], dtype=float32)
-        #     likelihood_val = sess.run(self._train_likelihood, feed_dict={self._semantic_inputs: sample,
-        #                                                                  self._likelihood_inputs: sample_lh})
-            
-        # return likelihood_val  # TODO: likelihood_val is now a numpy array. Should be a float.
-
-        
-        
-    def marginal_inference(self, sess, *args, **kwargs):
         """
-        Performs marginal inference.
+        Feeds inputs into the network and return the output of the network.
+
+        sess (tf.Session): a session.
+
+        *args:
+            sample (numpy.ndarray): an (n+1,) numpy array as a sample, where n is the number of nodes,
+                                    and +1 is the edge view distance variable's value at the last place.
+                                    If only nodes, then shape is (n,). If only edges, then shape is (1,)
+           <if expanded>
+           sample_lh (numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
+                                       so [?,c] is a likelihood for class c (float).
         """
-        raise NotImplementedError
+        sample = np.array([args[0]], dtype=int)  # shape becomes (1, n+1)
+        feed_dict = self._get_feed_dict(sample)
+        if not self._expanded:
+            likelihood_val = sess.run(self._train_likelihood, feed_dict=feed_dict)
+        else:
+            sample_lh = np.array([args[1].flatten()], dtype=float32)
+            feed_dict[self._likelihood_inputs] = sample_lh
+            likelihood_val = sess.run(self._train_likelihood, feed_dict=feed_dict)
+        return likelihood_val        
+        
+    def marginal_inference(self, sess, query, query_lh=None, masked_only=False):
+        """
+        Performs marginal inference on node template SPN.
+
+        `query` is an numpy array of shape (n+1,), where n is the number of nodes,
+                and +1 is the edge view distance variable's value at the last place.
+                If only nodes, then shape is (n,). If only edges, then shape is (1,)
+        `query_lh` is an numpy array of shape (n,m), used to supply likelihood values per node per class.
+        `masked_only` is True if only perform marginal inference on nodes that are
+                      masked, i.e. their value in the `query` is -1. Useful when there's no likelihoods and
+                      we are just inferring missing semantics.
+
+        Returns: 
+            A tuple of two elements:
+              - First element: a numpy array of shape (n,m) where n is the number of nodes in the node
+                template, and m is the number of classes. Each value represents the likelihood that the
+                node is assigned to a class.
+              - Second element: a numpy array of shape (d,) where d is the number of possible values for
+                absolute view distance. If edge_pair for this model's template is 0, then this element
+                will be an array of zeros.
+        """
+        # The only way to do marginal inference now is to iterate through all possible
+        # classes per node.
+        if query.shape[0] != self._num_nodes + self._num_edge_pair:
+            raise ValueError("Query has wrong shape. Expect %d, Got %d"
+                             % (self._num_nodes + self._num_edge_pair, query.shape[0]))
+        marginals_nodes = np.zeros((self._num_nodes, CategoryManager.NUM_CATEGORIES))
+        marginals_view = np.zeros((self._view_dist_input.num_vals,))
+        if self._num_edge_pair != 0 and (query[-1] == -1 or not masked_only):
+            # We want to infer view distance.
+            for view_dist in range(self._view_dist_input.num_vals):
+                query[-1] = view_dist
+                marginals_view[view_dist] = float(self.evaluate(sess, query, query_lh)[0])
+        for i in range(query[:self._num_nodes].shape[0]):
+            if masked_only and query[i] != -1:
+                continue
+            orig = query[i]
+            for val in range(CategoryManager.NUM_CATEGORIES):
+                query[i] = val
+                marginals_nodes[i, val] = float(self.evaluate(sess, query, query_lh)[0])
+        return marginals_nodes, marginals_view
         
 
     def mpe_inference(self, sess, *args, **kwargs):

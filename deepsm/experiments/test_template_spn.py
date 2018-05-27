@@ -299,11 +299,11 @@ class TemplateSpnExperiment(TbmExperiment):
                             filled_sample = np.array(list(model.mpe_inference(sess,
                                                                               np.array(masked_sample, dtype=int),
                                                                               np.array(likelihoods, dtype=float32))),
-                                                 dtype=int).flatten()
+                                                     dtype=int).flatten()
                         else:
                             filled_sample = np.array(list(model.mpe_inference(sess,
                                                                               np.array(masked_sample, dtype=int))),
-                                                 dtype=int).flatten()
+                                                     dtype=int).flatten()
                     elif kwargs.get('inference_type') == MARGINAL:
                         if model.expanded:
                             marginals = model.marginal_inference(sess,
@@ -485,9 +485,9 @@ class TemplateSpnExperiment(TbmExperiment):
             """
             kwargs['template'] = self._experiment.main_model.template
             super(TemplateSpnExperiment.TestCase_DoorwayCompletionTask, self).run(sess,
-                                                                                             func_mask_node_template=TemplateSpnExperiment.mask_node_template_doorway,
-                                                                                             func_mask_edge_template=TemplateSpnExperiment.mask_edge_template_doorway,
-                                                                                             **kwargs)
+                                                                                  func_mask_node_template=TemplateSpnExperiment.mask_node_template_doorway,
+                                                                                  func_mask_edge_template=TemplateSpnExperiment.mask_edge_template_doorway,
+                                                                                  **kwargs)
 
 
         def _record_results(self, test_sample, masked_sample, filled_sample, metadata={}):

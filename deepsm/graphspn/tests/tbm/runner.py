@@ -11,7 +11,7 @@ from pprint import pprint
 
 from deepsm.graphspn.tests.runner import Experiment, TestCase
 from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
-from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn
+from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.util import CategoryManager, ColdDatabaseManager
 from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
@@ -333,10 +333,10 @@ class TbmExperiment(Experiment):
                 model._save_path = model_save_path
                 
             train_info[model.template.__name__] = {'config': { k: dict(kwargs)[k]
-                                                         for k in kwargs
-                                                         if k not in ['will_upsample', 'save_training_info'] },
-                                             'data_stats': self._data_count,
-                                             'likelihoods': likelihoods}
+                                                               for k in kwargs
+                                                               if k not in ['will_upsample', 'save_training_info'] },
+                                                   'data_stats': self._data_count,
+                                                   'likelihoods': likelihoods}
         # loop ends
 
         if save_training_info:
@@ -575,6 +575,28 @@ class TbmExperiment(Experiment):
             node_idx += 1
         return masked_sample, count
 
+
+    @classmethod
+    def mask_edge_relation_template_sample(cls, sample, model, num_nodes_masked=1):
+        """
+        Returns: a tuple of two elements:
+           masked_sample (list): a new array of same shape as sample
+           count (dict): a dictionary mapping from category number to number of times
+                         it is masked.
+           sample (list): contains semantic variable values, in order. May contain a
+                          view distance number at the end.
+        """
+        if not isinstance(model, EdgeRelationTemplateSpn):
+            raise ValueError("The given model is not EdgeRelationTemplateSpn!")
+        masked_sample = list(sample)
+        count = {}
+        num_nodes_masked = min(num_nodes_masked, model.template.num_nodes())
+        indices = np.random.choice(np.arange(model.template.num_nodes()), num_nodes_masked).tolist()
+        for i in indices:
+            masked_sample[i] = -1
+            count[sample[i]] = count.get(i, 0) + 1
+        return masked_sample, count
+        
 
     @classmethod
     def mask_node_template_doorway(cls, sample):

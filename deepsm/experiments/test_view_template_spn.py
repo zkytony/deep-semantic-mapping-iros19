@@ -37,6 +37,143 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
         """
         super().__init__(db_root, *spns, **kwargs)
 
+
+    class TestCase_SemanticUnderstanding(TestCase):
+        def __init__(self, experiment):
+            super().__init__(experiment)
+            self._results = {k:{'correct': 0, 'wrong': 0} for k in range(CategoryManager.NUM_CATEGORIES)}
+            self._test_cases = []
+
+        def run(self, sess, **kwargs):
+            """
+            Tests the model's understanding of semantic relations, by inferring
+            semantic attributes.
+            """
+            def category_abrv(catg_num):
+                abrv = CategoryManager.category_map(catg_num, rev=True)
+                if abrv == "OC":
+                    abrv = -1
+                return abrv
+
+            template = kwargs.get('template', None)
+            
+            model = self._experiment.get_model(template)
+            assert model.expanded == False
+            
+            dw = CategoryManager.category_map('DW')
+            cr = CategoryManager.category_map('CR')
+            po1 = CategoryManager.category_map('1PO')
+            po2 = CategoryManager.category_map('2PO')
+
+            if template == ThreeRelTemplate:
+                masked_samples = [
+                    [-1, dw, -1, 3],
+                    [-1, dw, -1, 2],
+                    [-1, dw, -1, 1],
+                    
+                    [po1, -1, cr, 1],
+                    [po1, -1, cr, 2],
+                    [po1, -1, cr, 3],
+                    [po1, -1, cr, 4],
+                    [po1, dw, cr, -1],
+                    [cr, dw, po1, -1],
+                    
+                    [po2, -1, cr, 1],
+                    [po2, -1, cr, 2],
+                    [po2, -1, cr, 3],
+                    [po2, -1, cr, 4],
+                    [po2, dw, cr, -1],
+                    [cr, dw, po2, -1],
+                    
+                    [po1, po1, -1, 1],
+                    [-1, po1, po1, 1],
+                    
+                    [po1, dw, -1, 1],
+                    [po1, dw, -1, 2],
+                    [po1, dw, -1, 3],
+
+                    [-1, dw, po1, 1],
+                    [-1, dw, po1, 2],
+                    [-1, dw, po1, 3],
+                    
+                    [-1, dw, cr, 1],
+                    [-1, dw, cr, 2],
+                    [-1, dw, cr, 3],
+                    
+                    [cr, dw, -1, 1],
+                    [cr, dw, -1, 2],
+                    [cr, dw, -1, 3],
+                    
+                    [po2, dw, -1, 1],
+                    [po2, dw, -1, 2],
+                    [po2, dw, -1, 3],
+
+                    [-1, dw, po2, 1],
+                    [-1, dw, po2, 2],
+                    [-1, dw, po2, 3],
+                    
+                    [-1, -1, -1, 1],
+                    [-1, -1, -1, 2],
+                    [-1, -1, -1, 3],
+                    [-1, -1, -1, 4],
+                    [-1, -1, -1, 0]
+                ]
+
+            num_test_samples = 0
+            for masked_sample in masked_samples:
+                num_test_samples += 1
+                if kwargs.get("inference_type") == MARGINAL:
+                    marginals_nodes, marginals_view = model.marginal_inference(sess,
+                                                                               np.array(masked_sample, dtype=int),
+                                                                               masked_only=True)
+                    filled_sample = list(masked_sample)
+                    for i in range(len(masked_sample)):
+                        if masked_sample[i] == -1:
+                            if i < template.num_nodes():
+                                mgnl = list(marginals_nodes[i])
+                                filled_sample[i] = mgnl.index(max(mgnl))
+                            else:
+                                mgnl = list(marginals_view)
+                                filled_sample[i] = mgnl.index(max(mgnl))
+                    filled_sample = np.array(filled_sample, dtype=int)
+                lh = float(model.evaluate(sess, filled_sample)[0])
+
+                self._test_cases.append({
+                    'query': [category_abrv(c) for c in masked_sample[:template.num_nodes()]] + masked_sample[template.num_nodes():],
+                    'response': [category_abrv(c) for c in filled_sample.tolist()[:template.num_nodes()]] + filled_sample.tolist()[template.num_nodes():],
+                    'likelihood': lh
+                })
+                sys.stdout.write("Testing [%d/%d]\r" % (num_test_samples, len(masked_samples)))
+                sys.stdout.flush()
+            sys.stdout.write("\n")
+
+        def _report(self):
+            return self._test_cases
+
+        
+        def save_results(self, save_path):
+            """
+            save_path (str): path to saved results (Required).
+
+            Also return the report.
+            """
+            
+            # report
+            report = self._report()
+
+            with open(os.path.join(save_path, "report.json"), "w") as f:
+                json.dump(report, f, indent=4, sort_keys=True)
+
+            # Save all test cases into a json file.
+            with open(os.path.join(save_path, "test_cases.json"), "w") as f:
+                json.dump(self._test_cases, f, indent=4, sort_keys=True)
+
+            print("Everything saved in %s" % save_path)
+
+            return report
+
+            
+
     class TestCase_RandomCompletionTask(TestCase):
 
         def __init__(self, experiment):
@@ -217,8 +354,9 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None, 
                                skip_unknown=CategoryManager.SKIP_UNKNOWN)
         train_info = exp.train_models(sess, **train_kwargs)
         model = exp.get_model(test_kwargs['template'])
-
+        
         if test_kwargs['expand']:
+            assert not test_kwargs['semantic']
             print("Expand the model.")
             model.expand()   # expand the model
         if test_kwargs['inference_type'] == MPE:
@@ -227,11 +365,16 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None, 
             print("Not initializing MPE states. Using marginal inference")
             model.init_learning_ops()
 
-        exp.load_testing_data(test_kwargs['test_db'], skip_unknown=CategoryManager.SKIP_UNKNOWN)
+        if test_kwargs['semantic']:
+            test_kwargs['subname'] = 'semantic_%s_%s' % ("-".join(train_kwargs['train_db']), model.template.__name__)
+            exp.test(EdgeRelationTemplateExperiment.TestCase_SemanticUnderstanding, sess, **test_kwargs)
+            print_banner("Finish", ch='^')
+        else:
+            exp.load_testing_data(test_kwargs['test_db'], skip_unknown=CategoryManager.SKIP_UNKNOWN)
 
-        test_kwargs['subname'] = 'random_lh_%s' % model.template.__name__
-        report_rnd = exp.test(EdgeRelationTemplateExperiment.TestCase_RandomCompletionTask, sess, **test_kwargs)
-        print_banner("Finish", ch='^')
+            test_kwargs['subname'] = 'random_lh_%s' % model.template.__name__
+            report_rnd = exp.test(EdgeRelationTemplateExperiment.TestCase_RandomCompletionTask, sess, **test_kwargs)
+            print_banner("Finish", ch='^')
 
 
 if __name__ == "__main__":
@@ -269,7 +412,8 @@ if __name__ == "__main__":
         'num_partitions': 2,
         'inference_type': MARGINAL,
         'test_db': 'Stockholm7',
-        'expand': True
+        'expand': False,
+        'semantic': True
     }
     
     run_edge_relation_template_experiment(train_kwargs, test_kwargs, semantic=False, seed=seed)

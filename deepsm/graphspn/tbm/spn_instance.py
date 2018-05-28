@@ -33,8 +33,6 @@ class InstanceSpn(SpnModel):
         sess (tf.Session): a session that contains all weights.
 
         **kwargs:
-           spn_paths (dict): a dictionary from Template to path. For loading the spn for Template at
-                             path.
            num_partitions (int) number of child for the root sum node.
            seq_id (str): sequence id for the given topo map instance. Used as identified when
                          saving the instance spn. Default: "default_1"
@@ -69,7 +67,7 @@ class InstanceSpn(SpnModel):
 
 
     @abstractmethod
-    def _init_struct(self, sess, spn_paths=None, divisions=-1, num_partitions=1,
+    def _init_struct(self, sess, divisions=-1, num_partitions=1,
                      visualize_partitions_dirpath=None, db_name=None, extra_partition_multiplyer=1):
         """
         Initialize the structure for training. (private method)
@@ -204,7 +202,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         
         self._id_incr = 0
         num_partitions = kwargs.get('num_partitions', 1)
-        self._init_struct(sess, spn_paths=kwargs.get('spn_paths'), divisions=kwargs.get('divisions', -1),
+        self._init_struct(sess, divisions=kwargs.get('divisions', -1),
                           num_partitions=kwargs.get('num_partitions', 1),
                           visualize_partitions_dirpath=kwargs.get('visualize_partitions_dirpath', None),
                           db_name=kwargs.get('db_name', None), extra_partition_multiplyer=kwargs.get('extra_partition_multiplyer', 1))
@@ -229,7 +227,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         return inputs
 
         
-    def _init_struct(self, sess, spn_paths=None, divisions=-1, num_partitions=1,
+    def _init_struct(self, sess, divisions=-1, num_partitions=1,
                      visualize_partitions_dirpath=None, db_name=None, extra_partition_multiplyer=1):
         """
         Initialize the structure for training. (private method)
@@ -240,8 +238,6 @@ class NodeTemplateInstanceSpn(InstanceSpn):
            num_partitions (int): number of partitions (children for root node)
            If template is EdgeTemplate, then:
              divisions (int) number of views per place
-           spn_paths (dict): a dictionary from Template to path. For loading the spn for Template at
-                             path.
            extra_partition_multiplyer (int): Used to multiply num_partitions so that more partitions
                                              are tried and ones with higher coverage are picked.
         """
@@ -498,3 +494,21 @@ class NodeTemplateInstanceSpn(InstanceSpn):
             catg_map[nid] = result[0][i]
 
         return catg_map
+
+
+
+class EdgeRelationTemplateInstanceSpn(InstanceSpn):
+
+    def __init__(self, topo_map, sess, *spns, **kwargs):
+        super().__init__(topo_map, sess, *spns, **kwargs)
+
+        assert self._template_mode == EdgeRelationTemplate.code()
+
+        num_partitions = kwargs.get('num_partitions', 1)
+
+    @abstractmethod
+    def _init_struct(self, sess, divisions=-1, num_partitions=1,
+                     visualize_partitions_dirpath=None, db_name=None, **kwargs):
+        pass
+
+

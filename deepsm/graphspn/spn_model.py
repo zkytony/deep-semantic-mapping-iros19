@@ -155,6 +155,28 @@ class SpnModel(ABC):
 
 
     @classmethod
+    def print_weights(cls, spn_root, sess):
+        def fun(node):
+            if hasattr(node, 'weights'):
+                print("%s (%s)" % (node.name, node.__class__.__name__))
+                w = sess.run(node.weights.node.get_value())
+                print("%s [%s]" % (w, w.shape))
+
+        traverse_graph(spn_root, fun, skip_params=False)
+
+
+    @classmethod
+    def print_structure(cls, spn_root, sess):
+        def fun(node):
+            if node.is_op:
+                print("%s (%s)" % (node.name, node.__class__.__name__))
+                for i in node.inputs:
+                    if i.node is not None and (i.node.is_op or isinstance(i.node, spn.VarNode)):
+                        print("    %s (%s)" % (i, i.node.__class__.__name__))
+        traverse_graph(spn_root, fun, skip_params=True)
+
+
+    @classmethod
     def copyweights(cls, sess, spn_trained, spn_target):
         """
         Copies parameters from spn_trained to spn_target. Assumes the two have exactly the

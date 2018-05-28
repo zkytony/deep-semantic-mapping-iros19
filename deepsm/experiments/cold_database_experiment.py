@@ -202,7 +202,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                                             "partitions_%s_%s_%s" % (db_name, test_kwargs['timestamp'], seq_id))
                 os.makedirs(visp_dirpath, exist_ok=True)
                 instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls, num_partitions=test_kwargs['num_partitions'],
-                                                       seq_id=seq_id, spn_paths=spn_paths, divisions=8,
+                                                       seq_id=seq_id, divisions=8,
                                                        visualize_partitions_dirpath=visp_dirpath, db_name=db_name)
                 test_kwargs['instance_spn'] = instance_spn
                 test_kwargs['graph_id'] = db_name + "_" + seq_id

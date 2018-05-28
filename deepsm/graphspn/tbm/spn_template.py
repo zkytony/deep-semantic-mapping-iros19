@@ -793,18 +793,16 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             # acceptable values are 0, 1, 2, 3, 4. This is also more convenient than having to subtract 1
             # from all view distances.
             self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2 + 1, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
+            self._conc_inputs.add_inputs(self._view_dist_input)
             
         # Generate structure, weights, and generate learning operations.
         print("Generating SPN structure...")
         if seed is not None:
             print("[Using seed %d]" % seed)
             rnd = random.Random(seed)
-        if self._num_nodes != 0 and self._num_edge_pair != 0:
-            self._root = self._dense_gen.generate(self._conc_inputs, self._view_dist_input, rnd=rnd)
-        elif self._num_nodes != 0:
-            self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
-        else:
-            self._root = self._dense_gen.generate(self._view_dist_input, rnd=rnd)
+            
+        self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
+
 
     @property
     def root(self):

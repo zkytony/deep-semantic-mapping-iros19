@@ -206,10 +206,30 @@ class CategoryManager:
     # classes should be `known` and there is no 'UN' label.
     SKIP_UNKNOWN = True
     # TYPE of label mapping scheme. Offers SIMPLE and FULL.
-    TYPE = 'SIMPLE'
+    TYPE = 'BINARY'
     
     # Category mappings
     CAT_MAP_ALL = {
+        'BINARY': {
+            'FW': {
+                'OC': -1,
+                '1PO': 0,
+                '2PO': 1,
+                'UN': 2
+            },
+            'BW': {
+                -1: 'OC',
+                 0: '1PO',
+                 1: '2PO',
+                 2: 'UN'
+            },
+            'CL': {
+                -1: '#000000',
+                0: '#0000FF', # blue
+                1: '#00FF00', # green
+                2: '#FFFFFF'
+            }
+        },
         'SIMPLE': {
             'FW': {
                 # DW = 0; CR = 1; 1PO = 2; 2PO = 3; UN = 4

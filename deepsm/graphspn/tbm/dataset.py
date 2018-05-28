@@ -171,11 +171,15 @@ class TopoMapDataset:
                         if ert.nodes is None:  # no nodes.
                             _, sample = ert.to_sample()  # sample is a number here.
                             sample = [sample]  # We make a list ourselves.
+                            samples[db_name].append(sample)
                         else:
                             sample, vdist = ert.to_sample()
+                            samples[db_name].append(sample)
+                            samples[db_name].append(list(reversed(sample)))
                             if vdist is not None:  # If vdist is None, then this template is just a single node.
-                                sample.append(vdist)
-                        samples[db_name].append(sample)
+                                samples[db_name][-1].append(vdist)
+                                samples[db_name][-2].append(vdist)
+
                     total_seqs_count += 1
                     __stats['total_seqs'] = total_seqs_count
                     __stats[db_name]['num_samples'] = len(samples[db_name])

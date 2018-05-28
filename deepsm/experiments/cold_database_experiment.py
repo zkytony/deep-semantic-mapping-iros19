@@ -16,7 +16,8 @@ import json, yaml
 from pprint import pprint
 import tensorflow as tf
 from deepsm.graphspn.spn_model import SpnModel
-from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, InstanceSpn
+from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn
+from deepsm.graphspn.tbm.spn_instance import NodeTemplateInstanceSpn
 from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, normalize_marginals_remain_log, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
@@ -200,9 +201,9 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                                             "results",
                                             "partitions_%s_%s_%s" % (db_name, test_kwargs['timestamp'], seq_id))
                 os.makedirs(visp_dirpath, exist_ok=True)
-                instance_spn = InstanceSpn(topo_map, sess, *spns_tmpls, num_partitions=test_kwargs['num_partitions'],
-                                           seq_id=seq_id, spn_paths=spn_paths, divisions=8,
-                                           visualize_partitions_dirpath=visp_dirpath, db_name=db_name)
+                instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls, num_partitions=test_kwargs['num_partitions'],
+                                                       seq_id=seq_id, spn_paths=spn_paths, divisions=8,
+                                                       visualize_partitions_dirpath=visp_dirpath, db_name=db_name)
                 test_kwargs['instance_spn'] = instance_spn
                 test_kwargs['graph_id'] = db_name + "_" + seq_id
                 test_kwargs['topo_map'] = topo_map

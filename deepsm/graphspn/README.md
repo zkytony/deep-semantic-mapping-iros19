@@ -21,3 +21,9 @@ In order for this to work, we assume that in the instance SPN:
 Because there could be different types of IVs, for example, an IVs for place categories or an IVs for view, with different settings for `num_vars` and `num_vals`, both the template SPN and instance SPN are assumed to arrange these IVs in the following way
 
 ![ivs arrangement](misc/ivs_arrangement.png)
+
+Additionally, one can specify the variable labels from the full graph (upon which instance SPN is constructed) by
+setting the `labels` argument in `_dup_fun_up` so that the template uses inputs from those variables. This is essentially
+_locating_ the template on the full graph:
+
+![labels matching](misc/labels_matching.png)

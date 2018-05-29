@@ -205,7 +205,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         self._init_struct(sess, divisions=kwargs.get('divisions', -1),
                           num_partitions=kwargs.get('num_partitions', 1),
                           visualize_partitions_dirpath=kwargs.get('visualize_partitions_dirpath', None),
-                          db_name=kwargs.get('db_name', None), extra_partition_multiplyer=kwargs.get('extra_partition_multiplyer', 1))
+                           db_name=kwargs.get('db_name', None), extra_partition_multiplyer=kwargs.get('extra_partition_multiplyer', 1))
         self._inputs_size = len(self._topo_map.nodes)
 
 
@@ -504,11 +504,51 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
 
         assert self._template_mode == EdgeRelationTemplate.code()
 
-        num_partitions = kwargs.get('num_partitions', 1)
 
+        self._init_struct(sess, divisions=kwargs.get('divisions', 8),
+                          num_partitions=kwargs.get('num_partitions', 1),
+                          visualize_partitions_dirpath=kwargs.get('visualize_partitions_dirpath', None),
+                          db_name=kwargs.get('db_name', None))
+    @property
+    def vn(self):
+        return {
+            'CATG_IVS': "Catg_%d_%s" % (self._template_mode, self._seq_id),
+            'VIEW_IVS':"View_%d_%s" % (self._template_mode, self._seq_id),
+            'CONC': "Conc_%d_%s" % (self._template_mode, self._seq_id),
+            'SEMAN_IVS': "Exp_Catg_%d_%s" % (self._template_mode, self._seq_id),
+            'LH_CONT': "Exp_Lh_%d_%s" % (self._template_mode, self._seq_id)
+        }
+    
     @abstractmethod
     def _init_struct(self, sess, divisions=-1, num_partitions=1,
                      visualize_partitions_dirpath=None, db_name=None, **kwargs):
-        pass
+        """
+        """
+        # Specify labels for both category variables and edge pair variables (i.e. view distances)
+        self._node_label_map = {}
+        self._label_node_map = {}
+        _i = 0
+        for nid in self._topo_map.nodes:
+            self._node_label_map[nid] = _i
+            self._label_node_map[_i] = nid
+            _i += 1
+
+        # We represent each edge pair by a triplet (Edge1, Edge2, label)
+        _i = 0
+        node_edge_pairs = self._topo_map.connected_edge_pairs()
+        self._edpair_label_map = {}  # map from an integer to edge pair
+        for nid in node_edge_pairs:
+            for edpair in node_edge_pairs[nid]:
+                self._edpair_label_map[_i] = edpair + (_i,)
+        
+        # Single concat, first portion for category variables, and second
+        # portion for view distance variables.
+        self._catg_inputs = spn.IVs(num_vars=len(self._topo_map.nodes), num_vals=CategoryManager.NUM_CATEGORIES, name=self.vn['CATG_IVS'])
+        self._view_dist_inputs = spn.IVs(num_vars=len(self._edpair_label_map), num_vals=divisions // 2 + 1, name=self.vn['VIEW_IVS'])
+        self._conc_inputs = spn.Concat(self._catg_inputs, self._view_dist_inputs, name=self.vn['CONC'])
+
+        """Making an SPN"""
+        
+        
 
 

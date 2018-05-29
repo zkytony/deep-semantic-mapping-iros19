@@ -128,7 +128,7 @@ class TopologicalMap:
             edges = set({})
             for nnid in neighbors:
                 edges.add(self.edge_between(nid, nnid))
-            pairs = set(itertools.combinations(edges, 2))
+            pairs = set(itertools.combinations(edges, 2))  # order does not matter
             node_edge_pairs[nid] = pairs
         return node_edge_pairs
 

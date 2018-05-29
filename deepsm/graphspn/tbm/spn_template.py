@@ -193,7 +193,8 @@ class TemplateSpn(SpnModel):
         return likelihoods_log
 
     @staticmethod
-    def _dup_fun_up(inpt, *args, conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], labels=[[]]):
+    def _dup_fun_up(inpt, *args,
+                    conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], graph_num_vars=[0], labels=[[]]):
         """
         Purely for template spn copying only. Supports template with multiple types of IVs.
         Requires that the template SPN contains only one concat node where all inputs go through.
@@ -208,32 +209,40 @@ class TemplateSpn(SpnModel):
         if node.is_op:
             if isinstance(node, spn.Sum):
                 # [2:] is to skip the weights node and the explicit IVs node for this sum.
-                return spn.Sum(*args[2:], weights=args[0])
+                copied_node = spn.Sum(*args[2:], weights=args[0])
+                assert copied_node.is_valid()
+                return copied_node
             elif isinstance(node, spn.Product):
-                return spn.Product(*args)
+                copied_node = spn.Product(*args)
+                assert copied_node.is_valid()
+                return copied_node
             elif isinstance(node, spn.Concat):
-                # For each index in indices, find its corresponding variable index by dividing
-                # it by tmpl_num_vals.
-                ranges = []  # stores the start (inclusive) index of the range of indices taken by a type of iv
-                start = 0
+                # The goal is to map from index on the template SPN's concat node to the index on
+                # the instance SPN's concat node.
+                
+                # First, be able to tell which type of iv the index has
+                ranges_tmpl = [0]  # stores the start (inclusive) index of the range of indices taken by a type of iv on template SPN
+                ranges_instance = [0]  # stores the start (inclusive) index of the range of indices taken by a type of iv on instance SPN
                 for i in range(len(tmpl_num_vars)):
-                    ranges.append(start)
-                    start += tmpl_num_vars[i]*tmpl_num_vals[i]
+                    ranges_tmpl.append(ranges_tmpl[-1] + tmpl_num_vars[i]*tmpl_num_vals[i])
+                    ranges_instance.append(ranges_instance[-1] + graph_num_vars[i]*tmpl_num_vals[i])
+
                 big_indices = []
                 for indx in indices:
                     iv_type = -1
-                    for i, start in enumerate(ranges):
+                    for i, start in enumerate(ranges_tmpl):
                         if indx < start + tmpl_num_vars[i]*tmpl_num_vals[i]:
                             iv_type = i
                             break
                     if iv_type == -1:
                         raise ValueError("Oops. Something wrong. Index out of range.")
-                    # Find corresponding variable index, and offset (i.e. which indicator of that variable)
-                    varidx = (indx - ranges[iv_type]) // tmpl_num_vals[iv_type]
-                    offset = (indx - ranges[iv_type]) - varidx * tmpl_num_vals[iv_type]
-                    varlabel = labels[iv_type][varidx] # THIS IS the actual position of the variable's inputs in the big Concat.
-                    # ASSUMING continous block of the (big) concat node, find the index in it.
-                    big_indices.append(ranges[iv_type] + varlabel * tmpl_num_vals[iv_type] + offset)
+
+                    # Then, figure out variable index and offset (w.r.t. template Concat node)
+                    varidx = (indx - ranges_tmpl[iv_type]) // tmpl_num_vals[iv_type]
+                    offset = (indx - ranges_tmpl[iv_type]) - varidx * tmpl_num_vals[iv_type]
+                    # THIS IS the actual position of the variable's inputs in the big Concat.
+                    varlabel = labels[iv_type][varidx]
+                    big_indices.append(ranges_instance[iv_type] + varlabel * tmpl_num_vals[iv_type] + offset)
                 return spn.Input(conc, big_indices)
         elif isinstance(node, spn.Weights):
             return node
@@ -265,7 +274,10 @@ class TemplateSpn(SpnModel):
 
                 print("Duplicating... %d" % (__i+1))
                 copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
-                                                        TemplateSpn._dup_fun_up, tmpl_num_vars=[len(nids)], tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
+                                                        TemplateSpn._dup_fun_up,
+                                                        tmpl_num_vars=[len(nids)],
+                                                        tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
+                                                        graph_num_vars=[len(ispn._topo_map.nodes)],
                                                         conc=ispn._conc_inputs,
                                                         labels=[labels])
                 assert copied_tspn_root.is_valid()

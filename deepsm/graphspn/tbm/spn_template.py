@@ -229,8 +229,8 @@ class TemplateSpn(SpnModel):
                     if iv_type == -1:
                         raise ValueError("Oops. Something wrong. Index out of range.")
                     # Find corresponding variable index, and offset (i.e. which indicator of that variable)
-                    varidx = indx // tmpl_num_vals[iv_type]
-                    offset = indx - varidx * tmpl_num_vals[iv_type]
+                    varidx = (indx - ranges[iv_type]) // tmpl_num_vals[iv_type]
+                    offset = (indx - ranges[iv_type]) - varidx * tmpl_num_vals[iv_type]
                     varlabel = labels[iv_type][varidx] # THIS IS the actual position of the variable's inputs in the big Concat.
                     # ASSUMING continous block of the (big) concat node, find the index in it.
                     big_indices.append(ranges[iv_type] + varlabel * tmpl_num_vals[iv_type] + offset)

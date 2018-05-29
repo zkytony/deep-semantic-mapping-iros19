@@ -67,56 +67,61 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
 
             if template == ThreeRelTemplate:
                 masked_samples = [
-                    [-1, dw, -1, 3],
-                    [-1, dw, -1, 2],
-                    [-1, dw, -1, 1],
+                    [po1, po1, po1, 0],
+                    [po1, po1, po1, 1],
+                    [po1, po1, po1, 2],
+                    [po1, po1, po1, 3],
+                    [po1, po1, po1, 4]
+                    # [-1, dw, -1, 3],
+                    # [-1, dw, -1, 2],
+                    # [-1, dw, -1, 1],
                     
-                    [po1, -1, cr, 1],
-                    [po1, -1, cr, 2],
-                    [po1, -1, cr, 3],
-                    [po1, -1, cr, 4],
-                    [po1, dw, cr, -1],
-                    [cr, dw, po1, -1],
+                    # [po1, -1, cr, 1],
+                    # [po1, -1, cr, 2],
+                    # [po1, -1, cr, 3],
+                    # [po1, -1, cr, 4],
+                    # [po1, dw, cr, -1],
+                    # [cr, dw, po1, -1],
                     
-                    [po2, -1, cr, 1],
-                    [po2, -1, cr, 2],
-                    [po2, -1, cr, 3],
-                    [po2, -1, cr, 4],
-                    [po2, dw, cr, -1],
-                    [cr, dw, po2, -1],
+                    # [po2, -1, cr, 1],
+                    # [po2, -1, cr, 2],
+                    # [po2, -1, cr, 3],
+                    # [po2, -1, cr, 4],
+                    # [po2, dw, cr, -1],
+                    # [cr, dw, po2, -1],
                     
-                    [po1, po1, -1, 1],
-                    [-1, po1, po1, 1],
+                    # [po1, po1, -1, 1],
+                    # [-1, po1, po1, 1],
                     
-                    [po1, dw, -1, 1],
-                    [po1, dw, -1, 2],
-                    [po1, dw, -1, 3],
+                    # [po1, dw, -1, 1],
+                    # [po1, dw, -1, 2],
+                    # [po1, dw, -1, 3],
 
-                    [-1, dw, po1, 1],
-                    [-1, dw, po1, 2],
-                    [-1, dw, po1, 3],
+                    # [-1, dw, po1, 1],
+                    # [-1, dw, po1, 2],
+                    # [-1, dw, po1, 3],
                     
-                    [-1, dw, cr, 1],
-                    [-1, dw, cr, 2],
-                    [-1, dw, cr, 3],
+                    # [-1, dw, cr, 1],
+                    # [-1, dw, cr, 2],
+                    # [-1, dw, cr, 3],
                     
-                    [cr, dw, -1, 1],
-                    [cr, dw, -1, 2],
-                    [cr, dw, -1, 3],
+                    # [cr, dw, -1, 1],
+                    # [cr, dw, -1, 2],
+                    # [cr, dw, -1, 3],
                     
-                    [po2, dw, -1, 1],
-                    [po2, dw, -1, 2],
-                    [po2, dw, -1, 3],
+                    # [po2, dw, -1, 1],
+                    # [po2, dw, -1, 2],
+                    # [po2, dw, -1, 3],
 
-                    [-1, dw, po2, 1],
-                    [-1, dw, po2, 2],
-                    [-1, dw, po2, 3],
+                    # [-1, dw, po2, 1],
+                    # [-1, dw, po2, 2],
+                    # [-1, dw, po2, 3],
                     
-                    [-1, -1, -1, 1],
-                    [-1, -1, -1, 2],
-                    [-1, -1, -1, 3],
-                    [-1, -1, -1, 4],
-                    [-1, -1, -1, 0]
+                    # [-1, -1, -1, 1],
+                    # [-1, -1, -1, 2],
+                    # [-1, -1, -1, 3],
+                    # [-1, -1, -1, 4],
+                    # [-1, -1, -1, 0]
                 ]
 
             num_test_samples = 0
@@ -386,15 +391,15 @@ if __name__ == "__main__":
         'num_partitions': 7,#10,
         'num_batches': 10,
         'save': True,
-        'load_if_exists': True,
+        'load_if_exists': False,
         'likelihood_thres': 0.1,
         'save_training_info': True,
 
         # spn_structure
-        'num_decomps': 3,#1,
-        'num_subsets': 3,#2,
-        'num_mixtures': 2,#2,
-        'num_input_mixtures': 2,#2
+        'num_decomps': 1,
+        'num_subsets': 2,
+        'num_mixtures': 2,
+        'num_input_mixtures': 2,
 
         'template': ThreeRelTemplate,
 

@@ -247,7 +247,7 @@ class TemplateSpn(SpnModel):
         elif isinstance(node, spn.Weights):
             return node
         else:
-            raise ValueError("We don't intend to deal with IVs here. Please remove them from the concat.")
+            raise ValueError("Unexpected node %s. We don't intend to deal with IVs here. Please remove them from the concat." % node)
     # END fun_up
 # -- END TemplateSpn -- #
 
@@ -768,7 +768,10 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             # acceptable values are 0, 1, 2, 3, 4. This is also more convenient than having to subtract 1
             # from all view distances.
             self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2 + 1, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
-            self._conc_inputs.add_inputs(self._view_dist_input)
+            if self._conc_inputs is not None:
+                self._conc_inputs.add_inputs(self._view_dist_input)
+            else:
+                self._conc_inputs = spn.Concat(spn.Input.as_input(self._view_dist_input), name=self.vn['CONC'])
             
         # Generate structure, weights, and generate learning operations.
         print("Generating SPN structure...")
@@ -806,7 +809,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         elif self._num_nodes != 0:
             feed_dict={catg_inputs: samples[start:stop]}
         else:
-            feed_dict={self._view_dist_inputs: samples[start:stop]}
+            feed_dict={self._view_dist_input: samples[start:stop]}
         return feed_dict
     
 
@@ -1002,4 +1005,5 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                 
         if self._num_edge_pair != 0:
             self._view_dist_input = loader.find_node(self.vn['VIEW_IVS'])
+            self._conc_inputs = loader.find_node(self.vn['CONC'])
 # ---------- END EdgeRelationTemplateSpn ---------- #

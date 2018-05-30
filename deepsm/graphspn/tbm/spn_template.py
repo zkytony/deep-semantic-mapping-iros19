@@ -209,13 +209,9 @@ class TemplateSpn(SpnModel):
         if node.is_op:
             if isinstance(node, spn.Sum):
                 # [2:] is to skip the weights node and the explicit IVs node for this sum.
-                copied_node = spn.Sum(*args[2:], weights=args[0])
-                assert copied_node.is_valid()
-                return copied_node
+                return spn.Sum(*args[2:], weights=args[0])
             elif isinstance(node, spn.Product):
-                copied_node = spn.Product(*args)
-                assert copied_node.is_valid()
-                return copied_node
+                return spn.Product(*args)
             elif isinstance(node, spn.Concat):
                 # The goal is to map from index on the template SPN's concat node to the index on
                 # the instance SPN's concat node.

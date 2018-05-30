@@ -44,14 +44,14 @@ class InstanceSpn(SpnModel):
                                              are tried and ones with higher coverage are picked.
            db_name (str): Database name. Required if visualization_partitions_dirpath is not None.
 
-           If template is EdgeTemplate, then:
+           If template is EdgeTemplate or EdgeRelationTemplate, then:
              divisions (int) number of views per place
         """
         super().__init__(**kwargs)        
         self._seq_id = kwargs.get("seq_id", "default_1")
         # sort spns by template size.
         self._spns = sorted(spns, key=lambda x: x[1].size(), reverse=True)
-        self._template_mode = int(issubclass(self._spns[0][1], EdgeTemplate))
+        self._template_mode = self._spns[0][1].code()
         self._topo_map = topo_map
         self._expanded = False
 
@@ -241,6 +241,17 @@ class NodeTemplateInstanceSpn(InstanceSpn):
            extra_partition_multiplyer (int): Used to multiply num_partitions so that more partitions
                                              are tried and ones with higher coverage are picked.
         """
+        
+        # Import if visualize partition is requested
+        if visualize_partitions_dirpath:
+            print("Importing matplotlib...")
+            import matplotlib
+            matplotlib.use('Agg')
+            from pylab import rcParams
+            import matplotlib.pyplot as plt
+            rcParams['figure.figsize'] = 22, 14
+            # Now, we create a cold database manager used to draw the map
+            coldmgr = ColdDatabaseManager(db_name, COLD_ROOT, GROUNDTRUTH_ROOT)
             
         # Create vars and maps
         self._catg_inputs = spn.IVs(num_vars=len(self._topo_map.nodes), num_vals=CategoryManager.NUM_CATEGORIES)
@@ -286,19 +297,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         pspns = []
         tspns = {}
         for template_spn, template in self._spns:
-            tspns[template.__name__] = (template_spn.root, template_spn._catg_inputs, template_spn._conc_inputs)
-
-        """Import if visualize partition is requested"""
-        if visualize_partitions_dirpath:
-            print("Importing matplotlib...")
-            import matplotlib
-            matplotlib.use('Agg')
-            from pylab import rcParams
-            import matplotlib.pyplot as plt
-            rcParams['figure.figsize'] = 22, 14
-            # Now, we create a cold database manager used to draw the map
-            coldmgr = ColdDatabaseManager(db_name, COLD_ROOT, GROUNDTRUTH_ROOT)
-            
+            tspns[template.__name__] = (template_spn.root, template_spn._catg_inputs, template_spn._conc_inputs)            
 
         """Making an SPN"""
         """Now, partition the graph, copy structure, and connect self._catg_inputs appropriately to the network."""
@@ -530,7 +529,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
             catg_map[nid] = result[0][i]
 
         return catg_map
-
+#------- END NodeTemplateinstancespn --------#
 
 
 class EdgeRelationTemplateInstanceSpn(InstanceSpn):
@@ -538,6 +537,8 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
     def __init__(self, topo_map, sess, *spns, **kwargs):
         super().__init__(topo_map, sess, *spns, **kwargs)
 
+        print(self._template_mode)
+        print(EdgeRelationTemplate.code())
         assert self._template_mode == EdgeRelationTemplate.code()
 
         self._init_struct(sess, divisions=kwargs.get('divisions', 8),
@@ -554,14 +555,26 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
             'LH_CONT': "Exp_Lh_%d_%s" % (self._template_mode, self._seq_id)
         }
     
-    @abstractmethod
     def _init_struct(self, sess, divisions=-1, num_partitions=1,
                      visualize_partitions_dirpath=None, db_name=None, **kwargs):
         """
+        Initialize structure for instance spn using edge relation templates
         """
+        
+        # Import if visualize partition is requested
+        if visualize_partitions_dirpath:
+            print("Importing matplotlib...")
+            import matplotlib
+            matplotlib.use('Agg')
+            from pylab import rcParams
+            import matplotlib.pyplot as plt
+            rcParams['figure.figsize'] = 22, 14
+            # Now, we create a cold database manager used to draw the map
+            coldmgr = ColdDatabaseManager(db_name, COLD_ROOT, GROUNDTRUTH_ROOT)
+        
         # Specify labels for both category variables and edge pair variables (i.e. view distances)
-        self._node_label_map = {}
-        self._label_node_map = {}
+        self._node_label_map = {}  # map from node id to label
+        self._label_node_map = {}  # map from label to node id
         _i = 0
         for nid in self._topo_map.nodes:
             self._node_label_map[nid] = _i
@@ -576,27 +589,132 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         self._edpairs = {}  # map from (edge1_id, edge2_id) to a tuple of  edge objects
         for nid in node_edge_pairs:
             for edpair in node_edge_pairs[nid]:
-                epair_id = (edpair[0].id, edpair[1].id)
-                self._edpairs[epair_id] = edpair
-                self._edpair_label_map[_i] = epair_id
-                self._label_edpair_map[epair_id] = _i
+                edpair_id = (edpair[0].id, edpair[1].id)
+                self._edpairs[edpair_id] = edpair
+                self._edpair_label_map[edpair_id] = _i
+                self._label_edpair_map[_i] = edpair_id
                 _i += 1
         
         # Single concat, first portion for category variables, and second
         # portion for view distance variables.
+        num_view_dists = divisions // 2 + 1  # number of possible values for absolute view distances
         self._catg_inputs = spn.IVs(num_vars=len(self._topo_map.nodes), num_vals=CategoryManager.NUM_CATEGORIES, name=self.vn['CATG_IVS'])
-        self._view_dist_inputs = spn.IVs(num_vars=len(self._edpair_label_map), num_vals=divisions // 2 + 1, name=self.vn['VIEW_IVS'])
+        self._view_dist_inputs = spn.IVs(num_vars=len(self._edpairs), num_vals=num_view_dists, name=self.vn['VIEW_IVS'])
         self._conc_inputs = spn.Concat(self._catg_inputs, self._view_dist_inputs, name=self.vn['CONC'])
 
-        spns_map = { tspn.template.to_tuple() : tspn for tspn in self._spns }
+        spns_map = { tspn.template.to_tuple() : tspn for tspn, _ in self._spns }
+
+        graph_num_vars = [len(self._topo_map.nodes), len(self._edpairs)]
 
         """Making an SPN"""
+        pspns = []
         for _k in range(num_partitions):
             print("Partition %d" % (_k+1))
             template_spn_roots = []
             
             ert_map = self._topo_map.partition_by_edge_relations()
             
+            for t in ert_map:
+                num_nodes, num_edge_pair = t
+                tspn = spns_map[t]
+
+                tmpl_num_vars = [num_nodes, num_edge_pair]
+                tmpl_num_vals = [CategoryManager.NUM_CATEGORIES, num_view_dists]
+                
+                # for each edge relation template, duplicate the appropriate template SPN to cover it.
+                __i = 0
+                for ert in ert_map[t]:
+                    labels = [[],[]]
+                    for node in ert.nodes:
+                        labels[0].append(self._node_label_map[node.id])
+                    if ert.edge_pair is not None:
+                        # Either edpair_id or its reverse should have been encountered. 
+                        edpair_id = (ert.edge_pair[0].id, ert.edge_pair[1].id)
+                        if edpair_id in self._edpairs:
+                            labels[1].append(self._edpair_label_map[edpair_id])
+                        elif tuple(reversed(edpair_id)) in self._edpairs:
+                            labels[1].append(self._edpair_label_map[tuple(reversed(edpair_id))])
+                        else:
+                            raise ValueError("Unexpected edge pair %s" % edpair_id)
+
+                    print("Duplicating... %d" % (__i+1))
+                    copied_tspn_root = mod_compute_graph_up(tspn.root,
+                                                            TemplateSpn.dup_fun_up,
+                                                            tmpl_num_vars=tmpl_num_vars,
+                                                            tmpl_num_vals=tmpl_num_vals,
+                                                            graph_num_vars=graph_num_vars,
+                                                            labels=labels,
+                                                            conc=self._conc_inputs)
+                    assert copied_tspn_root.is_valid()
+                    template_spn_roots.append(copied_tspn_root)
+                    __i += 1
+                    
+            # We can now create an SPN for this partition (i.e. pspn)
+            p = spn.Product(*template_spn_roots)
+            assert p.is_valid()
+            pspns.append(p)
+
+            """If visualize. Save."""
+            if visualize_partitions_dirpath:
+                self._topo_map.visualize_edge_relation_partition(plt.gca(),
+                                                                 ert_map,
+                                                                 coldmgr.groundtruth_file(self._seq_id.split("_")[0], 'map.yaml'))
+                plt.savefig(os.path.join(visualize_partitions_dirpath, "partition-%d.png" % (_k+1)))
+                plt.clf()
+                print("Visualized partition %d" % (_k+1))
+        ## End for loop ##
         
+        # Sum up all
+        self._root = spn.Sum(*pspns)
+        assert self._root.is_valid()
+        self._root.generate_weights(trainable=True)
+        # initialize ONLY the weights node for the root
+        sess.run(self._root.weights.node.initialize())
+    #---- end init_struct ----#
+
+    def init_ops(self, no_mpe=False):
+        """
+        Init learning ops & MPE state.
+        """
+        self._init_ops_basics()
+        if not no_mpe:
+            print("Initializing MPE Ops...")
+            mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
+            if self._template_mode == NodeTemplate.code():  ## NodeTemplate
+                if not self._expanded:
+                    self._mpe_state = mpe_state_gen.get_state(self._root, self._catg_inputs, self._view_dist_inputs)
+                else:
+                    self._mpe_state = mpe_state_gen.get_state(self._root, self._semantic_inputs, self._view_dist_inputs)
 
 
+    def expand(self):
+        if not self._expanded:
+            super().expand()
+            self._conc_inputs.add_inputs(self._view_dist_inputs)
+
+                
+    def marginal_inference(self, sess, query_nids, query, query_lh=None):
+        """
+        Computes marginal distribution of queried variables.
+
+        Now, only uses the DUMMY method. Iterate over all possible assignments of
+        all inquired variables, evaluate the network and use the result as the likelihood
+        for that assignment. Note that the marginals are in log space.
+
+        sess (tf.Session): a session.
+        query_nids(list): list of node ids whose marginal distribution is inquired.
+        """
+        pass
+
+    def evaluate(self, sess, sample, sample_lh=None):
+        """
+        sess (tf.Session): a session.
+        """
+        pass
+
+
+    def mpe_inference(self, sess, query, query_lh=None):
+        """
+        sess (tf.Session): a session.
+        """
+        pass

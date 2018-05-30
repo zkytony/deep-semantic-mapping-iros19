@@ -310,7 +310,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
             template_spn_roots = []
             main_template_spn = self._spns[0][0]
             print("Will duplicate %s %d times." % (main_template.__name__, len(supergraph.nodes)))
-            template_spn_roots.extend(TemplateSpn.duplicate_template_spns(self, tspns, main_template, supergraph, nodes_covered))
+            template_spn_roots.extend(NodeTemplateInstanceSpn._duplicate_template_spns(self, tspns, main_template, supergraph, nodes_covered))
 
             ## TEST CODE: COMMENT OUT WHEN ACTUALLY RUNNING
             # original_tspn_root = tspns[main_template.__name__][0]
@@ -336,7 +336,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
             for template_spn, template in self._spns[1:]:  # skip main template
                 supergraph_2nd, unused_graph_2nd = tmp_graph.partition(template, get_unused=True)
                 print("Will duplicate %s %d times." % (template.__name__, len(supergraph_2nd.nodes)))
-                template_spn_roots.extend(TemplateSpn.duplicate_template_spns(self, tspns, template, supergraph_2nd, nodes_covered))
+                template_spn_roots.extend(NodeTemplateInstanceSpn._duplicate_template_spns(self, tspns, template, supergraph_2nd, nodes_covered))
 
                 ## TEST CODE: COMMENT OUT WHEN ACTUALLY RUNNING
                 # original_tspn_root = tspns[template.__name__][0]
@@ -378,6 +378,43 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         self._root.generate_weights(trainable=True)
         # initialize ONLY the weights node for the root
         sess.run(self._root.weights.node.initialize())
+    #---- end init_struct ----#
+
+    @classmethod    
+    def _duplicate_template_spns(cls, ispn, tspns, template, supergraph, nodes_covered):
+        """
+        Convenient method for copying template spns. Modified `nodes_covered`.
+        """    
+        roots = []
+        __i = 0
+        for compound_nid in supergraph.nodes:
+            nids = supergraph.nodes[compound_nid].to_place_id_list()
+            ispn._template_nodes_map[ispn._id_incr] = nids
+
+            # Make the right indices (with respect to the full conc node)
+            labels = []
+            for nid in nids:
+                # The ivs is arranged like: [...(num_catgs)] * num_nodes
+                label = ispn._node_label_map[nid]
+                num_catg = CategoryManager.NUM_CATEGORIES
+                nodes_covered.add(nid)
+                labels.append(label)
+
+            print("Duplicating... %d" % (__i+1))
+            copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
+                                                    TemplateSpn.dup_fun_up,
+                                                    tmpl_num_vars=[len(nids)],
+                                                    tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
+                                                    graph_num_vars=[len(ispn._topo_map.nodes)],
+                                                    conc=ispn._conc_inputs,
+                                                    labels=[labels])
+            assert copied_tspn_root.is_valid()
+            roots.append(copied_tspn_root)
+            __i+=1
+            ispn._id_incr += 1
+        return roots
+    #---- end duplicate_template_spns ----#
+        
 
     def init_ops(self, no_mpe=False):
         """
@@ -425,7 +462,6 @@ class NodeTemplateInstanceSpn(InstanceSpn):
                 marginals[nid].append(self.evaluate(sess, query, sample_lh=query_lh))
                 query[nid] = orig
         return marginals
-        
 
                 
     def evaluate(self, sess, sample, sample_lh=None):
@@ -504,7 +540,6 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
 
         assert self._template_mode == EdgeRelationTemplate.code()
 
-
         self._init_struct(sess, divisions=kwargs.get('divisions', 8),
                           num_partitions=kwargs.get('num_partitions', 1),
                           visualize_partitions_dirpath=kwargs.get('visualize_partitions_dirpath', None),
@@ -533,13 +568,19 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
             self._label_node_map[_i] = nid
             _i += 1
 
-        # We represent each edge pair by a triplet (Edge1, Edge2, label)
+        # Each view variable has an associated edge pair. Label the edge pairs.
         _i = 0
         node_edge_pairs = self._topo_map.connected_edge_pairs()
-        self._edpair_label_map = {}  # map from an integer to edge pair
+        self._edpair_label_map = {}  # map from (edge1_id, edge2_id) to their label (integer)
+        self._label_edpair_map = {}  # map from an label to (edge1_id, edge2_id)
+        self._edpairs = {}  # map from (edge1_id, edge2_id) to a tuple of  edge objects
         for nid in node_edge_pairs:
             for edpair in node_edge_pairs[nid]:
-                self._edpair_label_map[_i] = edpair + (_i,)
+                epair_id = (edpair[0].id, edpair[1].id)
+                self._edpairs[epair_id] = edpair
+                self._edpair_label_map[_i] = epair_id
+                self._label_edpair_map[epair_id] = _i
+                _i += 1
         
         # Single concat, first portion for category variables, and second
         # portion for view distance variables.
@@ -547,8 +588,15 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         self._view_dist_inputs = spn.IVs(num_vars=len(self._edpair_label_map), num_vals=divisions // 2 + 1, name=self.vn['VIEW_IVS'])
         self._conc_inputs = spn.Concat(self._catg_inputs, self._view_dist_inputs, name=self.vn['CONC'])
 
+        spns_map = { tspn.template.to_tuple() : tspn for tspn in self._spns }
+
         """Making an SPN"""
-        
+        for _k in range(num_partitions):
+            print("Partition %d" % (_k+1))
+            template_spn_roots = []
+            
+            ert_map = self._topo_map.partition_by_edge_relations()
+            
         
 
 

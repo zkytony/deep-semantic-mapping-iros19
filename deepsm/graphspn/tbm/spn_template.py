@@ -193,7 +193,7 @@ class TemplateSpn(SpnModel):
         return likelihoods_log
 
     @staticmethod
-    def _dup_fun_up(inpt, *args,
+    def dup_fun_up(inpt, *args,
                     conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], graph_num_vars=[0], labels=[[]]):
         """
         Purely for template spn copying only. Supports template with multiple types of IVs.
@@ -249,43 +249,6 @@ class TemplateSpn(SpnModel):
         else:
             raise ValueError("We don't intend to deal with IVs here. Please remove them from the concat.")
     # END fun_up
-    
-
-    @classmethod    
-    def duplicate_template_spns(cls, ispn, tspns, template, supergraph, nodes_covered):
-        """
-        Convenient method for copying template spns. Modified `nodes_covered`.
-        """    
-        roots = []
-        if ispn._template_mode == NodeTemplate.code():
-            __i = 0
-            for compound_nid in supergraph.nodes:
-                nids = supergraph.nodes[compound_nid].to_place_id_list()
-                ispn._template_nodes_map[ispn._id_incr] = nids
-
-                # Make the right indices (with respect to the full conc node)
-                labels = []
-                for nid in nids:
-                    # The ivs is arranged like: [...(num_catgs)] * num_nodes
-                    label = ispn._node_label_map[nid]
-                    num_catg = CategoryManager.NUM_CATEGORIES
-                    nodes_covered.add(nid)
-                    labels.append(label)
-
-                print("Duplicating... %d" % (__i+1))
-                copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
-                                                        TemplateSpn._dup_fun_up,
-                                                        tmpl_num_vars=[len(nids)],
-                                                        tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
-                                                        graph_num_vars=[len(ispn._topo_map.nodes)],
-                                                        conc=ispn._conc_inputs,
-                                                        labels=[labels])
-                assert copied_tspn_root.is_valid()
-                roots.append(copied_tspn_root)
-                __i+=1
-                ispn._id_incr += 1
-        return roots
-
 # -- END TemplateSpn -- #
 
 

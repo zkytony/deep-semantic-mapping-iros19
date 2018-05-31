@@ -244,18 +244,20 @@ class SpnModel(ABC):
 
 
     @classmethod
-    def make_weights_same(cls, sess, root):
+    def make_weights_same(cls, sess, spn_root):
         """
-        Makes the weights of root node to have the same value. If root is not a sum node, do nothing.
+        Makes the weights of SPN rooted by `spn_xroot` node to have the same value.
 
         root (spn.Node): root node of an SPN
         val (float): constant value to add to each weight
         """
-        if isinstance(root, spn.Sum):
-            w = sess.run(root.weights.node.get_value())
-            w.fill(1)
-            sess.run(root.weights.node.assign(w))
+        def fun(node):
+            if hasattr(node, 'weights'):
+                w = sess.run(node.weights.node.get_value())
+                w.fill(1)
+                sess.run(node.weights.node.assign(w))
 
+        traverse_graph(spn_root, fun, skip_params=False)
 
 ##############################
 # WARNING: MY OWN METHOD!

@@ -623,8 +623,9 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
                 __i = 0
                 for ert in ert_map[t]:
                     labels = [[],[]]
-                    for node in ert.nodes:
-                        labels[0].append(self._node_label_map[node.id])
+                    if ert.nodes is not None:
+                        for node in ert.nodes:
+                            labels[0].append(self._node_label_map[node.id])
                     if ert.edge_pair is not None:
                         # Either edpair_id or its reverse should have been encountered. 
                         edpair_id = (ert.edge_pair[0].id, ert.edge_pair[1].id)

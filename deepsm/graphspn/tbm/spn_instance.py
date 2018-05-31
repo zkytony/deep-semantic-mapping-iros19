@@ -149,7 +149,8 @@ class InstanceSpn(SpnModel):
 
             num_vars = len(self._topo_map.nodes)
             self._semantic_inputs = spn.IVs(num_vars=num_vars, num_vals=CategoryManager.NUM_CATEGORIES)
-            self._likelihood_inputs = spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
+            # Note: use RawInput when doing cold database experiments with dgsm input. Use ContVars for synthetic experiments
+            self._likelihood_inputs = spn.ContVars(num_vars=num_vars*CategoryManager.NUM_CATEGORIES) #spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
 
             prods = []
             for i in range(num_vars):
@@ -383,7 +384,8 @@ class NodeTemplateInstanceSpn(InstanceSpn):
     def _duplicate_template_spns(cls, ispn, tspns, template, supergraph, nodes_covered):
         """
         Convenient method for copying template spns. Modified `nodes_covered`.
-        """    
+        """
+        sys.stdout.write("Duplicating %s... " % template.__name__)
         roots = []
         __i = 0
         for compound_nid in supergraph.nodes:
@@ -399,7 +401,8 @@ class NodeTemplateInstanceSpn(InstanceSpn):
                 nodes_covered.add(nid)
                 labels.append(label)
 
-            print("Duplicating... %d" % (__i+1))
+            sys.stdout.write("%d " % (__i+1))
+            sys.stdout.flush()
             copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
                                                     TemplateSpn.dup_fun_up,
                                                     tmpl_num_vars=[len(nids)],
@@ -411,6 +414,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
             roots.append(copied_tspn_root)
             __i+=1
             ispn._id_incr += 1
+        sys.stdout.write("\n")
         return roots
     #---- end duplicate_template_spns ----#
         
@@ -620,6 +624,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
                 tmpl_num_vals = [CategoryManager.NUM_CATEGORIES, num_view_dists]
                 
                 # for each edge relation template, duplicate the appropriate template SPN to cover it.
+                sys.stdout.write("Duplicating %s... " % str(t))
                 __i = 0
                 for ert in ert_map[t]:
                     labels = [[],[]]
@@ -636,7 +641,8 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
                         else:
                             raise ValueError("Unexpected edge pair %s" % edpair_id)
 
-                    print("Duplicating... %d" % (__i+1))
+                    sys.stdout.write("%d " % (__i+1))
+                    sys.stdout.flush()
                     copied_tspn_root = mod_compute_graph_up(tspn.root,
                                                             TemplateSpn.dup_fun_up,
                                                             tmpl_num_vars=tmpl_num_vars,
@@ -647,6 +653,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
                     assert copied_tspn_root.is_valid()
                     template_spn_roots.append(copied_tspn_root)
                     __i += 1
+                sys.stdout.write("\n")
                     
             # We can now create an SPN for this partition (i.e. pspn)
             p = spn.Product(*template_spn_roots)

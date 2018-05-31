@@ -568,7 +568,7 @@ def run_edge_relation_template_experiment(seed, train_kwargs, test_kwargs, to_do
                     template_mode=NodeTemplate.code(), amount=amount, num_rounds=num_rounds, name=name, seq_id=seq_id)
 
 
-def run_experiments(train_kwargs, test_kwargs, tests_tod_do,
+def run_experiments(train_kwargs, test_kwargs, to_do,
                     *spns, amount=1, num_rounds=3, template_mode=None, name=None, seq_id=None):
     """
     Runs an experiment for instance SPN

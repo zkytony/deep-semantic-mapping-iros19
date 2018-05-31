@@ -980,7 +980,8 @@ def main():
         test_kwargs['noisification_level'] = get_noisification_level(test_kwargs['high_likelihood_correct'],
                                                                      test_kwargs['low_likelihood_correct'],
                                                                      test_kwargs['high_likelihood_incorrect'],
-                                                                     test_kwargs['low_likelihood_incorrect'])
+                                                                     test_kwargs['low_likelihood_incorrect'],
+                                                                     uniform_for_incorrect=args.uniform_for_incorrect)
         print("<Noisification Level>")
         pprint(test_kwargs['noisification_level'])
 

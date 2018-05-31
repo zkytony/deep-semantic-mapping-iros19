@@ -5,12 +5,14 @@ import sys
 
 from deepsm.experiments.custom_graph_experiment import custom_graph
 from deepsm.experiments.cold_database_experiment import same_building, across_buildings
+from deepsm.experiments.synthetic_experiment import synthetic
 
 def main():
     available_commands = {
         'samebuilding': same_building,
         'acrossbuildings': across_buildings,
-        'customgraph': custom_graph
+        'customgraph': custom_graph,
+        'synthetic': synthetic
     }
     parser = argparse.ArgumentParser(description="Run GraphSPN experiments in"\
                                      "the full spatial knowledge framework",

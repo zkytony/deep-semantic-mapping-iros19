@@ -195,35 +195,33 @@ class InstanceSpnExperiment(TbmExperiment):
                                                                          uniform_for_incorrect=uniform_for_incorrect,
                                                                          consider_placeholders=consider_placeholders)
             if inference_type == MPE:
-                if self._experiment.template_mode == NodeTemplate.code(): ## NodeTemplate
-                    query = topo_map.current_category_map()
-                    if expand:
-                        result_catg_map = instance_spn.mpe_inference(sess, query, query_lh)
-                    else:                    
-                        result_catg_map = instance_spn.mpe_inference(sess, query)
+                query = topo_map.current_category_map()
+                if expand:
+                    result_catg_map = instance_spn.mpe_inference(sess, query, query_lh)
+                else:                    
+                    result_catg_map = instance_spn.mpe_inference(sess, query)
 
             elif inference_type == MARGINAL:
-                if self._experiment.template_mode == NodeTemplate.code(): ## NodeTemplate
-                    query = topo_map.current_category_map()
-                    query_nids = []
-                    for nid in query:
-                        if query[nid] == -1:
-                            query_nids.append(nid)
+                query = topo_map.current_category_map()
+                query_nids = []
+                for nid in query:
+                    if query[nid] == -1:
+                        query_nids.append(nid)
+                if expand:
+                    # Query should be all -1. And we query for all nodes.
+                    query_nids = list(topo_map.nodes.keys())
+                    query = {k:-1 for k in query_nids}#TbmExperiment.create_category_map_from_likelihoods(0, query_lh) #
+                marginals = instance_spn.marginal_inference(sess, query_nids, query, query_lh=query_lh)
+                result_catg_map = {}
+                for nid in query:
                     if expand:
-                        # Query should be all -1. And we query for all nodes.
-                        query_nids = list(topo_map.nodes.keys())
-                        query = {k:-1 for k in query_nids}#TbmExperiment.create_category_map_from_likelihoods(0, query_lh) #
-                    marginals = instance_spn.marginal_inference(sess, query_nids, query, query_lh=query_lh)
-                    result_catg_map = {}
-                    for nid in query:
-                        if expand:
+                        result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
+                    else:
+                        if query[nid] == -1:
                             result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
                         else:
-                            if query[nid] == -1:
-                                result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
-                            else:
-                                result_catg_map[nid] = query[nid]
-                    __record['instance']['_marginals_'] = marginals
+                            result_catg_map[nid] = query[nid]
+                __record['instance']['_marginals_'] = marginals
             else:
                 raise ValueError("Unrecognized inference type %s" % inference_type)
                 

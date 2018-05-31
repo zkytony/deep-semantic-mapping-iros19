@@ -4,7 +4,7 @@
 from abc import ABC, abstractmethod
 import random
 from collections import deque
-from deepsm.util import abs_view_distance, compute_view_number, CategoryManager
+from deepsm.util import abs_view_distance, compute_view_number, CategoryManager, compute_edge_pair_view_distance
 import itertools
 
 ########################################
@@ -492,17 +492,8 @@ class EdgeRelationTemplateInstance:
 
         if edge_pair is not None:
 
-            # Get the other two nodes in the edge pair besides the meeting node
-            other_nodes = []
-            for edge in edge_pair:
-                i = edge.nodes.index(meeting_node)
-                other_nodes.append(edge.nodes[1-i])
-
-            # Compute view numbers and relative distancex
-            v1 = compute_view_number(meeting_node, other_nodes[0])
-            v2 = compute_view_number(meeting_node, other_nodes[1])
-            self.vdist = distance_func(v1, v2) # edge view relative distance
-
+            self.vdist = compute_edge_pair_view_distance(edge_pair[0], edge_pair[1], dist_func=distance_func,
+                                                         meeting_node=meeting_node)
 
     @property
     def num_nodes(self):

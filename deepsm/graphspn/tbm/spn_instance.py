@@ -11,7 +11,7 @@ import os
 from deepsm.graphspn.tbm.spn_template import TemplateSpn
 from deepsm.graphspn.spn_model import SpnModel, mod_compute_graph_up
 from deepsm.graphspn.tbm.template import EdgeTemplate, NodeTemplate, SingleEdgeTemplate, EdgeRelationTemplate
-from deepsm.util import CategoryManager, ColdDatabaseManager
+from deepsm.util import CategoryManager, ColdDatabaseManager, compute_edge_pair_view_distance
 from deepsm.experiments.common import GROUNDTRUTH_ROOT, COLD_ROOT
 
 
@@ -537,8 +537,6 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
     def __init__(self, topo_map, sess, *spns, **kwargs):
         super().__init__(topo_map, sess, *spns, **kwargs)
 
-        print(self._template_mode)
-        print(EdgeRelationTemplate.code())
         assert self._template_mode == EdgeRelationTemplate.code()
 
         self._init_struct(sess, divisions=kwargs.get('divisions', 8),
@@ -670,7 +668,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         self._root.generate_weights(trainable=True)
         # initialize ONLY the weights node for the root
         sess.run(self._root.weights.node.initialize())
-    #---- end init_struct ----#
+    ## END init_struct ##
 
     def init_ops(self, no_mpe=False):
         """
@@ -692,6 +690,68 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
             super().expand()
             self._conc_inputs.add_inputs(self._view_dist_inputs)
 
+            
+    def evaluate(self, sess, sample, sample_lh=None):
+        """
+        Feed sample into the network and evaluate the likelihood.
+
+        sess (tf.Session): a session.
+        sample: either a tuple of two elements, or a single dictionary.
+
+            If sample is a tuple of two elements, the first element is a dictionary,
+            mapping from node id to its category number. The second element is a
+            dictionary, mapping from pair of edge ids (edge1_id, edge2_id) to an integer
+            indicating the absolute view distance between those two edges. It is assumed
+            that the two edges share a meeting node. The second dictionary may not contain
+            the view distance information for every pair of edges; For missing ones, the
+            view distance based on the original topological map structure will be used.
+
+            If sample is a single dictionary, then it is the same as the first element
+            of the tuple defined above.
+
+        sample_lh: a map from node id to a tuple of NUM_CATEGORIES number of float values.
+        """
+        view_dist_values = {}
+        for edpair_id in self._edpairs:
+            edge1, edge2 = self._edpairs[edpair_id]
+            view_dist_values[edpair_id] = compute_edge_pair_view_distance(edge1, edge2)
+        
+        if type(sample) == dict:
+            catg_values = sample
+        else:
+            catg_values = sample[0]
+            for edpair_id in sample[1]:
+                if edpair_id in view_dist_values:
+                    view_dist_values[edpair_id] = sample[1][edpair_id]
+                elif tuple(reversed(edpair_id)) in view_dist_values:
+                    view_dist_values[tuple(reversed(edpair_id))] = sample[1][edpair_id]
+                else:
+                    raise ValueError("Edge pair ids %s is not known to the graph" % edpair_id)
+
+        catg_ivs_assignment = []
+        for l in range(len(self._label_node_map)):
+            nid = self._label_node_map[l]
+            catg_ivs_assignment.append(catg_values[nid])
+        view_ivs_assignment = []
+        for l in range(len(self._label_edpair_map)):
+            edpair = self._label_edpair_map[l]
+            view_ivs_assignment.append(view_dist_values[edpair])
+
+        if not self._expanded:
+            lh_val = sess.run(self._train_likelihood,
+                              feed_dict={self._catg_inputs: np.array([catg_ivs_assignment], dtype=int),
+                                         self._view_dist_inputs: np.array([view_ivs_assignment], dtype=int)})[0]
+        else:
+            # expanded. So get likelihoods
+            lh_assignment = []
+            for l in range(len(self._label_node_map)):
+                nid = self._label_node_map[l]
+                lh_assignment.extend(list(sample_lh[nid]))
+            lh_val = sess.run(self._train_likelihood,
+                              feed_dict={self._semantic_inputs: np.array([catg_ivs_assignment], dtype=int),
+                                         self._view_dist_inputs: np.array([view_ivs_assignment], dtype=int),
+                                         self._likelihood_inputs: np.array([lh_assignment])})[0]
+        return lh_val
                 
     def marginal_inference(self, sess, query_nids, query, query_lh=None):
         """
@@ -704,14 +764,15 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         sess (tf.Session): a session.
         query_nids(list): list of node ids whose marginal distribution is inquired.
         """
-        pass
-
-    def evaluate(self, sess, sample, sample_lh=None):
-        """
-        sess (tf.Session): a session.
-        """
-        pass
-
+        marginals = {}
+        for nid in query_nids:
+            orig = query[nid]
+            marginals[nid] = []
+            for val in range(CategoryManager.NUM_CATEGORIES):
+                query[nid] = val
+                marginals[nid].append(self.evaluate(sess, query, sample_lh=query_lh))
+                query[nid] = orig
+        return marginals
 
     def mpe_inference(self, sess, query, query_lh=None):
         """

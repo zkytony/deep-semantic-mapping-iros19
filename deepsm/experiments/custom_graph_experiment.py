@@ -16,9 +16,10 @@ import time
 import os, re, sys
 from pprint import pprint
 from deepsm.graphspn.spn_model import SpnModel
-from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn
-from deepsm.graphspn.tbm.spn_instance import NodeTemplateInstanceSpn
-from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate
+from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, EdgeRelationTemplateSpn
+from deepsm.graphspn.tbm.spn_instance import NodeTemplateInstanceSpn, EdgeRelationTemplateInstanceSpn
+from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate, \
+    EdgeRelationTemplate, ThreeRelTemplate, RelTemplate, SingleRelTemplate, SingleTemplate
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, normalize_marginals_remain_log, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
 from deepsm.graphspn.tbm.graph_builder import build_graph
@@ -146,11 +147,19 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name):
     # save the parameters for the graphspn
 
     spn_params = {k:train_kwargs[k] for k in ['num_decomps', 'num_subsets', 'num_mixtures', 'num_input_mixtures']}
+
     
+    # Create template SPNs
     spns = []
     for template in templates:
-        tspn = NodeTemplateSpn(template, seed=seed, **spn_params)
-        spns.append(tspn)
+        if template.code() == NodeTemplate.code():
+            tspn = NodeTemplateSpn(template, seed=seed, **spn_params)
+            spns.append(tspn)
+        elif template.code() == EdgeRelationTemplate.code():
+            tspn = EdgeRelationTemplateSpn(template, seed=seed, **spn_params)
+            spns.append(tspn)
+        else:
+            raise ValueError("Invalid template mode %d" % self._template_mode)
 
     # Build experiment object
     exp = CustomGraphExperiment(TOPO_MAP_DB_ROOT, *spns,
@@ -172,10 +181,22 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name):
             # Train models
             train_info = exp.train_models(sess, **train_kwargs)
 
-            # Relax the single template spn's prior    
-            single_node_spn = exp.get_model(SingletonTemplate)
-            print("Relaxing prior...")
-            SpnModel.make_weights_same(sess, single_node_spn.root)
+
+            # Relax priors for simple template SPNs:
+            if exp._template_mode == NodeTemplate.code():
+                # Relax the single template spn's prior
+                single_node_spn = exp.get_model(SingletonTemplate)
+                print("Relaxing prior...")
+                SpnModel.make_weights_same(sess, single_node_spn.root)
+            elif exp._template_mode == EdgeRelationTemplate.code():
+                tspn11 = exp.get_model(SingleRelTemplate)
+                tspn10 = exp.get_model(SingleTemplate)
+                tspn01 = exp.get_model(RelTemplate)
+
+                print("Relaxing prior...")
+                SpnModel.make_weights_same(sess, tspn11.root)
+                SpnModel.make_weights_same(sess, tspn10.root)
+                SpnModel.make_weights_same(sess, tspn01.root)
 
             # remove inputs; necessasry for constructing instance spn
             for template_spn in spns:                
@@ -187,9 +208,20 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name):
                                         "results",
                                         "partitions_%s_%s" % (test_kwargs['db_seq_id'], test_kwargs['timestamp']))
             os.makedirs(visp_dirpath, exist_ok=True)
-            instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls, num_partitions=test_kwargs['num_partitions'],
-                                                   seq_id=seq_id, divisions=8,
-                                                   visualize_partitions_dirpath=visp_dirpath, db_name=db_name)
+            if exp._template_mode == NodeTemplate.code():
+                instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
+                                                       num_partitions=test_kwargs['num_partitions'],
+                                                       seq_id=seq_id,
+                                                       divisions=8,
+                                                       visualize_partitions_dirpath=visp_dirpath,
+                                                       db_name=db_name)
+            elif exp._template_mode == EdgeRelationTemplate.code():
+                instance_spn = EdgeRelationTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
+                                                               num_partitions=test_kwargs['num_partitions'],
+                                                               seq_id=seq_id,
+                                                               divisions=8,
+                                                               visualize_partitions_dirpath=visp_dirpath,
+                                                               db_name=db_name)
             
             test_kwargs['instance_spn'] = instance_spn
             test_kwargs['graph_id'] = db_name + "_" + seq_id
@@ -241,7 +273,7 @@ def custom_graph():
         'relax_level': args.relax_level if args.relax_level else None
     }
 
-    templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate]#, StarTemplate]
+    templates = [SingleRelTemplate, SingleTemplate, RelTemplate, ThreeRelTemplate]#SingletonTemplate, PairTemplate, ThreeNodeTemplate]#, StarTemplate]
 
     # Remember to change the databases for training as you want.
     all_db = {'Stockholm456'} #}#{'Freiburg', 'Saarbrucken', 'Stockholm'}

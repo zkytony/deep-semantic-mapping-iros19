@@ -65,6 +65,31 @@ def transform_coordinates(gx, gy, map_spec, img):
     return ((gx - originX) / res, imgHeight - (gy - originY) / res)
 
 
+def compute_edge_pair_view_distance(edge1, edge2, dist_func=abs_view_distance, meeting_node=None):
+    """
+    Given two edges, first check if the two share one same node. If not,
+    raise an error. If so, compute the absolute view distance between
+    the two edges. The caller can optionally supply meeting_node, if
+    already known.
+    """
+    if meeting_node is None:
+        for n1 in edge1.nodes:
+            for n2 in edge2.nodes:
+                if n1 == n2:
+                    meeting_node = n1
+    if meeting_node is None:
+        raise ValueError("edge %s and edge %s do not intersect!" % (edge1, edge2))
+    other_nodes = []
+    for edge in (edge1, edge2):
+        i = edge.nodes.index(meeting_node)
+        other_nodes.append(edge.nodes[1-i])
+
+    # Compute view numbers and distance
+    v1 = compute_view_number(meeting_node, other_nodes[0])
+    v2 = compute_view_number(meeting_node, other_nodes[1])
+    return dist_func(v1, v2)
+
+
 ################# Colors ##################
 def linear_color_gradient(rgb_start, rgb_end, n):
     colors = [rgb_start]
@@ -206,7 +231,7 @@ class CategoryManager:
     # classes should be `known` and there is no 'UN' label.
     SKIP_UNKNOWN = True
     # TYPE of label mapping scheme. Offers SIMPLE and FULL.
-    TYPE = 'BINARY'
+    TYPE = 'SIMPLE'
     
     # Category mappings
     CAT_MAP_ALL = {

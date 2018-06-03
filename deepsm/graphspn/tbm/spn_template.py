@@ -109,7 +109,7 @@ class TemplateSpn(SpnModel):
     def init_learning_ops(self):
         print("Initializing learning Ops...")
         learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
-                                  additive_smoothing = self._additive_smoothing_var)
+                                  additive_smoothing = self._additive_smoothing_var, use_unweighted=True)
         self._reset_accumulators = learning.reset_accumulators()
         self._accumulate_updates = learning.accumulate_updates()
         self._update_spn = learning.update_spn()

@@ -731,7 +731,7 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
                                 
                     #--- Check if we want to do experiments that requires expanding the SPN. ---#
                     else:  
-                        instance_spn.expand()
+                        instance_spn.expand(use_cont_vars=True)
                         print("Initializing Ops. Will take a while...")
                         instance_spn.init_ops(no_mpe=no_mpe)
                         

@@ -88,7 +88,7 @@ class InstanceSpn(SpnModel):
     def _init_ops_basics(self):
         print("Initializing learning Ops...")
         learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
-                                  additive_smoothing = self._additive_smoothing_var)
+                                  additive_smoothing = self._additive_smoothing_var, use_unweighted=True)
         self._reset_accumulators = learning.reset_accumulators()
         self._accumulate_updates = learning.accumulate_updates()
         self._update_spn = learning.update_spn()
@@ -133,7 +133,7 @@ class InstanceSpn(SpnModel):
         pass
 
 
-    def expand(self):
+    def expand(self, use_cont_vars=False):
         """
         Custom method.
 
@@ -150,7 +150,10 @@ class InstanceSpn(SpnModel):
             num_vars = len(self._topo_map.nodes)
             self._semantic_inputs = spn.IVs(num_vars=num_vars, num_vals=CategoryManager.NUM_CATEGORIES)
             # Note: use RawInput when doing cold database experiments with dgsm input. Use ContVars for synthetic experiments
-            self._likelihood_inputs = spn.ContVars(num_vars=num_vars*CategoryManager.NUM_CATEGORIES) #spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
+            if use_cont_vars:
+                self._likelihood_inputs = spn.ContVars(num_vars=num_vars*CategoryManager.NUM_CATEGORIES) #spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
+            else:
+                self._likelihood_inputs = spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES) #spn.RawInput(num_vars=num_vars*CategoryManager.NUM_CATEGORIES)
 
             prods = []
             for i in range(num_vars):
@@ -693,9 +696,9 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
                     self._mpe_state = mpe_state_gen.get_state(self._root, self._semantic_inputs, self._view_dist_inputs)
 
 
-    def expand(self):
+    def expand(self, use_cont_vars=False):
         if not self._expanded:
-            super().expand()
+            super().expand(use_cont_vars=use_cont_vars)
             self._conc_inputs.add_inputs(self._view_dist_inputs)
 
             

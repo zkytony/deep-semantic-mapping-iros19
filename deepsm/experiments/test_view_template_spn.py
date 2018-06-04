@@ -358,7 +358,7 @@ if __name__ == "__main__":
         'num_input_mixtures': 2,
 
         # spn_learning
-        'additive_smoothing': 50,
+        'additive_smoothing': 10,
 
         'template': ThreeRelTemplate,
 
@@ -377,7 +377,7 @@ if __name__ == "__main__":
         'inference_type': MARGINAL,
         'test_db': 'Stockholm7',
         'expand': False,
-        'semantic': True
+        'semantic': False
     }
     
     run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=seed)

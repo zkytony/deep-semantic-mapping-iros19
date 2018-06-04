@@ -1,0 +1,18 @@
+#---Do not change---#
+db_name: Saarbrucken # default test db
+func_mask_params: {}
+inference_type: MARGINAL
+occlude_rand_rate: 0.2
+
+#---Changeable---#
+high_likelihood_correct: (0.5, 0.7)
+low_likelihood_correct: (0.0005, 0.0006)
+high_likelihood_incorrect: (0.5, 0.7)
+low_likelihood_incorrect: (0.0005, 0.4)
+extra_partition_multiplyer: 3
+num_partitions: 5
+to_do: [INF_FIXED_RAND, LH]
+uniform_for_incorrect: False
+
+#---Must change!---#
+test_name: unnamed

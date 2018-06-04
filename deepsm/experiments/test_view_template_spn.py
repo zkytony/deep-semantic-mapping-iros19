@@ -344,25 +344,37 @@ if __name__ == "__main__":
 
     # Config
     train_kwargs = {
-        'num_partitions': 7,#10,
+        'num_partitions': 10,#10,
         'num_batches': 10,
         'save': True,
         'load_if_exists': False,
         'likelihood_thres': 0.1,
         'save_training_info': True,
 
+        # Good setting for 4 classes:
+        # # spn_structure
+        # 'num_decomps': 2,
+        # 'num_subsets': 4,
+        # 'num_mixtures': 2,
+        # 'num_input_mixtures': 2,
+
+        # # spn_learning
+        # 'additive_smoothing': 10,
+
+        
+        # Good setting for 10 classes
         # spn_structure
         'num_decomps': 2,
-        'num_subsets': 4,
+        'num_subsets': 3,
         'num_mixtures': 2,
         'num_input_mixtures': 2,
 
         # spn_learning
-        'additive_smoothing': 10,
+        'additive_smoothing': 30,
 
         'template': ThreeRelTemplate,
 
-        'train_db': ['Stockholm456']
+        'train_db': ['Freiburg', 'Saarbrucken']
     }
 
     test_kwargs = {
@@ -373,11 +385,11 @@ if __name__ == "__main__":
 
         'template': ThreeRelTemplate,
         'limit': -1,
-        'num_partitions': 10,
+        'num_partitions': 1,
         'inference_type': MARGINAL,
-        'test_db': 'Stockholm7',
+        'test_db': 'Stockholm',
         'expand': False,
-        'semantic': False
+        'semantic': True
     }
     
     run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=seed)

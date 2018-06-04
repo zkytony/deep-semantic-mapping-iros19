@@ -1,0 +1,34 @@
+#---Do not change---#
+db_names: [Stockholm, Freiburg] # default train db_names
+num_partitions: 10
+num_batches: 10
+save: True
+load_if_exists: True
+likelihood_thres: 0.2
+will_upsample: TbmExperiment.will_upsample
+upsample_rate: 0
+save_training_info: True
+skip_unknown: CategoryManager.SKIP_UNKNOWN
+
+# # spn_structure (good for 4 classes)
+# num_decomps: 2
+# num_subsets: 4
+# num_mixtures: 2
+# num_input_mixtures: 2
+# 
+# # spn learning
+# additive_smoothing: 10
+
+
+# spn_structure (good for 10 classes)
+num_decomps: 2
+num_subsets: 3
+num_mixtures: 2
+num_input_mixtures: 2
+
+# spn learning
+additive_smoothing: 30
+
+
+#---Changeable---#
+templates: [SingleRelTemplate, SingleTemplate, RelTemplate, ThreeRelTemplate]

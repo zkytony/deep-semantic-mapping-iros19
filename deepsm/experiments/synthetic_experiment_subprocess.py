@@ -532,7 +532,7 @@ def run_node_template_experiment(seed, train_kwargs, test_kwargs, to_do, amount=
     
     print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
 
-    spn_params = {k:train_kwargs[k] for k in ['num_decomps', 'num_subsets', 'num_mixtures', 'num_input_mixtures']}
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
 
     template_spns = []
     for template in train_kwargs['templates']:
@@ -555,7 +555,7 @@ def run_edge_relation_template_experiment(seed, train_kwargs, test_kwargs, to_do
     
     print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
 
-    spn_params = {k:train_kwargs[k] for k in ['num_decomps', 'num_subsets', 'num_mixtures', 'num_input_mixtures']}
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
 
     template_spns = []
     for template in train_kwargs['templates']:

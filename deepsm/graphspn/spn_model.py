@@ -155,6 +155,21 @@ class SpnModel(ABC):
 
 
     @classmethod
+    def params_list(cls):
+        return ["input_dist",
+                "num_decomps",
+                "num_subsets",
+                "num_mixtures",
+                "num_input_mixtures",
+                "min_additive_smoothing",
+                "smoothing_decay",
+                "weight_init_min",
+                "weight_init_max",
+                "value_inference_type",
+                "additive_smoothing",
+                "additive_smoothing_var"]
+
+    @classmethod
     def print_weights(cls, spn_root, sess):
         def fun(node):
             if hasattr(node, 'weights'):

@@ -67,61 +67,17 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
 
             if template == ThreeRelTemplate:
                 masked_samples = [
-                    [po1, po1, po1, 0],
-                    [po1, po1, po1, 1],
-                    [po1, po1, po1, 2],
-                    [po1, po1, po1, 3],
-                    [po1, po1, po1, 4]
-                    # [-1, dw, -1, 3],
-                    # [-1, dw, -1, 2],
-                    # [-1, dw, -1, 1],
-                    
-                    # [po1, -1, cr, 1],
-                    # [po1, -1, cr, 2],
-                    # [po1, -1, cr, 3],
-                    # [po1, -1, cr, 4],
-                    # [po1, dw, cr, -1],
-                    # [cr, dw, po1, -1],
-                    
-                    # [po2, -1, cr, 1],
-                    # [po2, -1, cr, 2],
-                    # [po2, -1, cr, 3],
-                    # [po2, -1, cr, 4],
-                    # [po2, dw, cr, -1],
-                    # [cr, dw, po2, -1],
-                    
-                    # [po1, po1, -1, 1],
-                    # [-1, po1, po1, 1],
-                    
-                    # [po1, dw, -1, 1],
-                    # [po1, dw, -1, 2],
-                    # [po1, dw, -1, 3],
-
-                    # [-1, dw, po1, 1],
-                    # [-1, dw, po1, 2],
-                    # [-1, dw, po1, 3],
-                    
-                    # [-1, dw, cr, 1],
-                    # [-1, dw, cr, 2],
-                    # [-1, dw, cr, 3],
-                    
-                    # [cr, dw, -1, 1],
-                    # [cr, dw, -1, 2],
-                    # [cr, dw, -1, 3],
-                    
-                    # [po2, dw, -1, 1],
-                    # [po2, dw, -1, 2],
-                    # [po2, dw, -1, 3],
-
-                    # [-1, dw, po2, 1],
-                    # [-1, dw, po2, 2],
-                    # [-1, dw, po2, 3],
-                    
-                    # [-1, -1, -1, 1],
-                    # [-1, -1, -1, 2],
-                    # [-1, -1, -1, 3],
-                    # [-1, -1, -1, 4],
-                    # [-1, -1, -1, 0]
+                    [po1, dw, cr, 2],
+                    [po1, dw, po2, 2],
+                    [po1, -1, cr, 2],
+                    [-1, dw, -1, 2],
+                    [-1, dw, -1, 3],
+                    [-1, dw, -1, 4],
+                    [po2, -1, cr, 2],
+                    [po2, dw, cr, -1],
+                    [cr, dw, po2, -1],
+                    [po1, dw, cr, -1],
+                    [cr, dw, po1, -1]
                 ]
 
             num_test_samples = 0
@@ -334,7 +290,7 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
 
                         
 
-def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None, semantic=False):
+def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
     # EdgeRelation template experiments
 
     timestamp = time.strftime("%Y%m%d-%H%M")
@@ -343,7 +299,7 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None, 
     
     print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
     
-    spn_params = {k:train_kwargs[k] for k in ['num_decomps', 'num_subsets', 'num_mixtures', 'num_input_mixtures']}
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
 
     template_spn = EdgeRelationTemplateSpn(train_kwargs['template'], seed=seed, **spn_params)
 
@@ -396,10 +352,13 @@ if __name__ == "__main__":
         'save_training_info': True,
 
         # spn_structure
-        'num_decomps': 1,
-        'num_subsets': 2,
+        'num_decomps': 2,
+        'num_subsets': 4,
         'num_mixtures': 2,
         'num_input_mixtures': 2,
+
+        # spn_learning
+        'additive_smoothing': 50,
 
         'template': ThreeRelTemplate,
 
@@ -414,11 +373,11 @@ if __name__ == "__main__":
 
         'template': ThreeRelTemplate,
         'limit': -1,
-        'num_partitions': 2,
+        'num_partitions': 10,
         'inference_type': MARGINAL,
         'test_db': 'Stockholm7',
         'expand': False,
         'semantic': True
     }
     
-    run_edge_relation_template_experiment(train_kwargs, test_kwargs, semantic=False, seed=seed)
+    run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=seed)

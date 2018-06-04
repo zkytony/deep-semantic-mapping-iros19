@@ -13,6 +13,7 @@ from deepsm.graphspn.tests.runner import Experiment, TestCase
 from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
+from deepsm.graphspn.spn_model import SpnModel
 from deepsm.util import CategoryManager, ColdDatabaseManager
 from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
 
@@ -395,6 +396,19 @@ class TbmExperiment(Experiment):
 
     def get_stats(self, *args, **kwargs):
         raise NotImplementedError("`get_stats` is not implemented in TbmExperiment")
+
+
+    @classmethod
+    def strip_spn_params(cls, train_kwargs):
+        """
+        Given training parameters, strip the spn parameters out of it as a new dictionary
+        """
+        spn_params = {}
+        spn_param_names = SpnModel.params_list()
+        for p in spn_param_names:
+            if p in train_kwargs:
+                spn_params[p] = train_kwargs[p]
+        return spn_params
 
 
     @classmethod

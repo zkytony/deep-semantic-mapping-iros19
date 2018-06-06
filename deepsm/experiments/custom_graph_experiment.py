@@ -253,15 +253,16 @@ def custom_graph():
     # Global configs:
     # Configuration
     train_kwargs = {
-        'load_if_exists': True,
+        'load_if_exists': False,
         'shuffle': True,
         "save": True,
 
-        # spn structure
-        "num_decomps": 1,
-        "num_subsets": 2,
+        # spn structure (4 classes)
+        "num_decomps": 2,
+        "num_subsets": 4,
         "num_mixtures": 2,
-        "num_input_mixtures": 5
+        "num_input_mixtures": 2,
+        'additive_smoothing': 10
     }
     test_kwargs = {
         'test_name': os.path.basename(args.graph_file),

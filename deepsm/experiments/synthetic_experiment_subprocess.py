@@ -579,8 +579,6 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
         'save': (bool)5C
         'load_if_exists': (bool)
         'likelihood_thres': (float)
-        'will_upsample': (function) e.g. TbmExperiment.check_doorway_connecting,
-        'upsample_rate': (int)
         'save_training_info': (bool)
 
         # spn_structure
@@ -812,8 +810,6 @@ def main():
         "load_if_exists": True,
         "likelihood_thres": 0.2,
         "will_upsample": TbmExperiment.will_upsample,
-        "upsample_rate": 0,
-        "save_training_info": True,
         "skip_unknown": CategoryManager.SKIP_UNKNOWN,
 
         # spn_structure
@@ -878,7 +874,7 @@ def main():
     train_kwargs_file = args.train_kwargs_file
     test_kwargs_file = args.test_kwargs_file
 
-    train_kwargs = load_kwargs_from_file(train_kwargs_file, eval_keys={'will_upsample', 'skip_unknown'})
+    train_kwargs = load_kwargs_from_file(train_kwargs_file, eval_keys={'skip_unknown'})
     test_kwargs = load_kwargs_from_file(test_kwargs_file, eval_keys={'inference_type',
                                                                      'high_likelihood_correct', 'low_likelihood_correct',
                                                                      'high_likelihood_incorrect', 'low_likelihood_incorrect'})  # cases is only used for Novelty detection.

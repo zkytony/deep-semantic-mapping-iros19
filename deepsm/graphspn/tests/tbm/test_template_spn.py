@@ -1022,8 +1022,6 @@ if __name__ == "__main__":
         'save': True,
         'load_if_exists': True,
         'likelihood_thres': 0.1,
-        'will_upsample': TbmExperiment.will_upsample,
-        'upsample_rate': 0,#10,
         'save_training_info': True,
 
         # spn_structure

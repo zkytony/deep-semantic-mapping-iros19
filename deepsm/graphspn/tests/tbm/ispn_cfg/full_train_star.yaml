@@ -5,8 +5,6 @@ num_batches: 10
 save: True
 load_if_exists: True
 likelihood_thres: 0.2
-will_upsample: TbmExperiment.will_upsample
-upsample_rate: 0
 save_training_info: True
 skip_unknown: CategoryManager.SKIP_UNKNOWN
 

@@ -242,10 +242,6 @@ class TbmExperiment(Experiment):
                               Default: 1
            likelihood_thres (float): threshold of likelihood difference between
                                     interations to stop training. Default: 0.05
-           will_upsample func(model, sample): a function that determines whether the given
-                                             sample should be upsampled. Returns True if upsample.
-           upsample_rate (float): the percentage of increase samples. (e.g. 0.1 means the
-                                  upsampled samples will have 10% more presence in the training set.)
            timestamp (str): starting timestamp of the experiment that requested this training.
            save_training_info (bool): If set true, save a formatted file of the configuration and training
                                       data count. The file is located at:
@@ -256,8 +252,6 @@ class TbmExperiment(Experiment):
         num_partitions = kwargs.get("num_partitions", 10)
         num_batches = kwargs.get("num_batches", 1)
         likelihood_thres = kwargs.get("likelihood_thres", 0.05)
-        will_upsample = kwargs.get("will_upsample", None)
-        upsample_rate = kwargs.get("upsample_rate", None)
         timestamp = kwargs.get("timestamp", None)
         save_training_info = kwargs.get("save_training_info", False)
 
@@ -291,24 +285,6 @@ class TbmExperiment(Experiment):
             else:
                  raise ValueError("Invalid template mode %d" % self._template_mode)
                 
-            # Upsampling.
-            if upsample_rate is not None and upsample_rate > 0:
-                total_upsampled = 0
-                original_amount = 0
-                for db in samples_dict:
-                    samples = samples_dict[db]
-                    uniq, counts = np.unique(samples, axis=0, return_counts=True)  # Requires Numpy >= 1.13
-                    sample_counts = dict(zip(map(tuple, uniq), counts))
-                    for sample, count in sample_counts.items():
-                        if will_upsample(model, sample):
-                            amount_add = int(round(count * upsample_rate))
-                            total_upsampled = total_upsampled + amount_add
-                            original_amount = original_amount + int(count)
-                            samples.extend([sample] * amount_add)
-                        
-                self._data_count['upsampled_%s' % model.template.__name__] = {'added': total_upsampled,
-                                                                              'original': original_amount}
-
             # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
             #                                                (D,2*n) if Edgetemplate
             samples = np.array([ p for db in samples_dict for p in samples_dict[db]], dtype=int)
@@ -335,7 +311,7 @@ class TbmExperiment(Experiment):
                 
             train_info[model.template.__name__] = {'config': { k: dict(kwargs)[k]
                                                                for k in kwargs
-                                                               if k not in ['will_upsample', 'save_training_info'] },
+                                                               if k not in ['save_training_info'] },
                                                    'data_stats': self._data_count,
                                                    'likelihoods': likelihoods}
         # loop ends
@@ -670,15 +646,6 @@ class TbmExperiment(Experiment):
                     return masked_sample, False
         return None, False
 
-
-    ########## Upsampling ##########
-    @classmethod
-    def will_upsample(cls, model, sample):
-        """
-        Returns True if the given sample satisfies any of the upsample rules.
-        """
-        return cls.check_doorway_connecting(model, sample)# \
-            #or cls.check_same_room(model, sample)
     
     @classmethod
     def check_same_room(cls, model, sample):

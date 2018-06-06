@@ -144,10 +144,14 @@ class TopoMapDataset:
 
 
     def create_edge_relation_template_dataset(self, template, num_partitions=10,
-                                              db_names=None, seqs_limit=-1, return_stats=False):
+                                              db_names=None, seqs_limit=-1, return_stats=False,
+                                              balance_views=False):
         """
         template (AbsEdgeRelationTemplate):
                    a class name which is a subclass of AbsEdgeRelationTemplate
+
+        balance_views (bool): If true, will make sure that for each view distance value, the total
+                   number of samples that have that value is the same.
 
         Returns a dictionary from database name to a list of samples (each sample is also a list
         """
@@ -195,7 +199,34 @@ class TopoMapDataset:
             return samples, __stats
         else:
             return samples
-                            
+
+
+    # def _balance_views(self, template, samples, divisions=8):
+    #     """First, count the number of samples for each view. Then, go through each possible
+    #     combination of classes and view distances. For each combination where the view distance
+    #     with largest number of samples is not the same as that for the entire set of samples,
+    #     double the number of samples for that combination, and update the counts."""
+    #     if template.num_edge_pair == 0:
+    #         return samples  # No need to balance. No view distance variable.
+        
+    #     for db_name in samples_dict:
+            
+    #         total_counts = {}  # total number of samples for each view distance value
+    #         case_counts = {} # total number of samples for each combination (i.e. case)
+    #         for sample in samples_dict[db_name]:
+    #             if tuple(sample) not in case_counts:
+    #                 cases_counts[tuple(sample)] = {}
+    #             cases_counts[tuple(sample[:template.num_nodes()])][sample[-1]] = cases_counts[tuple(sample[:template.num_nodes()])].get(sample[-1],0) + 1
+    #             total_counts[sample[-1]] = counts.get(sample[-1],0) + 1
+
+    #         max_count_view = max(total_counts, key=lambda k: total_counts[k])
+
+    #         for case in cases_counts:
+    #             max_count_view_case = max(case_counts[case], key=lambda k: case_counts[case][k])
+    #             if max_count_view_case != max_count_view:
+    #                 # double the number of samples for this case.
+    #                 num_case_samples = sum(cases_counts[case].values())
+    #                 for i in range(num_case_samples):
     
     def get_topo_maps(self, db_name=None, seq_id=None, amount=1):
         """

@@ -18,7 +18,7 @@ import tensorflow as tf
 
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
-from deepsm.graphspn.tbm.template import EdgeRelationTemplate, ThreeRelTemplate, SingleTemplate, SingleRelTemplate
+from deepsm.graphspn.tbm.template import EdgeRelationTemplate, ThreeRelTemplate, SingleTemplate, SingleRelTemplate, RelTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.graphspn.tests.runner import TestCase
@@ -29,9 +29,17 @@ from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP
 MPE = 'mpe'
 MARGINAL = 'marginal'
 
+
 RANDOM = 1
 SEMANTIC = 2
 ALL_PROB = 3
+
+
+def category_abrv(catg_num):
+    abrv = CategoryManager.category_map(catg_num, rev=True)
+    if abrv == "OC":
+        abrv = -1
+    return abrv
 
 class EdgeRelationTemplateExperiment(TbmExperiment):
 
@@ -114,6 +122,87 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             return self._report()
     
 
+    ##############################################
+    #                                            #
+    #          All Probilities                   #
+    #                                            #
+    ##############################################
+    class TestCase_AllProbabilities(TestCase):
+        def __init__(self, experiment):
+            super().__init__(experiment)
+
+            self._test_cases = []
+
+        def run(self, sess, **kwargs):
+            """
+            Enumerate all value combinations, and produce likelihood for each
+            """
+            template = kwargs.get('template', None)
+            
+            model = self._experiment.get_model(template)
+            assert model.expanded == False
+
+            num_view_dists = model._divisions // 2 + 1
+
+            all_cases = set()
+
+            # First get all combinations of classes with repeats
+            catg_combs = set(itertools.product(CategoryManager.known_categories(), repeat=template.num_nodes()))
+
+            # Then, enumerate all possible view distances
+            for comb in catg_combs:
+                if template.num_edge_pair() > 0:
+                    for i in range(1, num_view_dists):
+                        all_cases.add(tuple(list(comb) + [i]))
+                else:
+                    all_cases.add(tuple(comb))
+
+            _i = 0
+            for case in all_cases:
+                catg_nums = list(map(CategoryManager.category_map, case[:template.num_nodes()]))
+                lh = float(model.evaluate(sess, catg_nums + list(case[template.num_nodes():]))[0])
+                
+                self._test_cases.append({
+                    'case': case,
+                    'likelihood': lh
+                })
+                _i += 1
+                sys.stdout.write("Testing [%d/%d]\r" % (_i, len(all_cases)))
+                sys.stdout.flush()
+            sys.stdout.write("\n")
+
+            
+        def _report(self):
+            return self._test_cases
+
+        
+        def save_results(self, save_path):
+            """
+            save_path (str): path to saved results (Required).
+
+            Also return the report.
+            """
+            # Save all test cases into a json file.
+            with open(os.path.join(save_path, "test_cases_lh_order.csv"), "w") as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"')
+                for tc in sorted(self._test_cases, key=lambda x: x['likelihood'], reverse=True):
+                    writer.writerow(list(tc['case']) + [tc['likelihood']])
+                    
+            with open(os.path.join(save_path, "test_cases_cl_order.csv"), "w") as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"')
+                for tc in sorted(self._test_cases, key=lambda x: x['case'], reverse=True):
+                    writer.writerow(list(tc['case']) + [tc['likelihood']])
+
+            print("Everything saved in %s" % save_path)
+
+            return self._report()
+    
+        
+    ##############################################
+    #                                            #
+    #          Semantic Understanding            #
+    #                                            #
+    ##############################################
     class TestCase_SemanticUnderstanding(TestCase):
         def __init__(self, experiment):
             super().__init__(experiment)
@@ -125,11 +214,6 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             Tests the model's understanding of semantic relations, by inferring
             semantic attributes.
             """
-            def category_abrv(catg_num):
-                abrv = CategoryManager.category_map(catg_num, rev=True)
-                if abrv == "OC":
-                    abrv = -1
-                return abrv
 
             template = kwargs.get('template', None)
             
@@ -140,21 +224,38 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             cr = CategoryManager.category_map('CR')
             po1 = CategoryManager.category_map('1PO')
             po2 = CategoryManager.category_map('2PO')
+            if CategoryManager.NUM_CATEGORIES > 4:
+                lo = CategoryManager.category_map('LO')
+                lab = CategoryManager.category_map('LAB')
+                ba = CategoryManager.category_map('BA')
+                kt = CategoryManager.category_map('KT')
+                mr = CategoryManager.category_map('MR')
+                ut = CategoryManager.category_map('UT')
 
             if template == ThreeRelTemplate:
                 masked_samples = [
+                    # [cr, cr, cr, -1],
+                    # [lab, lab, lab, -1],
+                    # [-1, -1, -1, 3],
+                    [po1, dw, cr, 1],
                     [po1, dw, cr, 2],
+                    [po1, dw, cr, 3],
+                    [po1, dw, cr, 4],
                     [po1, dw, po2, 2],
                     [po1, -1, cr, 2],
+                    [-1, dw, -1, 1],
                     [-1, dw, -1, 2],
                     [-1, dw, -1, 3],
                     [-1, dw, -1, 4],
-                    [po2, -1, cr, 2],
-                    [po2, dw, cr, -1],
-                    [cr, dw, po2, -1],
+                    [-1, -1, -1, -1],
                     [po1, dw, cr, -1],
-                    [cr, dw, po1, -1]
                 ]
+                if CategoryManager.NUM_CATEGORIES > 4:
+                    masked_samples.extend([[lab, -1, lab, -1],
+                                           [lab, -1, lab, 2],
+                                           [lab, -1, lab, 3],
+                                           [lab, -1, lab, 4]])
+
 
             num_test_samples = 0
             for masked_sample in masked_samples:
@@ -210,7 +311,11 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             return report
 
             
-
+    ##############################################
+    #                                            #
+    #          Random Completion                 #
+    #                                            #
+    ##############################################
     class TestCase_RandomCompletionTask(TestCase):
 
         def __init__(self, experiment):
@@ -391,9 +496,8 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
                                skip_unknown=CategoryManager.SKIP_UNKNOWN)
         train_info = exp.train_models(sess, **train_kwargs)
         model = exp.get_model(test_kwargs['template'])
-        
+
         if test_kwargs['expand']:
-            assert not test_kwargs['semantic']
             print("Expand the model.")
             model.expand()   # expand the model
         if test_kwargs['inference_type'] == MPE:
@@ -401,33 +505,36 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
         else:
             print("Not initializing MPE states. Using marginal inference")
             model.init_learning_ops()
-
+        
         if test_kwargs['to_do'] == SEMANTIC:
             test_kwargs['subname'] = 'semantic_%s_%s' % ("-".join(train_kwargs['train_db']), model.template.__name__)
             exp.test(EdgeRelationTemplateExperiment.TestCase_SemanticUnderstanding, sess, **test_kwargs)
-            print_banner("Finish", ch='^')
         elif test_kwargs['to_do'] == ALL_PROB:
             test_kwargs['subname'] = 'allprob_%s_%s' % ("-".join(train_kwargs['train_db']), model.template.__name__)
             exp.test(EdgeRelationTemplateExperiment.TestCase_AllProbabilities, sess, **test_kwargs)
-            print_banner("Finish", ch='^')
         elif test_kwargs['to_do'] == RANDOM:
             exp.load_testing_data(test_kwargs['test_db'], skip_unknown=CategoryManager.SKIP_UNKNOWN)
 
             test_kwargs['subname'] = 'random_lh_%s' % model.template.__name__
             report_rnd = exp.test(EdgeRelationTemplateExperiment.TestCase_RandomCompletionTask, sess, **test_kwargs)
-            print_banner("Finish", ch='^')
+        else:
+            raise ValueError("Unrecognized test case %s" % test_kwargs['to_do'])
+
+        print_banner("Finish", ch='^')
 
 
 if __name__ == "__main__":
     
     seed = random.randint(200,1000)
 
+    template = ThreeRelTemplate
+
     # Config
     train_kwargs = {
         'num_partitions': 10,#10,
         'num_batches': 10,
         'save': True,
-        'load_if_exists': False,
+        'load_if_exists': True,
         'likelihood_thres': 0.1,
         'save_training_info': True,
 
@@ -440,7 +547,7 @@ if __name__ == "__main__":
         # spn_learning
         'additive_smoothing': 30,
 
-        'template': ThreeRelTemplate,
+        'template': template,
 
         'train_db': ['Freiburg', 'Saarbrucken']
     }
@@ -451,13 +558,12 @@ if __name__ == "__main__":
         'high_likelihood_incorrect': (0.995, 0.999),
         'low_likelihood_incorrect': (0.001, 0.005),
 
-        'template': ThreeRelTemplate,
+        'template': template,
         'limit': -1,
         'num_partitions': 1,
         'inference_type': MARGINAL,
         'test_db': 'Stockholm',
         'expand': False,
-        'semantic': False,
         'to_do': RANDOM
     }
 

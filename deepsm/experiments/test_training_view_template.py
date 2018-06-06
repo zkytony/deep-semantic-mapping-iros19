@@ -19,7 +19,7 @@ import tensorflow as tf
 
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
-from deepsm.graphspn.tbm.template import EdgeRelationTemplate, ThreeRelTemplate, SingleTemplate, SingleRelTemplate
+from deepsm.graphspn.tbm.template import EdgeRelationTemplate, ThreeRelTemplate, SingleTemplate, SingleRelTemplate, RelTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.graphspn.tests.runner import TestCase

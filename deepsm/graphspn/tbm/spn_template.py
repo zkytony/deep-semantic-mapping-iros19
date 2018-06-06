@@ -774,9 +774,8 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         if seed is not None:
             print("[Using seed %d]" % seed)
             rnd = random.Random(seed)
-            
-        self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
 
+        self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
 
     @property
     def root(self):

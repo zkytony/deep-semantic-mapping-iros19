@@ -46,8 +46,6 @@ if __name__ == "__main__":
         'save': True,
         'load_if_exists': True,
         'likelihood_thres': 0.5,
-        'will_upsample': TbmExperiment.check_doorway_connecting,
-        'upsample_rate': 10,
         'save_training_info': True,
         'skip_unknown': CategoryManager.SKIP_UNKNOWN,
 

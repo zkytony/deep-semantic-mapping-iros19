@@ -12,6 +12,7 @@ import time
 import numpy as np
 from numpy import float32
 from abc import abstractmethod
+import itertools
 
 import tensorflow as tf
 
@@ -28,6 +29,10 @@ from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP
 MPE = 'mpe'
 MARGINAL = 'marginal'
 
+RANDOM = 1
+SEMANTIC = 2
+ALL_PROB = 3
+
 class EdgeRelationTemplateExperiment(TbmExperiment):
 
     def __init__(self, db_root, *spns, **kwargs):
@@ -37,6 +42,77 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
         """
         super().__init__(db_root, *spns, **kwargs)
 
+        
+    class TestCase_AllProbabilities(TestCase):
+        def __init__(self, experiment):
+            super().__init__(experiment)
+
+            self._test_cases = []
+
+        def run(self, sess, **kwargs):
+            """
+            Enumerate all value combinations, and produce likelihood for each
+            """
+            template = kwargs.get('template', None)
+            
+            model = self._experiment.get_model(template)
+            assert model.expanded == False
+
+            num_view_dists = model._divisions // 2 + 1
+
+            all_cases = set()
+
+            # First get all combinations of classes with repeats
+            catg_combs = set(itertools.product(CategoryManager.known_categories(), repeat=template.num_nodes()))
+
+            # Then, enumerate all possible view distances
+            for comb in catg_combs:
+                if template.num_edge_pair() > 0:
+                    for i in range(1, num_view_dists):
+                        all_cases.add(tuple(list(comb) + [i]))
+                else:
+                    all_cases.add(tuple(comb))
+
+            _i = 0
+            for case in all_cases:
+                catg_nums = list(map(CategoryManager.category_map, case[:template.num_nodes()]))
+                lh = float(model.evaluate(sess, catg_nums + list(case[template.num_nodes():]))[0])
+                
+                self._test_cases.append({
+                    'case': case,
+                    'likelihood': lh
+                })
+                _i += 1
+                sys.stdout.write("Testing [%d/%d]\r" % (_i, len(all_cases)))
+                sys.stdout.flush()
+            sys.stdout.write("\n")
+
+            
+        def _report(self):
+            return self._test_cases
+
+        
+        def save_results(self, save_path):
+            """
+            save_path (str): path to saved results (Required).
+
+            Also return the report.
+            """
+            # Save all test cases into a json file.
+            with open(os.path.join(save_path, "test_cases_lh_order.csv"), "w") as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"')
+                for tc in sorted(self._test_cases, key=lambda x: x['likelihood'], reverse=True):
+                    writer.writerow(list(tc['case']) + [tc['likelihood']])
+                    
+            with open(os.path.join(save_path, "test_cases_cl_order.csv"), "w") as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"')
+                for tc in sorted(self._test_cases, key=lambda x: x['case'], reverse=True):
+                    writer.writerow(list(tc['case']) + [tc['likelihood']])
+
+            print("Everything saved in %s" % save_path)
+
+            return self._report()
+    
 
     class TestCase_SemanticUnderstanding(TestCase):
         def __init__(self, experiment):
@@ -326,11 +402,15 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
             print("Not initializing MPE states. Using marginal inference")
             model.init_learning_ops()
 
-        if test_kwargs['semantic']:
+        if test_kwargs['to_do'] == SEMANTIC:
             test_kwargs['subname'] = 'semantic_%s_%s' % ("-".join(train_kwargs['train_db']), model.template.__name__)
             exp.test(EdgeRelationTemplateExperiment.TestCase_SemanticUnderstanding, sess, **test_kwargs)
             print_banner("Finish", ch='^')
-        else:
+        elif test_kwargs['to_do'] == ALL_PROB:
+            test_kwargs['subname'] = 'allprob_%s_%s' % ("-".join(train_kwargs['train_db']), model.template.__name__)
+            exp.test(EdgeRelationTemplateExperiment.TestCase_AllProbabilities, sess, **test_kwargs)
+            print_banner("Finish", ch='^')
+        elif test_kwargs['to_do'] == RANDOM:
             exp.load_testing_data(test_kwargs['test_db'], skip_unknown=CategoryManager.SKIP_UNKNOWN)
 
             test_kwargs['subname'] = 'random_lh_%s' % model.template.__name__
@@ -365,7 +445,7 @@ if __name__ == "__main__":
         # Good setting for 10 classes
         # spn_structure
         'num_decomps': 2,
-        'num_subsets': 3,
+        'num_subsets': 4,
         'num_mixtures': 2,
         'num_input_mixtures': 2,
 
@@ -389,7 +469,11 @@ if __name__ == "__main__":
         'inference_type': MARGINAL,
         'test_db': 'Stockholm',
         'expand': False,
-        'semantic': True
+        'semantic': False,
+        'to_do': SEMANTIC
     }
+
+    if test_kwargs['to_do'] == RANDOM:
+        test_kwargs['semantic'] = True
     
     run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=seed)

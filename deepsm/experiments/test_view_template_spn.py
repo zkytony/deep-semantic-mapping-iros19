@@ -431,18 +431,6 @@ if __name__ == "__main__":
         'likelihood_thres': 0.1,
         'save_training_info': True,
 
-        # Good setting for 4 classes:
-        # # spn_structure
-        # 'num_decomps': 2,
-        # 'num_subsets': 4,
-        # 'num_mixtures': 2,
-        # 'num_input_mixtures': 2,
-
-        # # spn_learning
-        # 'additive_smoothing': 10,
-
-        
-        # Good setting for 10 classes
         # spn_structure
         'num_decomps': 2,
         'num_subsets': 4,
@@ -470,7 +458,7 @@ if __name__ == "__main__":
         'test_db': 'Stockholm',
         'expand': False,
         'semantic': False,
-        'to_do': SEMANTIC
+        'to_do': RANDOM
     }
 
     if test_kwargs['to_do'] == RANDOM:

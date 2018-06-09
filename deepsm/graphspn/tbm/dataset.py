@@ -181,8 +181,8 @@ class TopoMapDataset:
                             samples[db_name].append(sample)
                             samples[db_name].append(list(reversed(sample)))
                             if vdist is not None:  # If vdist is None, then this template is just a single node.
-                                samples[db_name][-1].append(vdist)
-                                samples[db_name][-2].append(vdist)
+                                samples[db_name][-1].append(vdist-1)  # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
+                                samples[db_name][-2].append(vdist-1)
 
                     total_seqs_count += 1
                     __stats['total_seqs'] = total_seqs_count

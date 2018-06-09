@@ -730,6 +730,10 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         self._num_nodes = template_tuple[0]
         self._num_edge_pair = template_tuple[1]  # 0 or 1
         self._divisions = divisions
+        # If there are 8 divisions, there could be 4 different values (1, 2, 3, 4) for the
+        # absolute distance between two views. These values correspond to 0, 1, 2, 3 of the
+        # actual value of the view distance IVs node.
+        self._num_view_dists = self._divisions // 2
 
         self._catg_inputs = None
         self._conc_inputs = None
@@ -748,34 +752,75 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             'LH_CONT': "Exp_Lh_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair)
         }
 
+    def _get_all_catg_inputs(self):
+        return spn.Input(self._conc_inputs, list(map(int, np.arange(self._num_nodes * CategoryManager.NUM_CATEGORIES, dtype=int))))
 
-    def _init_struct(self, rnd=None, seed=None):
+    def _get_all_view_inputs(self):
+        return spn.Input(self._conc_inputs, list(map(int, np.arange(self._num_nodes * CategoryManager.NUM_CATEGORIES,
+                                                                    self._num_nodes * CategoryManager.NUM_CATEGORIES + self._num_view_di, dtype=int))))
+    
+    def _get_view_input(self, view_dist):
+        return spn.Input(self._conc_inputs, self._num_nodes * CategoryManager.NUM_CATEGORIES + view_dist)
+    
 
-        # The variables modeled by an EdgeRelationTemplate are nodes (if any) and view distance (if any)
+    def _create_variables(self):
+        """
+        Create IVs and connect them into a Concat node.
+        """
         if self._num_nodes != 0:
             self._catg_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = CategoryManager.NUM_CATEGORIES,
                                         name = self.vn['CATG_IVS'])
             self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs), name=self.vn['CONC'])
         if self._num_edge_pair != 0:
-            # If there are 8 divisions, there could (usually) be 4 different values (1, 2, 3, 4) for the
-            # absolute distance between two views. The value 0 could only occur if two views are exactly
-            # the same, which is a case we cannot exlucde (the model should be independent from how the
-            # graph is constructed and whether there could be two colinear edges). Thus, we do + 1 and the
-            # acceptable values are 0, 1, 2, 3, 4. This is also more convenient than having to subtract 1
-            # from all view distances.
-            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._divisions // 2 + 1, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
+            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._num_view_dists, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
             if self._conc_inputs is not None:
                 self._conc_inputs.add_inputs(self._view_dist_input)
             else:
                 self._conc_inputs = spn.Concat(spn.Input.as_input(self._view_dist_input), name=self.vn['CONC'])
-            
-        # Generate structure, weights, and generate learning operations.
-        print("Generating SPN structure...")
-        if seed is not None:
-            print("[Using seed %d]" % seed)
-            rnd = random.Random(seed)
 
-        self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
+
+    def _init_struct(self, rnd=None, seed=None):
+        """
+        The structure of view template SPN:
+
+        A root sum node has K children where K equals to the number of possible view difference values.
+        Each child is a sub-SPN rooted by a product node that has two children, one being a template-SPN
+        for N-node template constructed upon the IVs for categories, and another is an indicator variable
+        that corresponds to a particular setting of the view distance.
+
+        Still, the category variables and view distances are IVs that go through a single Conc node, in order
+        for the duplication to work.
+
+        Note that, for simple view templates, i.e. (1,0), (0,1) or (1,1), there is no need for anything complex
+        so the resulting structure is dense generated with configurations for a simple structure.
+        """
+        # Create variables
+        self._create_variables()
+        
+        if self._template.to_tuple() == (0, 1) \
+           or self._template.to_tuple() == (1, 0) \
+           or self._template.to_tuple() == (1, 1):
+            # Simple structure by dense generation; Recreate the dense generator with simple parameters
+            self._dense_gen = spn.DenseSPNGenerator(num_decomps=1, num_subsets=2,
+                                                    num_mixtures=2, input_dist=self._input_dist,
+                                                    num_input_mixtures=self._num_input_mixtures)
+            self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
+
+        else:
+            if self._template.to_tuple() != (3, 1):
+                raise ValueError("Oops. Currently the only supported view templates are (1,0), (0,1), (1,1), and (3,1)." \
+                                 "%s is not supported" % self._template)
+            # For each view distance value, create a structure rooted by a product node with one child being
+            # the indicator for that view distance value, and another child being the root of a 3-node template SPN.
+            sub_roots = []
+            for i in range(self._num_view_dists):
+                tmpl3_root = self._dense_gen.generate(self._get_all_catg_inputs(), rnd=rnd)
+                view_input = self._get_view_input(i)
+                prod = spn.Product(tmpl3_root, view_input, name="View_%d_SubSPN_Product" % i)
+                sub_roots.append(prod)
+            self._root = spn.Sum(*sub_roots)
+
+        self.print_params()
 
     @property
     def root(self):

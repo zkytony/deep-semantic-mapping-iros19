@@ -51,77 +51,6 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
         super().__init__(db_root, *spns, **kwargs)
 
         
-    class TestCase_AllProbabilities(TestCase):
-        def __init__(self, experiment):
-            super().__init__(experiment)
-
-            self._test_cases = []
-
-        def run(self, sess, **kwargs):
-            """
-            Enumerate all value combinations, and produce likelihood for each
-            """
-            template = kwargs.get('template', None)
-            
-            model = self._experiment.get_model(template)
-            assert model.expanded == False
-
-            num_view_dists = model._divisions // 2 + 1
-
-            all_cases = set()
-
-            # First get all combinations of classes with repeats
-            catg_combs = set(itertools.product(CategoryManager.known_categories(), repeat=template.num_nodes()))
-
-            # Then, enumerate all possible view distances
-            for comb in catg_combs:
-                if template.num_edge_pair() > 0:
-                    for i in range(1, num_view_dists):
-                        all_cases.add(tuple(list(comb) + [i]))
-                else:
-                    all_cases.add(tuple(comb))
-
-            _i = 0
-            for case in all_cases:
-                catg_nums = list(map(CategoryManager.category_map, case[:template.num_nodes()]))
-                lh = float(model.evaluate(sess, catg_nums + list(case[template.num_nodes():]))[0])
-                
-                self._test_cases.append({
-                    'case': case,
-                    'likelihood': lh
-                })
-                _i += 1
-                sys.stdout.write("Testing [%d/%d]\r" % (_i, len(all_cases)))
-                sys.stdout.flush()
-            sys.stdout.write("\n")
-
-            
-        def _report(self):
-            return self._test_cases
-
-        
-        def save_results(self, save_path):
-            """
-            save_path (str): path to saved results (Required).
-
-            Also return the report.
-            """
-            # Save all test cases into a json file.
-            with open(os.path.join(save_path, "test_cases_lh_order.csv"), "w") as f:
-                writer = csv.writer(f, delimiter=',', quotechar='"')
-                for tc in sorted(self._test_cases, key=lambda x: x['likelihood'], reverse=True):
-                    writer.writerow(list(tc['case']) + [tc['likelihood']])
-                    
-            with open(os.path.join(save_path, "test_cases_cl_order.csv"), "w") as f:
-                writer = csv.writer(f, delimiter=',', quotechar='"')
-                for tc in sorted(self._test_cases, key=lambda x: x['case'], reverse=True):
-                    writer.writerow(list(tc['case']) + [tc['likelihood']])
-
-            print("Everything saved in %s" % save_path)
-
-            return self._report()
-    
-
     ##############################################
     #                                            #
     #          All Probilities                   #
@@ -142,7 +71,7 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             model = self._experiment.get_model(template)
             assert model.expanded == False
 
-            num_view_dists = model._divisions // 2 + 1
+            num_view_dists = model._divisions // 2
 
             all_cases = set()
 
@@ -152,7 +81,7 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             # Then, enumerate all possible view distances
             for comb in catg_combs:
                 if template.num_edge_pair() > 0:
-                    for i in range(1, num_view_dists):
+                    for i in range(num_view_dists):
                         all_cases.add(tuple(list(comb) + [i]))
                 else:
                     all_cases.add(tuple(comb))
@@ -163,7 +92,7 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
                 lh = float(model.evaluate(sess, catg_nums + list(case[template.num_nodes():]))[0])
                 
                 self._test_cases.append({
-                    'case': case,
+                    'case': case[:template.num_nodes()] + (case[-1]+1,),
                     'likelihood': lh
                 })
                 _i += 1
@@ -260,6 +189,10 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
             num_test_samples = 0
             for masked_sample in masked_samples:
                 num_test_samples += 1
+                # If the view distance value != -1, subtract 1, because vdist ranges from 1-4 but we want 0-3 as input to the network
+                if masked_sample[-1] != -1:
+                    masked_sample[-1] -= 1
+                
                 if kwargs.get("inference_type") == MARGINAL:
                     marginals_nodes, marginals_view = model.marginal_inference(sess,
                                                                                np.array(masked_sample, dtype=int),
@@ -277,8 +210,8 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
                 lh = float(model.evaluate(sess, filled_sample)[0])
 
                 self._test_cases.append({
-                    'query': [category_abrv(c) for c in masked_sample[:template.num_nodes()]] + masked_sample[template.num_nodes():],
-                    'response': [category_abrv(c) for c in filled_sample.tolist()[:template.num_nodes()]] + filled_sample.tolist()[template.num_nodes():],
+                    'query': [category_abrv(c) for c in masked_sample[:template.num_nodes()]] + [(masked_sample[-1]+1)],
+                    'response': [category_abrv(c) for c in filled_sample.tolist()[:template.num_nodes()]] + [filled_sample.tolist()[-1]+1],
                     'likelihood': lh
                 })
                 sys.stdout.write("Testing [%d/%d]\r" % (num_test_samples, len(masked_samples)))
@@ -539,8 +472,8 @@ if __name__ == "__main__":
         'save_training_info': True,
 
         # spn_structure
-        'num_decomps': 2,
-        'num_subsets': 4,
+        'num_decomps': 1,
+        'num_subsets': 3,
         'num_mixtures': 2,
         'num_input_mixtures': 2,
 

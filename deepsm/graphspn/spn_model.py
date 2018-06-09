@@ -154,6 +154,14 @@ class SpnModel(ABC):
         pass
 
 
+    def print_params(self):
+        print("===Parameters===")
+        for param in SpnModel.params_list():
+            val = getattr(self, "_" + param)
+            print("%s: %s" % (param, str(val)))
+        print("================")
+
+
     @classmethod
     def params_list(cls):
         return ["input_dist",

@@ -725,7 +725,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         view_dist_values = {}
         for edpair_id in self._edpairs:
             edge1, edge2 = self._edpairs[edpair_id]
-            view_dist_values[edpair_id] = compute_edge_pair_view_distance(edge1, edge2)
+            view_dist_values[edpair_id] = compute_edge_pair_view_distance(edge1, edge2) - 1  # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
         
         if type(sample) == dict:
             catg_values = sample

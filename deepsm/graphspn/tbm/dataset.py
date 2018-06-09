@@ -173,8 +173,8 @@ class TopoMapDataset:
                     erts_matched = ert_map[template]
                     for ert in erts_matched:
                         if ert.nodes is None:  # no nodes.
-                            _, sample = ert.to_sample()  # sample is a number here.
-                            sample = [sample]  # We make a list ourselves.
+                            _, vdist = ert.to_sample()  # sample is a number here.
+                            sample = [vdist-1]  # We make a list ourselves. -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
                             samples[db_name].append(sample)
                         else:
                             sample, vdist = ert.to_sample()

@@ -875,7 +875,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             return sess.run([self._train_likelihood, self._avg_train_likelihood,
                              self._accumulate_updates],
                             feed_dict = feed_dict)
-
+        
         samples = args[0]
         D, m = samples.shape
         if self._num_nodes != 0 and self._num_edge_pair != 0:

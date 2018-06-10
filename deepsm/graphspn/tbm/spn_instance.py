@@ -613,7 +613,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         
         # Single concat, first portion for category variables, and second
         # portion for view distance variables.
-        num_view_dists = divisions // 2 + 1  # number of possible values for absolute view distances
+        num_view_dists = divisions // 2
         self._catg_inputs = spn.IVs(num_vars=len(self._topo_map.nodes), num_vals=CategoryManager.NUM_CATEGORIES, name=self.vn['CATG_IVS'])
         self._view_dist_inputs = spn.IVs(num_vars=len(self._edpairs), num_vals=num_view_dists, name=self.vn['VIEW_IVS'])
         self._conc_inputs = spn.Concat(self._catg_inputs, self._view_dist_inputs, name=self.vn['CONC'])
@@ -758,7 +758,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         for l in range(len(self._label_edpair_map)):
             edpair = self._label_edpair_map[l]
             view_ivs_assignment.append(view_dist_values[edpair])
-
+            
         if not self._expanded:
             lh_val = sess.run(self._train_likelihood,
                               feed_dict={self._catg_inputs: np.array([catg_ivs_assignment], dtype=int),

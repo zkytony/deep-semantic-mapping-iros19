@@ -31,8 +31,8 @@ class SpnModel(ABC):
         self._weight_init_min = kwargs.get('weight_init_min', 10)
         self._weight_init_max = kwargs.get('weight_init_max', 11)
         
-        self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)        
-        self._learning_algorithm = kwargs.get('learning_algorithm', spn.GDLearning)
+        self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)
+        self._learning_algorithm = kwargs.get('learning_algorithm', spn.EMLearning)
 
         if self._learning_algorithm == spn.EMLearning:
             self._min_additive_smoothing = kwargs.get('min-additive_smoothing', 1)

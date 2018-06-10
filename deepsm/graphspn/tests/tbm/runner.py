@@ -2,6 +2,8 @@
 # 
 # author: Kaiyu Zheng
 
+import tensorflow as tf
+
 import os, sys
 import random
 import heapq
@@ -264,10 +266,11 @@ class TbmExperiment(Experiment):
 
             model_save_path = self.model_save_path(model)
             if load_if_exists and os.path.exists(model_save_path):
-                model.init_learning_ops()
                 model.init_weights_ops()
                 model.initialize_weights(sess)
                 model.load(model_save_path, sess)
+                model.init_learning_ops()
+                sess.run(tf.global_variables_initializer())
                 continue
 
             # Load training samples
@@ -297,9 +300,10 @@ class TbmExperiment(Experiment):
 
             # initialize model with random weights
             model.generate_random_weights()
-            model.init_learning_ops()
             model.init_weights_ops()
+            model.init_learning_ops()
             model.initialize_weights(sess)
+            sess.run(tf.global_variables_initializer())
             lh = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres, num_epochs=num_epochs)
             likelihoods[model.template.__name__] = lh
             

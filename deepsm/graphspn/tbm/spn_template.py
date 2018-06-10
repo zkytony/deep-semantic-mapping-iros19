@@ -113,7 +113,8 @@ class TemplateSpn(SpnModel):
                                       value_inference_type=self._value_inference_type,
                                       learning_rate=self._learning_rate,
                                       learning_type=self._learning_type,
-                                      learning_inference_type=self._learning_inference_type)
+                                      learning_inference_type=self._learning_inference_type,
+                                      use_unweighted=True)
             self._reset_accumulators = learning.reset_accumulators()
             self._learn_spn = learning.learn(optimizer=self._optimizer)
             
@@ -174,7 +175,7 @@ class TemplateSpn(SpnModel):
         prev_likelihood = 100
         likelihood = 0
         epoch = 0
-        
+
         while (num_epochs and epoch < num_epochs) \
               or (not num_epochs and (abs(prev_likelihood - likelihood) > likelihood_thres)):
             prev_likelihood = likelihood
@@ -815,9 +816,10 @@ class EdgeRelationTemplateSpn(TemplateSpn):
            or self._template.to_tuple() == (1, 0) \
            or self._template.to_tuple() == (1, 1):
             # Simple structure by dense generation; Recreate the dense generator with simple parameters
-            self._dense_gen = spn.DenseSPNGeneratorLayerNodes(num_decomps=1, num_subsets=2,
-                                                              num_mixtures=2, input_dist=self._input_dist,
-                                                              num_input_mixtures=self._num_input_mixtures)
+            self._input_dist = spn.DenseSPNGenerator.InputDist.RAW
+            self._dense_gen = spn.DenseSPNGenerator(num_decomps=1, num_subsets=2,
+                                                    num_mixtures=2, input_dist=self._input_dist,
+                                                    num_input_mixtures=self._num_input_mixtures)
             self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
 
         else:

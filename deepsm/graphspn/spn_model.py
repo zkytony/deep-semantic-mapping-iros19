@@ -31,23 +31,49 @@ class SpnModel(ABC):
         self._weight_init_min = kwargs.get('weight_init_min', 10)
         self._weight_init_max = kwargs.get('weight_init_max', 11)
         
+        self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)        
         self._learning_algorithm = kwargs.get('learning_algorithm', spn.GDLearning)
 
         if self._learning_algorithm == spn.EMLearning:
             self._min_additive_smoothing = kwargs.get('min-additive_smoothing', 1)
             self._smoothing_decay = kwargs.get('smoothing_decay', 0.2)
-            self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)
-            self._additive_smoothing = kwargs.get('additive_smoothing', 100)
+            self._additive_smoothing = kwargs.get('additive_smoothing', 30)
             self._additive_smoothing_var = tf.Variable(self._additive_smoothing, dtype=spn.conf.dtype)
 
         elif self._learning_algorithm == spn.GDLearning:
-            self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)
-            self._learning_type = kwargs.get('value_inference_type', spn.LearningType.DISCRIMINATIVE)
+            self._learning_type = kwargs.get('learning_type', spn.LearningType.DISCRIMINATIVE)
             self._learning_inference_type =  kwargs.get('learning_inference_type', spn.LearningInferenceType.SOFT)
             self._learning_rate = kwargs.get('learning_rate', 0.001)
             self._optimizer = kwargs.get('optimizer', tf.train.AdamOptimizer)
         
+    @classmethod
+    def params_list(cls, learning_algorithm):
+        params = ["input_dist",
+                  "num_decomps",
+                  "num_subsets",
+                  "num_mixtures",
+                  "num_input_mixtures",
+                  "weight_init_min",
+                  "weight_init_max",
+                  "value_inference_type",
+                  "learning_algorithm"]
 
+        if learning_algorithm == spn.EMLearning:
+            params.extend([
+                "min_additive_smoothing",
+                "smoothing_decay",
+                "additive_smoothing",
+                "additive_smoothing_var"
+            ])
+        elif learning_algorithm == spn.GDLearning:
+            params.extend([
+                "learning_type",
+                "learning_inference_type",
+                "learning_rate",
+                "optimizer"
+            ])
+        return params
+        
     @property
     def weight_init_min(self):
         return self._weight_init_min
@@ -167,26 +193,11 @@ class SpnModel(ABC):
 
     def print_params(self):
         print("===Parameters===")
-        for param in SpnModel.params_list():
+        for param in SpnModel.params_list(self._learning_algorithm):
             val = getattr(self, "_" + param)
             print("%s: %s" % (param, str(val)))
         print("================")
 
-
-    @classmethod
-    def params_list(cls):
-        return ["input_dist",
-                "num_decomps",
-                "num_subsets",
-                "num_mixtures",
-                "num_input_mixtures",
-                "min_additive_smoothing",
-                "smoothing_decay",
-                "weight_init_min",
-                "weight_init_max",
-                "value_inference_type",
-                "additive_smoothing",
-                "additive_smoothing_var"]
 
     @classmethod
     def print_weights(cls, spn_root, sess):

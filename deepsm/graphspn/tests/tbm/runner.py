@@ -251,6 +251,7 @@ class TbmExperiment(Experiment):
         load_if_exists = kwargs.get("load_if_exists", False)
         num_partitions = kwargs.get("num_partitions", 10)
         num_batches = kwargs.get("num_batches", 1)
+        num_epochs = kwargs.get('num_epochs', None)
         likelihood_thres = kwargs.get("likelihood_thres", 0.05)
         timestamp = kwargs.get("timestamp", None)
         save_training_info = kwargs.get("save_training_info", False)
@@ -299,7 +300,7 @@ class TbmExperiment(Experiment):
             model.init_learning_ops()
             model.init_weights_ops()
             model.initialize_weights(sess)
-            lh = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres)
+            lh = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres, num_epochs=num_epochs)
             likelihoods[model.template.__name__] = lh
             
             if save:
@@ -375,12 +376,12 @@ class TbmExperiment(Experiment):
 
 
     @classmethod
-    def strip_spn_params(cls, train_kwargs):
+    def strip_spn_params(cls, train_kwargs, learning_algorithm):
         """
         Given training parameters, strip the spn parameters out of it as a new dictionary
         """
         spn_params = {}
-        spn_param_names = SpnModel.params_list()
+        spn_param_names = SpnModel.params_list(learning_algorithm)
         for p in spn_param_names:
             if p in train_kwargs:
                 spn_params[p] = train_kwargs[p]

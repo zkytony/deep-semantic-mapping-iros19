@@ -158,7 +158,7 @@ class TemplateSpn(SpnModel):
             self._expanded = True
 
 
-    def _start_training(self, samples, num_batches, likelihood_thres, sess, func_feed_samples):
+    def _start_training(self, samples, num_batches, likelihood_thres, sess, func_feed_samples, num_epochs=None):
         """
         Helper for train() in subclasses. Weights should have been initialized.
 
@@ -177,7 +177,9 @@ class TemplateSpn(SpnModel):
         prev_likelihood = 100
         likelihood = 0
         epoch = 0
-        while (abs(prev_likelihood - likelihood) > likelihood_thres):
+        
+        while (num_epochs and epoch < num_epochs) \
+              or (not num_epochs and (abs(prev_likelihood - likelihood) > likelihood_thres)):
             prev_likelihood = likelihood
             likelihoods = []
             for batch in range(num_batches):
@@ -185,6 +187,12 @@ class TemplateSpn(SpnModel):
                 stop = (batch+1)*batch_size
                 print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
 
+                if self._learning_algorithm == spn.EMLearning:
+                    ads = max(np.exp(-epoch*self._smoothing_decay)*self._additive_smoothing,
+                              self._min_additive_smoothing)
+                    sess.run(self._additive_smoothing_var.assign(ads))
+                    print("Smoothing: ", sess.run(self._additive_smoothing_var))
+                
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
                     func_feed_samples(self, samples, start, stop)
 
@@ -192,6 +200,9 @@ class TemplateSpn(SpnModel):
                 print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
 
+                if self._learning_algorithm == spn.EMLearning:
+                    sess.run(self._update_spn)
+                
             likelihood = sum(likelihoods) / len(likelihoods)
             print("Avg likelihood: %s" % (likelihood))
             likelihoods_log.append(likelihood)
@@ -355,13 +366,14 @@ class NodeTemplateSpn(TemplateSpn):
         
         shuffle = kwargs.get('shuffle', False)
         num_batches = kwargs.get('num_batches', 1)
+        num_epochs = kwargs.get('num_epochs', None)
         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
 
         if shuffle:
             np.random.shuffle(samples)
 
         # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples)
+        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs)
         
     
     def evaluate(self, sess, *args, **kwargs):
@@ -770,22 +782,6 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         return spn.Input(self._conc_inputs, self._num_nodes * CategoryManager.NUM_CATEGORIES + view_dist)
     
 
-    def _create_variables(self):
-        """
-        Create IVs and connect them into a Concat node.
-        """
-        if self._num_nodes != 0:
-            self._catg_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = CategoryManager.NUM_CATEGORIES,
-                                        name = self.vn['CATG_IVS'])
-            self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs), name=self.vn['CONC'])
-        if self._num_edge_pair != 0:
-            self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._num_view_dists, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
-            if self._conc_inputs is not None:
-                self._conc_inputs.add_inputs(self._view_dist_input)
-            else:
-                self._conc_inputs = spn.Concat(spn.Input.as_input(self._view_dist_input), name=self.vn['CONC'])
-
-
     def _init_struct(self, rnd=None, seed=None):
         """
         The structure of view template SPN:
@@ -801,31 +797,47 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         Note that, for simple view templates, i.e. (1,0), (0,1) or (1,1), there is no need for anything complex
         so the resulting structure is dense generated with configurations for a simple structure.
         """
-        # Create variables
-        self._create_variables()
         
         if self._template.to_tuple() == (0, 1) \
            or self._template.to_tuple() == (1, 0) \
            or self._template.to_tuple() == (1, 1):
+
+            if self._num_nodes != 0:
+                self._catg_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = CategoryManager.NUM_CATEGORIES,
+                                            name = self.vn['CATG_IVS'])
+                self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs), name=self.vn['CONC'])
+            if self._num_edge_pair != 0:
+                self._view_dist_input = spn.IVs(num_vars = 1, num_vals = self._num_view_dists, name=self.vn['VIEW_IVS'])  ## WARNING Assuming absolute value distance
+                if self._conc_inputs is not None:
+                    self._conc_inputs.add_inputs(self._view_dist_input)
+                else:
+                    self._conc_inputs = spn.Concat(spn.Input.as_input(self._view_dist_input), name=self.vn['CONC'])
+
+            
             # Simple structure by dense generation; Recreate the dense generator with simple parameters
-            self._dense_gen = spn.DenseSPNGenerator(num_decomps=1, num_subsets=2,
-                                                    num_mixtures=2, input_dist=self._input_dist,
-                                                    num_input_mixtures=self._num_input_mixtures)
+            self._dense_gen = spn.DenseSPNGeneratorLayerNodes(num_decomps=1, num_subsets=2,
+                                                              num_mixtures=2, input_dist=self._input_dist,
+                                                              num_input_mixtures=self._num_input_mixtures)
             self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
 
         else:
             if self._template.to_tuple() != (3, 1):
                 raise ValueError("Oops. Currently the only supported view templates are (1,0), (0,1), (1,1), and (3,1)." \
                                  "%s is not supported" % self._template)
+            
+            self._catg_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = CategoryManager.NUM_CATEGORIES,
+                                        name = self.vn['CATG_IVS'])
+            self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs), name=self.vn['CONC'])
+            
             # For each view distance value, create a structure rooted by a product node with one child being
             # the indicator for that view distance value, and another child being the root of a 3-node template SPN.
             sub_roots = []
             for i in range(self._num_view_dists):
                 tmpl3_root = self._dense_gen.generate(self._get_all_catg_inputs(), rnd=rnd)
-                view_input = self._get_view_input(i)
-                prod = spn.Product(tmpl3_root, view_input, name="View_%d_SubSPN_Product" % i)
-                sub_roots.append(prod)
+                sub_roots.append(tmpl3_root)
             self._root = spn.Sum(*sub_roots)
+            self._view_dist_input = self._root.generate_ivs(name=self.vn['VIEW_IVS'])
+            self._conc_inputs.add_inputs(self._view_dist_input)
 
 
     @property
@@ -900,12 +912,13 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         shuffle = kwargs.get('shuffle', False)
         num_batches = kwargs.get('num_batches', 1)
         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
+        num_epochs = kwargs.get('num_epochs', None)
 
         if shuffle:
             np.random.shuffle(samples)
 
         # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples)
+        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs)
 
 
     def init_mpe_states(self):

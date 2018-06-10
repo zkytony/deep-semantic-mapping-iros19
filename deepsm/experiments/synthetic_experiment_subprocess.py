@@ -973,6 +973,7 @@ def main():
     if args.num_partitions:
         test_kwargs['num_partitions'] = args.num_partitions
 
+
     if "high_likelihood_correct" in test_kwargs \
        and "low_likelihood_correct" in test_kwargs \
        and "high_likelihood_incorrect" in test_kwargs \
@@ -985,6 +986,9 @@ def main():
         print("<Noisification Level>")
         pprint(test_kwargs['noisification_level'])
 
+    # If num_ounds is zero, then don't bother run anything.
+    if args.num_rounds == 0:
+        exit(0)
 
     if train_kwargs['templates'][0].code() == NodeTemplate.code():
         run_node_template_experiment(args.seed, train_kwargs, test_kwargs, to_do,

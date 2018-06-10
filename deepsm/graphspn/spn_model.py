@@ -23,18 +23,29 @@ class SpnModel(ABC):
         Initialize
         """
         # args for libspn
-        self._input_dist = kwargs.get('input_dist', spn.DenseSPNGenerator.InputDist.RAW)
+        self._input_dist = kwargs.get('input_dist', spn.DenseSPNGeneratorLayerNodes.InputDist.RAW)
         self._num_decomps = kwargs.get('num_decomps', 1)
         self._num_subsets = kwargs.get('num_subsets', 2)
         self._num_mixtures = kwargs.get('num_mixtures', 2)
         self._num_input_mixtures = kwargs.get('num_input_mixtures', 2)
-        self._min_additive_smoothing = kwargs.get('min-additive_smoothing', 1)
-        self._smoothing_decay = kwargs.get('smoothing_decay', 0.2)
         self._weight_init_min = kwargs.get('weight_init_min', 10)
         self._weight_init_max = kwargs.get('weight_init_max', 11)
-        self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)
-        self._additive_smoothing = kwargs.get('additive_smoothing', 100)
-        self._additive_smoothing_var = tf.Variable(self._additive_smoothing, dtype=spn.conf.dtype)
+        
+        self._learning_algorithm = kwargs.get('learning_algorithm', spn.GDLearning)
+
+        if self._learning_algorithm == spn.EMLearning:
+            self._min_additive_smoothing = kwargs.get('min-additive_smoothing', 1)
+            self._smoothing_decay = kwargs.get('smoothing_decay', 0.2)
+            self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)
+            self._additive_smoothing = kwargs.get('additive_smoothing', 100)
+            self._additive_smoothing_var = tf.Variable(self._additive_smoothing, dtype=spn.conf.dtype)
+
+        elif self._learning_algorithm == spn.GDLearning:
+            self._value_inference_type = kwargs.get('value_inference_type', spn.InferenceType.MARGINAL)
+            self._learning_type = kwargs.get('value_inference_type', spn.LearningType.DISCRIMINATIVE)
+            self._learning_inference_type =  kwargs.get('learning_inference_type', spn.LearningInferenceType.SOFT)
+            self._learning_rate = kwargs.get('learning_rate', 0.001)
+            self._optimizer = kwargs.get('optimizer', tf.train.AdamOptimizer)
         
 
     @property

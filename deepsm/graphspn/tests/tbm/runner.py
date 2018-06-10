@@ -263,10 +263,10 @@ class TbmExperiment(Experiment):
 
             model_save_path = self.model_save_path(model)
             if load_if_exists and os.path.exists(model_save_path):
+                model.init_learning_ops()
                 model.init_weights_ops()
                 model.initialize_weights(sess)
                 model.load(model_save_path, sess)
-                model.init_learning_ops()
                 continue
 
             # Load training samples
@@ -296,8 +296,8 @@ class TbmExperiment(Experiment):
 
             # initialize model with random weights
             model.generate_random_weights()
-            model.init_weights_ops()
             model.init_learning_ops()
+            model.init_weights_ops()
             model.initialize_weights(sess)
             lh = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres)
             likelihoods[model.template.__name__] = lh

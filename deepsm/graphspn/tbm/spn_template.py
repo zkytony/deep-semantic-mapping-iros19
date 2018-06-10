@@ -43,9 +43,12 @@ class TemplateSpn(SpnModel):
         super().__init__(*args, **kwargs)
 
         self._template = template
-        self._dense_gen = spn.DenseSPNGenerator(num_decomps=self._num_decomps, num_subsets=self._num_subsets,
-                                                num_mixtures=self._num_mixtures, input_dist=self._input_dist,
-                                                num_input_mixtures=self._num_input_mixtures)
+        # self._dense_gen = spn.DenseSPNGenerator(num_decomps=self._num_decomps, num_subsets=self._num_subsets,
+        #                                         num_mixtures=self._num_mixtures, input_dist=self._input_dist,
+        #                                         num_input_mixtures=self._num_input_mixtures)
+        self._dense_gen = spn.DenseSPNGeneratorLayerNodes(num_decomps=self._num_decomps, num_subsets=self._num_subsets,
+                                                          num_mixtures=self._num_mixtures, input_dist=self._input_dist,
+                                                          num_input_mixtures=self._num_input_mixtures)
         self._expanded = False
         self._rnd = random.Random()
         self._seed = kwargs.get('seed', None)
@@ -96,26 +99,36 @@ class TemplateSpn(SpnModel):
         """
         Generates random weights for this spn.
         """
-        weights_gen = spn.WeightsGenerator(init_value=spn.ValueType.RANDOM_UNIFORM(self.weight_init_min,
-                                                                                   self.weight_init_max),
-                                           trainable=trainable)
-        weights_gen.generate(self._root)
+        weight_init_value = spn.ValueType.RANDOM_UNIFORM(self._weight_init_min, self._weight_init_max)
+        spn.generate_weights(self._root, init_value=weight_init_value, trainable=trainable, log=True)
+        
 
     def init_weights_ops(self):
         print("Generating weight initialization Ops...")
-        self._initialize_weights = spn.initialize_weights(self._root)
+        init_weights = spn.initialize_weights(self._root)
+        self._initialize_weights = [init_weights, tf.global_variables_initializer()]
 
 
     def init_learning_ops(self):
         print("Initializing learning Ops...")
-        learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
+        if self._learning_algorithm == spn.GDLearning:
+            learning = spn.GDLearning(self._root, log=True,
+                                      value_inference_type=self._value_inference_type,
+                                      learning_rate=self._learning_rate,
+                                      learning_type=self._learning_type,
+                                      learning_inference_type=self._learning_inference_type)
+            self._reset_accumulators = learning.reset_accumulators()
+            self._learn_spn = learning.learn(optimizer=self._optimizer)
+            
+        elif self._learning_algorithm == spn.EMLearning:
+            learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
                                   additive_smoothing = self._additive_smoothing_var, use_unweighted=True)
-        self._reset_accumulators = learning.reset_accumulators()
-        self._accumulate_updates = learning.accumulate_updates()
-        self._update_spn = learning.update_spn()
+            self._reset_accumulators = learning.reset_accumulators()
+            self._learn_spn = learning.accumulate_updates()
+            self._update_spn = learning.update_spn()
+
         self._train_likelihood = learning.value.values[self._root]
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
-
 
     def initialize_weights(self, sess):
         print("Initializing weights...")
@@ -172,18 +185,12 @@ class TemplateSpn(SpnModel):
                 stop = (batch+1)*batch_size
                 print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
 
-                ads = max(np.exp(-epoch*self._smoothing_decay)*self._additive_smoothing,
-                          self._min_additive_smoothing)
-                sess.run(self._additive_smoothing_var.assign(ads))
-                print("Smoothing: ", sess.run(self._additive_smoothing_var))
-
-                train_likelihoods_arr, avg_train_likelihood_val, _, = func_feed_samples(self, samples, start, stop)
+                train_likelihoods_arr, avg_train_likelihood_val, _, = \
+                    func_feed_samples(self, samples, start, stop)
 
                 # Print avg likelihood of this batch data on previous batch weights
                 print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
-                # Update weights
-                sess.run(self._update_spn)
 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("Avg likelihood: %s" % (likelihood))
@@ -336,7 +343,7 @@ class NodeTemplateSpn(TemplateSpn):
         """
         def feed_samples(self, samples, start, stop):
             return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                             self._accumulate_updates],
+                             self._learn_spn],
                             feed_dict={self._catg_inputs: samples[start:stop]})
 
         
@@ -582,7 +589,7 @@ class EdgeTemplateSpn(TemplateSpn):
 
         def feed_samples(self, samples, start, stop):
             return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                             self._accumulate_updates],
+                             self._learn_spn],
                             feed_dict={self._catg_inputs: samples[start:stop, 0],
                                        self._view_inputs: samples[start:stop, 1]})
         
@@ -820,7 +827,6 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                 sub_roots.append(prod)
             self._root = spn.Sum(*sub_roots)
 
-        self.print_params()
 
     @property
     def root(self):
@@ -873,7 +879,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         def feed_samples(self, samples, start, stop):
             feed_dict = self._get_feed_dict(samples, start=start, stop=stop)
             return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                             self._accumulate_updates],
+                             self._learn_spn],
                             feed_dict = feed_dict)
         
         samples = args[0]

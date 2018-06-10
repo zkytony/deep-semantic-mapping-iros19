@@ -11,10 +11,15 @@ save_training_info: True
 skip_unknown: CategoryManager.SKIP_UNKNOWN
 
 # spn_structure
-num_decomps: 2
-num_subsets: 4
+num_decomps: 1
+num_subsets: 3
 num_mixtures: 2
 num_input_mixtures: 2
+
+learning_algorithm: spn.GDLearning
+learning_type: spn.LearningType.GENERATIVE
+learning_rate: 0.001
+
 
 # spn learning
 additive_smoothing: 30

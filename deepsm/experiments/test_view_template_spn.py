@@ -15,6 +15,7 @@ from abc import abstractmethod
 import itertools
 
 import tensorflow as tf
+import libspn as spn
 
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
@@ -177,6 +178,9 @@ class EdgeRelationTemplateExperiment(TbmExperiment):
                     [-1, dw, -1, 3],
                     [-1, dw, -1, 4],
                     [-1, -1, -1, -1],
+                    [cr, -1, cr, 1],
+                    [cr, -1, cr, 2],
+                    [cr, -1, cr, 3],
                     [po1, dw, cr, -1],
                 ]
                 if CategoryManager.NUM_CATEGORIES > 4:
@@ -412,10 +416,11 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
     test_kwargs['timestamp'] = timestamp
     
     print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
-    
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
 
     template_spn = EdgeRelationTemplateSpn(train_kwargs['template'], seed=seed, **spn_params)
+
 
     with tf.Session() as sess:
         name = "EdgeRelationTemplateExperiment"
@@ -427,8 +432,11 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
                                              root_dir=GRAPHSPN_RESULTS_ROOT, name=name)
         exp.load_training_data(*train_kwargs['train_db'],
                                skip_unknown=CategoryManager.SKIP_UNKNOWN)
-        train_info = exp.train_models(sess, **train_kwargs)
+        
         model = exp.get_model(test_kwargs['template'])
+        model.print_params()
+        
+        train_info = exp.train_models(sess, **train_kwargs)
 
         if test_kwargs['expand']:
             print("Expand the model.")
@@ -460,16 +468,21 @@ if __name__ == "__main__":
     
     seed = random.randint(200,1000)
 
-    template = ThreeRelTemplate
+    template = RelTemplate
 
     # Config
     train_kwargs = {
         'num_partitions': 10,#10,
-        'num_batches': 10,
+        'num_batches': 100,
+        'num_epochs': 5,
         'save': True,
-        'load_if_exists': True,
+        'load_if_exists': False,
         'likelihood_thres': 0.1,
         'save_training_info': True,
+
+        'learning_algorithm': spn.GDLearning,
+        'learning_type': spn.LearningType.GENERATIVE,
+        'learning_rate': 0.001,
 
         # spn_structure
         'num_decomps': 1,

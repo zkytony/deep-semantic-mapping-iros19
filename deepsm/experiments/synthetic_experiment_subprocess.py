@@ -28,6 +28,8 @@ import matplotlib.pyplot as plt
 from pylab import rcParams
 import argparse
 
+import libspn as spn
+
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, EdgeRelationTemplateSpn
@@ -532,7 +534,7 @@ def run_node_template_experiment(seed, train_kwargs, test_kwargs, to_do, amount=
     
     print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
 
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
 
     template_spns = []
     for template in train_kwargs['templates']:
@@ -553,9 +555,9 @@ def run_edge_relation_template_experiment(seed, train_kwargs, test_kwargs, to_do
     train_kwargs['timestamp'] = timestamp
     test_kwargs['timestamp'] = timestamp
     
-    print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
+    print_in_box(["EdgeRelationTemplate experiments"], ho="+", vr="+")
 
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
 
     template_spns = []
     for template in train_kwargs['templates']:
@@ -671,6 +673,7 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
                                                            divisions=8,
                                                            visualize_partitions_dirpath=visp_dirpath,
                                                            db_name=db_name)
+                    
                 elif exp._template_mode == EdgeRelationTemplate.code():
                     instance_spn = EdgeRelationTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                                    num_partitions=test_kwargs['num_partitions'],
@@ -678,10 +681,13 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
                                                                    divisions=8,
                                                                    visualize_partitions_dirpath=visp_dirpath,
                                                                    db_name=db_name)
+                    
                 test_kwargs['instance_spn'] = instance_spn
                 test_kwargs['db_name'] = db_name
                 test_kwargs['seq_id'] = seq_id
                 test_kwargs['topo_map'] = topo_map
+
+                instance_spn.print_params()
 
                 if NOVELTY in to_do:
                     test_kwargs['subname'] = '%s_novelty--%s' % (test_kwargs['test_name'], seq_id)
@@ -874,7 +880,7 @@ def main():
     train_kwargs_file = args.train_kwargs_file
     test_kwargs_file = args.test_kwargs_file
 
-    train_kwargs = load_kwargs_from_file(train_kwargs_file, eval_keys={'skip_unknown'})
+    train_kwargs = load_kwargs_from_file(train_kwargs_file, eval_keys={'skip_unknown', 'learning_type', 'learning_algorithm'})
     test_kwargs = load_kwargs_from_file(test_kwargs_file, eval_keys={'inference_type',
                                                                      'high_likelihood_correct', 'low_likelihood_correct',
                                                                      'high_likelihood_incorrect', 'low_likelihood_incorrect'})  # cases is only used for Novelty detection.

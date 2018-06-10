@@ -87,7 +87,7 @@ if __name__ == "__main__":
         'train_db': ['Freiburg', 'Saarbrucken']
     }
 
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
     template_spn = EdgeRelationTemplateSpn(train_kwargs['template'], seed=seed, **spn_params)
     
     exp = TbmExperiment(TOPO_MAP_DB_ROOT,

@@ -231,7 +231,7 @@ class CategoryManager:
     # classes should be `known` and there is no 'UN' label.
     SKIP_UNKNOWN = True
     # TYPE of label mapping scheme. Offers SIMPLE and FULL.
-    TYPE = 'FULL'
+    TYPE = 'BINARY'
     
     # Category mappings
     CAT_MAP_ALL = {

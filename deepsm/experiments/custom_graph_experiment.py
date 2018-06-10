@@ -146,7 +146,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name):
     # produce inference result
     # save the parameters for the graphspn
 
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
     
     # Create template SPNs
     spns = []

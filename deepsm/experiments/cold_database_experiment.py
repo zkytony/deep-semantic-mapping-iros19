@@ -155,7 +155,8 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
 
     amount (int): amount of testing topo maps to load.
     """
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+    
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
 
     # Create template SPNs
     spns = []

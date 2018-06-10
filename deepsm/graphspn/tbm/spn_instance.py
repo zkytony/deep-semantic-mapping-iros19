@@ -87,11 +87,22 @@ class InstanceSpn(SpnModel):
 
     def _init_ops_basics(self):
         print("Initializing learning Ops...")
-        learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
+        if self._learning_algorithm == spn.GDLearning:
+            learning = spn.GDLearning(self._root, log=True,
+                                      value_inference_type=self._value_inference_type,
+                                      learning_rate=self._learning_rate,
+                                      learning_type=self._learning_type,
+                                      learning_inference_type=self._learning_inference_type)
+            self._reset_accumulators = learning.reset_accumulators()
+            self._learn_spn = learning.learn(optimizer=self._optimizer)
+            
+        elif self._learning_algorithm == spn.EMLearning:
+            learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
                                   additive_smoothing = self._additive_smoothing_var, use_unweighted=True)
-        self._reset_accumulators = learning.reset_accumulators()
-        self._accumulate_updates = learning.accumulate_updates()
-        self._update_spn = learning.update_spn()
+            self._reset_accumulators = learning.reset_accumulators()
+            self._learn_spn = learning.accumulate_updates()
+            self._update_spn = learning.update_spn()
+
         self._train_likelihood = learning.value.values[self._root]
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
         

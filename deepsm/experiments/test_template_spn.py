@@ -26,6 +26,7 @@ import time
 import numpy as np
 from numpy import float32
 from abc import abstractmethod
+import libspn as spn
 
 import tensorflow as tf
 
@@ -762,7 +763,7 @@ def run_nodetemplate_experiment(train_kwargs, test_kwargs, seed=None, semantic=F
     
     print_in_box(["NodeTemplate experiments"], ho="+", vr="+")
 
-    spn_params = TbmExperiment.strip_spn_params(train_kwargs)
+    spn_params = TbmExperiment.strip_spn_params(train_kwargs, train_kwargs['learning_algorithm'])
 
     template_spn = NodeTemplateSpn(test_kwargs['template'], seed=seed, **spn_params)
 
@@ -1024,8 +1025,10 @@ if __name__ == "__main__":
         'likelihood_thres': 0.1,
         'save_training_info': True,
 
+        'learning_algorithm': spn.EMLearning,
+
         # spn_structure
-        'num_decomps': 3,#1,
+        'num_decomps': 1,#1,
         'num_subsets': 3,#2,
         'num_mixtures': 2,#2,
         'num_input_mixtures': 2,#2

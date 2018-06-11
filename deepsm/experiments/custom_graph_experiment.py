@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from pylab import rcParams
 import numpy as np
 import tensorflow as tf
+import libspn as spn
 import argparse
 import yaml
 import time
@@ -262,7 +263,10 @@ def custom_graph():
         "num_subsets": 4,
         "num_mixtures": 2,
         "num_input_mixtures": 2,
-        'additive_smoothing': 10
+
+        # spn_learning
+        'learning_algorithm': spn.EMLearning,
+        'additive_smoothing': 30
     }
     test_kwargs = {
         'test_name': os.path.basename(args.graph_file),

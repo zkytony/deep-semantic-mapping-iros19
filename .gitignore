@@ -10,3 +10,6 @@ deepsm/experiments/results
 *.pyc
 /dist/
 __pycache__
+
+*tmp*
+*.ipynb_checkpoints

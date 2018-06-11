@@ -468,30 +468,31 @@ if __name__ == "__main__":
     
     seed = random.randint(200,1000)
 
-    template = RelTemplate
+    template = ThreeRelTemplate
 
     # Config
     train_kwargs = {
         'num_partitions': 10,#10,
-        'num_batches': 100,
-        'num_epochs': 5,
+        'num_batches': 10,
+        'num_epochs': None,
         'save': True,
         'load_if_exists': False,
         'likelihood_thres': 0.1,
         'save_training_info': True,
 
-        'learning_algorithm': spn.GDLearning,
-        'learning_type': spn.LearningType.GENERATIVE,
-        'learning_rate': 0.001,
+        # spn_learning
+        'learning_algorithm': spn.EMLearning,
+        'additive_smoothing': 30,
+        
+        # 'learning_algorithm': spn.GDLearning,
+        # 'learning_type': spn.LearningType.GENERATIVE,
+        # 'learning_rate': 0.001,
 
         # spn_structure
         'num_decomps': 1,
         'num_subsets': 3,
         'num_mixtures': 2,
         'num_input_mixtures': 2,
-
-        # spn_learning
-        'additive_smoothing': 30,
 
         'template': template,
 
@@ -510,7 +511,7 @@ if __name__ == "__main__":
         'inference_type': MARGINAL,
         'test_db': 'Stockholm',
         'expand': False,
-        'to_do': RANDOM
+        'to_do': ALL_PROB
     }
 
     if test_kwargs['to_do'] == RANDOM:

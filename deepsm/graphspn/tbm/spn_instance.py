@@ -312,7 +312,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         pspns = []
         tspns = {}
         for template_spn, template in self._spns:
-            tspns[template.__name__] = (template_spn.root, template_spn._catg_inputs, template_spn._conc_inputs)            
+            tspns[template.__name__] = template_spn
 
         """Making an SPN"""
         """Now, partition the graph, copy structure, and connect self._catg_inputs appropriately to the network."""
@@ -417,12 +417,13 @@ class NodeTemplateInstanceSpn(InstanceSpn):
 
             sys.stdout.write("%d " % (__i+1))
             sys.stdout.flush()
-            copied_tspn_root = mod_compute_graph_up(tspns[template.__name__][0],
+            copied_tspn_root = mod_compute_graph_up(tspns[template.__name__].root,
                                                     TemplateSpn.dup_fun_up,
                                                     tmpl_num_vars=[len(nids)],
                                                     tmpl_num_vals=[CategoryManager.NUM_CATEGORIES],
                                                     graph_num_vars=[len(ispn._topo_map.nodes)],
                                                     conc=ispn._conc_inputs,
+                                                    tspn=tspns[template.__name__],
                                                     labels=[labels])
             assert copied_tspn_root.is_valid()
             roots.append(copied_tspn_root)
@@ -663,6 +664,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
                                                             tmpl_num_vals=tmpl_num_vals,
                                                             graph_num_vars=graph_num_vars,
                                                             labels=labels,
+                                                            tspn=tspn,
                                                             conc=self._conc_inputs)
                     assert copied_tspn_root.is_valid()
                     template_spn_roots.append(copied_tspn_root)

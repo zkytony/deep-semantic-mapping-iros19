@@ -210,7 +210,7 @@ class TemplateSpn(SpnModel):
 
     @staticmethod
     def dup_fun_up(inpt, *args,
-                    conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], graph_num_vars=[0], labels=[[]]):
+                    conc=None, tmpl_num_vars=[0], tmpl_num_vals=[0], graph_num_vars=[0], labels=[[]], tspn=None):
         """
         Purely for template spn copying only. Supports template with multiple types of IVs.
         Requires that the template SPN contains only one concat node where all inputs go through.
@@ -227,7 +227,7 @@ class TemplateSpn(SpnModel):
                 # [2:] is to skip the weights node and the explicit IVs node for this sum.
                 return spn.Sum(*args[2:], weights=args[0])
             elif isinstance(node, spn.ParSums):
-                return spn.ParSums(*args[2:], weights=args[0])
+                return spn.ParSums(*args[2:], weights=args[0], num_sums=tspn._num_mixtures)
             elif isinstance(node, spn.Product):
                 return spn.Product(*args)
             elif isinstance(node, spn.PermProducts):
@@ -291,6 +291,13 @@ class NodeTemplateSpn(TemplateSpn):
 
         self._num_nodes = self.template.num_nodes()
 
+        # Don't use the layered generator for now
+        if self._num_nodes == 1:
+            self._input_dist = spn.DenseSPNGenerator.InputDist.RAW
+            self._dense_gen = spn.DenseSPNGenerator(num_decomps=self._num_decomps, num_subsets=self._num_subsets,
+                                                    num_mixtures=self._num_mixtures, input_dist=self._input_dist,
+                                                    num_input_mixtures=self._num_input_mixtures)
+
         # Initialize structure and learning ops
         self._init_struct(rnd=self._rnd, seed=self._seed)
 
@@ -335,13 +342,7 @@ class NodeTemplateSpn(TemplateSpn):
             print("[Using seed %d]" % seed)
             rnd = random.Random(seed)
 
-        if self._num_nodes == 1:
-            self._input_dist = spn.DenseSPNGenerator.InputDist.RAW
-            self._dense_gen = spn.DenseSPNGenerator(num_decomps=1, num_subsets=2,
-                                                    num_mixtures=2, input_dist=self._input_dist)
-            self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
-        else:
-            self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
+        self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
         
 
     def train(self, sess, *args, **kwargs):

@@ -19,4 +19,4 @@ num_input_mixtures: 5
 learning_algorithm: spn.EMLearning
 
 #---Changeable---#
-templates: [StarTemplate, ThreeNodeTemplate, PairTemplate, SingletonTemplate]
+templates: [ThreeNodeTemplate, PairTemplate, SingletonTemplate]

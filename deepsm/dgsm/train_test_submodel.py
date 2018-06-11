@@ -62,7 +62,7 @@ def create_parser():
                               help='Number of mixtures for a view')
     model_params.add_argument('--view-input-mixtures', type=int, default=3,
                               help='Number of input mixtures for a view')
-    model_params.add_argument('--view-top-mixtures', type=int, default=8,  #14
+    model_params.add_argument('--view-top-mixtures', type=int, default=14,
                               help='Number of top mixtures for a view')
     model_params.add_argument('--place-decomps', type=int, default=4,
                               help='Number of decompositions for a place')

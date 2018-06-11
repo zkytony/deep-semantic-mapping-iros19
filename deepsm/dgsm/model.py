@@ -82,13 +82,14 @@ class PlaceSubModel:
         print("* View borders %s for %s angle cells and %s views" % (
             view_borders, self._num_angle_cells, num_views))
 
-        view_dense_gen = spn.DenseSPNGenerator(
+        print("----!! Using DenseSPNGeneratorLayerNodes !!-----")
+        view_dense_gen = spn.DenseSPNGeneratorLayerNodes(
             num_decomps=self._view_num_decomps,
             num_subsets=self._view_num_subsets,
             num_mixtures=self._view_num_mixtures,
             num_input_mixtures=self._view_num_input_mixtures,
             balanced=True,
-            input_dist=self._view_input_dist)
+            input_dist=spn.DenseSPNGeneratorLayerNodes.InputDist.RAW)
 
         view_roots = [None for _ in range(num_views)]
         for vi in range(num_views):
@@ -167,30 +168,50 @@ class PlaceSubModel:
 
         # Add learning ops
         print("\nAdding learning ops...")
-        self._additive_smoothing_var = tf.Variable(self._additive_smoothing_value,
-                                                   dtype=spn.conf.dtype)
-        self._em_learning = spn.EMLearning(
-            self._root, log=True,
-            value_inference_type=self._value_inference_type,
-            additive_smoothing=self._additive_smoothing_var,
-            add_random=None,
-            initial_accum_value=self._init_accum_value,
-            use_unweighted=True)
+        # self._additive_smoothing_var = tf.Variable(self._additive_smoothing_value,
+        #                                            dtype=spn.conf.dtype)
+        # self._em_learning = spn.EMLearning(
+        #     self._root, log=True,
+        #     value_inference_type=self._value_inference_type,
+        #     additive_smoothing=self._additive_smoothing_var,
+        #     add_random=None,
+        #     initial_accum_value=self._init_accum_value,
+        #     use_unweighted=True)
+        # self._init_weights = spn.initialize_weights(self._root)
+        # self._reset_accumulators = self._em_learning.reset_accumulators()
+        # self._learn_spn = self._em_learning.accumulate_updates()
+        # self._update_spn = self._em_learning.update_spn()
+        # self._train_likelihood = self._em_learning.value.values[self._root]
+        # self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
+
+        print("---!! Using DISCRIMINATIVE Soft Gradient-Descent Learning !!----")
+        self._value_inference_type = spn.InferenceType.MARGINAL
+        self._learning_type = spn.LearningType.DISCRIMINATIVE
+        self._learning_inference_type = spn.LearningInferenceType.SOFT
+        self._learning_rate = 0.001
+        self._optimizer = tf.train.AdamOptimizer
+        self._em_learning = spn.GDLearning(self._root, log=True,
+                                           value_inference_type=self._value_inference_type,
+                                           learning_rate=self._learning_rate,
+                                           learning_type=self._learning_type,
+                                           learning_inference_type=self._learning_inference_type,
+                                           use_unweighted=True)
         self._init_weights = spn.initialize_weights(self._root)
         self._reset_accumulators = self._em_learning.reset_accumulators()
-        self._accumulate_updates = self._em_learning.accumulate_updates()
-        self._update_spn = self._em_learning.update_spn()
+        self._learn_spn = self._em_learning.learn(optimizer=self._optimizer)
         self._train_likelihood = self._em_learning.value.values[self._root]
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
+        
         print("Done!")
 
     def train(self, stop_condition, additive_smoothing_min,
               additive_smoothing_decay, results_dir):
         np.set_printoptions(threshold=np.nan)
         self._sess.run(self._init_weights)
+        self._sess.run(tf.global_variables_initializer())
         self._sess.run(self._reset_accumulators)
 
-        num_batches = 1
+        num_batches = 100
         batch_size = self._data.training_scans.shape[0] // num_batches
         prev_likelihood = 100
         likelihood = 0
@@ -200,6 +221,7 @@ class PlaceSubModel:
         print(self._sess.run(self._em_learning.root_accum()))
 
         while abs(prev_likelihood - likelihood) > stop_condition:
+        # while epoch < num_epochs:
             prev_likelihood = likelihood
             likelihoods = []
             for batch in range(num_batches):
@@ -207,16 +229,16 @@ class PlaceSubModel:
                 stop = (batch + 1) * batch_size
                 print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
                 # Adjust smoothing
-                ads = max(np.exp(-epoch * additive_smoothing_decay) *
-                          self._additive_smoothing_value,
-                          additive_smoothing_min)
-                self._sess.run(self._additive_smoothing_var.assign(ads))
-                print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
+                # ads = max(np.exp(-epoch * additive_smoothing_decay) *
+                #           self._additive_smoothing_value,
+                #           additive_smoothing_min)
+                # self._sess.run(self._additive_smoothing_var.assign(ads))
+                # print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
                 # Run accumulate_updates
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
                     self._sess.run([self._train_likelihood,
                                     self._avg_train_likelihood,
-                                    self._accumulate_updates],
+                                    self._learn_spn],
                                    feed_dict={self._ivs:
                                               self._data.training_scans[start:stop]})
                 # Print avg likelihood of this batch data on previous batch weights
@@ -224,7 +246,7 @@ class PlaceSubModel:
                       (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
                 # Update weights
-                self._sess.run(self._update_spn)
+                # self._sess.run(self._update_spn)
                 # Print weights
                 print(self._sess.run(self._root.weights.node.variable))
                 print(self._sess.run(self._em_learning.root_accum()))

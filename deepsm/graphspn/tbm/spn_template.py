@@ -226,6 +226,8 @@ class TemplateSpn(SpnModel):
             if isinstance(node, spn.Sum):
                 # [2:] is to skip the weights node and the explicit IVs node for this sum.
                 return spn.Sum(*args[2:], weights=args[0])
+            elif isinstance(node, spn.ParSums):
+                return spn.ParSums(*args[2:], weights=args[0])
             elif isinstance(node, spn.Product):
                 return spn.Product(*args)
             elif isinstance(node, spn.PermProducts):
@@ -332,7 +334,14 @@ class NodeTemplateSpn(TemplateSpn):
         if seed is not None:
             print("[Using seed %d]" % seed)
             rnd = random.Random(seed)
-        self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
+
+        if self._num_nodes == 1:
+            self._input_dist = spn.DenseSPNGenerator.InputDist.RAW
+            self._dense_gen = spn.DenseSPNGenerator(num_decomps=1, num_subsets=2,
+                                                    num_mixtures=2, input_dist=self._input_dist)
+            self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
+        else:
+            self._root = self._dense_gen.generate(self._conc_inputs, rnd=rnd)
         
 
     def train(self, sess, *args, **kwargs):

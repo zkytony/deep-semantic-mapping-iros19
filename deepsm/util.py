@@ -231,7 +231,7 @@ class CategoryManager:
     # classes should be `known` and there is no 'UN' label.
     SKIP_UNKNOWN = True
     # TYPE of label mapping scheme. Offers SIMPLE and FULL.
-    TYPE = 'FULL'
+    TYPE = None
     
     # Category mappings
     CAT_MAP_ALL = {
@@ -344,15 +344,23 @@ class CategoryManager:
         }
     }
 
-    CAT_MAP = CAT_MAP_ALL[TYPE]['FW']
-    CAT_REV_MAP = CAT_MAP_ALL[TYPE]['BW']
-    CAT_COLOR = CAT_MAP_ALL[TYPE]['CL']
+    CAT_MAP = None
+    CAT_REV_MAP = None
+    CAT_COLOR = None
     PLACEHOLDER_COLOR = '#b8b8b8'
+    
+    @staticmethod
+    def init():
+        if CategoryManager.TYPE is not None:
+            CategoryManager.CAT_MAP = CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]['FW']
+            CategoryManager.CAT_REV_MAP = CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]['BW']
+            CategoryManager.CAT_COLOR = CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]['CL']
+            CategoryManager.PLACEHOLDER_COLOR = '#b8b8b8'
 
-    if SKIP_UNKNOWN:
-        NUM_CATEGORIES = len(CAT_COLOR) - 2  # exclude '-1' and catg_num('UN')
-    else:
-        NUM_CATEGORIES = len(CAT_COLOR) - 1  # exclude '-1'.
+            if CategoryManager.SKIP_UNKNOWN:
+                CategoryManager.NUM_CATEGORIES = len(CategoryManager.CAT_COLOR) - 2  # exclude '-1' and catg_num('UN')
+            else:
+                CategoryManager.NUM_CATEGORIES = len(CategoryManager.CAT_COLOR) - 1  # exclude '-1'.
     
     @staticmethod
     def category_map(category, rev=False, checking=False):

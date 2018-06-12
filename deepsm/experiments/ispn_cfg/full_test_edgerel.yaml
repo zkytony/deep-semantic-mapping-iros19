@@ -12,6 +12,7 @@ low_likelihood_incorrect: (0.0005, 0.4)
 num_partitions: 5
 to_do: [INF_FIXED_RAND, LH]
 uniform_for_incorrect: False
+category_type: FULL
 
 #---Must change!---#
 test_name: edgerel

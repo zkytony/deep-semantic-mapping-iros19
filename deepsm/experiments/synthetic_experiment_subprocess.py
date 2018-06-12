@@ -40,6 +40,8 @@ from deepsm.graphspn.tests.tbm.runner import TbmExperiment, doorway_policy, rand
 from deepsm.graphspn.tests.runner import TestCase
 from deepsm.util import CategoryManager, print_banner, print_in_box, ColdDatabaseManager
 
+CategoryManager.TYPE = 'FULL'
+
 ########### Constants ###########
 # Paths. Need to change if you work on a different machine.
 from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
@@ -885,6 +887,9 @@ def main():
                                                                      'high_likelihood_correct', 'low_likelihood_correct',
                                                                      'high_likelihood_incorrect', 'low_likelihood_incorrect'})  # cases is only used for Novelty detection.
 
+    CategoryManager.TYPE = test_kwargs['category_type']
+    CategoryManager.init()
+
     # Eval templates
     for i in range(len(train_kwargs['templates'])):
         train_kwargs['templates'][i] = eval(train_kwargs['templates'][i])
@@ -972,7 +977,6 @@ def main():
         train_kwargs['segment'] = True
     if args.num_partitions:
         test_kwargs['num_partitions'] = args.num_partitions
-
 
     if "high_likelihood_correct" in test_kwargs \
        and "low_likelihood_correct" in test_kwargs \

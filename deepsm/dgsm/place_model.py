@@ -5,6 +5,12 @@ import numpy as np
 import tensorflow as tf
 from deepsm.util import CategoryManager
 from deepsm.dgsm.data import Data
+import pprint as pp
+import os
+import json
+
+def norm_cm(cm):
+    return cm / np.sum(cm, axis=1, keepdims=True)
 
 class PlaceModel:
     """SPN place model for multiple classes.
@@ -45,6 +51,8 @@ class PlaceModel:
 
         self._build_model()
         self._sess = tf.Session()
+
+        self._known_classes = CategoryManager.known_categories()
         
     def _get_indices_for_view(self, view_borders, vn):
         alli = np.arange(self._num_angle_cells *
@@ -277,3 +285,138 @@ class PlaceModel:
             epoch += 1
 
         print("Done!")        
+
+
+    def test(self, results_dir, batch_size=50, graph_test=True):
+
+        # Generate states
+        mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
+        self._mpe_ivs, self._mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
+
+        # Make numpy array of test samples
+        testing_scans = []
+        testing_labels = []
+        for d in self._data.testing_data:
+            rid = d[0]
+            rcat = d[1]
+            scan = d[2]
+            testing_scans.append(scan)
+            testing_labels.append(CategoryManager.category_map(rcat))
+
+        testing_scans = np.vstack(testing_scans)
+        testing_labels = np.vstack(testing_labels)
+
+        num_batches = testing_scans.shape[0] // batch_size
+        accuracy_per_step = []
+        likelihoods_per_step = [[] for k in range(CategoryManager.NUM_CATEGORIES)]  # NUM_CATEGORIES x num_test_scans
+        last_batch = True
+        for batch in range(num_batches):
+            start = (batch) * batch_size
+            if last_batch and (batch + 1) == num_batches:
+                stop = testing_scans.shape[0]
+            else:
+                stop = (batch + 1) * batch_size
+
+            # Session
+            mpe_latent_val = self._sess.run([self._mpe_latent],
+                                            feed_dict={self._ivs: testing_scans[start:stop],
+                                                       self._latent: np.ones((stop - start, 1)) * -1})
+            accuracy_per_step.append(np.mean(mpe_latent_val == testing_labels[start:stop]))
+            
+            # All marginals
+            for k in range(CategoryManager.NUM_CATEGORIES):
+                train_likelihoods_arr = \
+                    self._sess.run([self._train_likelihood],
+                                   feed_dict={self._ivs: testing_scans[start:stop],
+                                              self._latent: np.full((stop - start, 1), k)})
+                likelihoods_per_step[k].extend(train_likelihoods_arr[0].flatten())
+
+        accuracy = np.mean(accuracy_per_step) * 100
+        print("Classification accyracy on Test set: ", accuracy)
+
+        # Process graph results
+        
+        # Confusion matrices
+        cm_mpe_weighted = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
+        
+        graph_results = {}
+        likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
+        for i, d in enumerate(self._data.testing_data):
+            rid = d[0]
+            rcat = d[1]
+            if rid not in graph_results:  # rid is actually graph_id
+                graph_results[rid] = {}
+
+            true_class_index = CategoryManager.category_map(rcat)
+            pred_class_index = np.argmax(likelihoods[i])
+                
+            # Record in confusion matrix
+            cm_mpe_weighted[true_class_index, pred_class_index] += 1
+
+            if graph_test:
+                node_id = d[-1]
+                graph_results[rid][node_id] = [rcat, self._known_classes[pred_class_index], list(likelihoods[i]), list(likelihoods[i])]
+
+        if graph_test:
+            # Overall statistics
+            stats = self._compute_stats(graph_results)
+            print("- Overall statistics")
+            pp.pprint(stats)
+        
+        # Confusion matrix
+        print("- Confusion matrix for MPE (weighted):")
+        pp.pprint(self._known_classes)
+        pp.pprint(cm_mpe_weighted)
+        pp.pprint(norm_cm(cm_mpe_weighted) * 100.0)
+
+        if graph_test:
+            # Save
+            os.makedirs(os.path.join(results_dir, "graphs"), exist_ok=True)
+            for graph_id in graph_results:
+                with open(os.path.join(results_dir, "graphs", graph_id + "_likelihoods.json"), 'w') as f:
+                    json.dump(graph_results[graph_id], f)
+
+
+    def _compute_stats(self, graph_results):
+        stats = {}
+        total_cases = 0
+        total_correct = 0
+        total_per_class = {}
+        for graph_id in graph_results:
+            graph_cases = 0
+            graph_correct = 0
+            graph_per_class = {}
+            for nid in graph_results[graph_id]:
+                groundtruth = graph_results[graph_id][nid][0]
+                # We skip unknown cases
+                if groundtruth not in self._known_classes:
+                    continue
+                if groundtruth not in total_per_class:
+                    total_per_class[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                if groundtruth not in graph_per_class:
+                    graph_per_class[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                
+                # We have one more test case
+                total_cases += 1
+                graph_cases += 1
+                total_per_class[groundtruth][0] += 1
+                graph_per_class[groundtruth][0] += 1
+                
+                prediction = graph_results[graph_id][nid][1]
+                if prediction == groundtruth:
+                    graph_correct += 1
+                    total_correct += 1
+                    total_per_class[groundtruth][1] += 1
+                    graph_per_class[groundtruth][1] += 1
+                total_per_class[groundtruth][2] = total_per_class[groundtruth][1] / total_per_class[groundtruth][0]
+                graph_per_class[groundtruth][2] = graph_per_class[groundtruth][1] / graph_per_class[groundtruth][0]
+            
+            stats[graph_id] = {'num_cases': graph_cases,
+                               'num_correct': graph_correct,
+                               'accuracy': graph_correct / graph_cases,
+                               'class_results': graph_per_class}
+        stats.update({'num_cases': total_cases,
+                      'num_correct': total_correct,
+                      'accuracy': total_correct / total_cases,
+                      'class_results': total_per_class})
+        return stats

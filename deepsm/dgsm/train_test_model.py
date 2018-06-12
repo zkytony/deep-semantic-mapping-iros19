@@ -72,9 +72,9 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--num-epochs', type=float, default=100,
+    learn_params.add_argument('--num-epochs', type=float, default=1,
                               help='Total number of epochs')
-    learn_params.add_argument('--num-batches', type=float, default=10,
+    learn_params.add_argument('--num-batches', type=float, default=1,
                               help='Number of batches to divide the data for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
@@ -222,8 +222,12 @@ def main(args=None):
                        learning_rate=args.learning_rate,
                        value_inference_type=args.value_inference,
                        optimizer=tf.train.AdamOptimizer)
-    model.train(args.num_batches, args.num_epochs)
-    # model.test(args.results_dir)
+    try:
+        model.train(args.num_batches, args.num_epochs)
+    except KeyboardInterrupt:
+        print("Stop training...")
+    finally:
+        model.test(args.results_dir, graph_test=True)
 
 
 if __name__ == '__main__':

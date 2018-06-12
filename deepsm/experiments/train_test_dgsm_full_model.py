@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import tensorflow as tf
 import os
 import argparse
 import deepsm.dgsm.train_test_model as dgsm_runner
@@ -74,4 +75,5 @@ if __name__ == "__main__":
                                            args_list=[tmp_data_dir,
                                                       results_dir,
                                                       '1'])
+
         dgsm_runner.main(args=dsgm_args)

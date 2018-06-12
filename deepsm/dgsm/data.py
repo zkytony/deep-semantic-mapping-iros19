@@ -47,6 +47,10 @@ class Data:
         return self._training_labels
 
     @property
+    def testing_data(self):
+        return self._testing_data
+
+    @property
     def all_scans(self):
         return self._all_scans
 
@@ -117,6 +121,7 @@ class Data:
         self._novel_classes = self._set_defs['novel_categories']
         training_scans = []
         training_labels = []
+        testing_data = []
         for i in self._data:
             rid = i[0]
             rcat = i[1]
@@ -124,12 +129,15 @@ class Data:
             if rid in self._train_rooms and rcat != "UN":
                 training_scans.append(scan)
                 training_labels.append(CategoryManager.category_map(rcat))
+            if rid in self._test_rooms and rcat != "UN":
+                testing_data.append(i)
         training_scans = np.vstack(training_scans)
         training_labels = np.vstack(training_labels)
         all_scans = np.vstack([i[2] for i in self._data])
         all_labels = np.vstack([CategoryManager.category_map(i[1], checking=True) for i in self._data])
 
         self._training_labels = training_labels
+        self._testing_data = testing_data
 
         # Modify to 3 occupancy vals
         if self._occupancy_vals == Data.OccupancyVals.THREE:

@@ -6,7 +6,6 @@ import os
 import sys
 import pprint
 from enum import Enum
-from deepsm.util import CategoryManager
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -41,10 +40,6 @@ class Data:
     @property
     def training_scans(self):
         return self._training_scans
-    
-    @property
-    def training_labels(self):
-        return self._training_labels
 
     @property
     def all_scans(self):
@@ -107,7 +102,8 @@ class Data:
             print("\nERROR: Data parameters do not match!")
             sys.exit(1)
 
-    def process(self, subset, occupancy_vals):
+    def process(self, submodel_class, subset, occupancy_vals):
+        self._submodel_class = submodel_class
         self._subset = subset
         self._occupancy_vals = occupancy_vals
 
@@ -116,20 +112,14 @@ class Data:
         self._test_rooms = self._set_defs['test_rooms_' + str(self._subset)]
         self._novel_classes = self._set_defs['novel_categories']
         training_scans = []
-        training_labels = []
         for i in self._data:
             rid = i[0]
             rcat = i[1]
             scan = i[2]
-            if rid in self._train_rooms and rcat != "UN":
+            if rid in self._train_rooms and rcat == self._submodel_class:
                 training_scans.append(scan)
-                training_labels.append(CategoryManager.category_map(rcat))
         training_scans = np.vstack(training_scans)
-        training_labels = np.vstack(training_labels)
         all_scans = np.vstack([i[2] for i in self._data])
-        all_labels = np.vstack([CategoryManager.category_map(i[1], checking=True) for i in self._data])
-
-        self._training_labels = training_labels
 
         # Modify to 3 occupancy vals
         if self._occupancy_vals == Data.OccupancyVals.THREE:
@@ -251,4 +241,3 @@ class Data:
         np.save(os.path.join(res_dir, 'masked_scans'),
                 self._masked_scans)
         print("Done!")
-

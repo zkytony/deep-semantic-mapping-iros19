@@ -8,12 +8,11 @@ import os
 import sys
 import argparse
 import libspn as spn
-from deepsm.dgsm.place_sub_model import PlaceSubModel
+import tensorflow as tf
+from deepsm.dgsm.place_model import PlaceModel
 from deepsm.dgsm.data import Data
 from deepsm.util import CategoryManager
-
-KNOWN_CLASSES = CategoryManager.known_categories()
-
+import deepsm.experiments.common as common
 
 def create_parser():
     parser = argparse.ArgumentParser(description='Train and test an SPN place model.',
@@ -24,8 +23,6 @@ def create_parser():
                         help='Directory where the data is stored')
     parser.add_argument('results_dir', type=str,
                         help='Directory where results are saved')
-    parser.add_argument('submodel_class', type=str,
-                        help='Class of this sub-model')
     parser.add_argument('subset', type=int,
                         help='Data subset')
 
@@ -35,15 +32,15 @@ def create_parser():
                              help='How many occupancy values to consider: ' +
                              ', '.join([a.name.lower()
                                         for a in Data.OccupancyVals]))
-    data_params.add_argument('--resolution', type=float, default=0.02,
+    data_params.add_argument('--resolution', type=float, default=common.resolution,
                              help='')
-    data_params.add_argument('--angle-cells', type=float, default=56,
+    data_params.add_argument('--angle-cells', type=float, default=common.num_angle_cells,
                              help='Number of angular cells')
-    data_params.add_argument('--radius-min', type=float, default=0.3,
+    data_params.add_argument('--radius-min', type=float, default=common.min_radius,
                              help='')
-    data_params.add_argument('--radius-max', type=float, default=5.0,
+    data_params.add_argument('--radius-max', type=float, default=common.max_radius,
                              help='')
-    data_params.add_argument('--radius-factor', type=float, default=1.15,
+    data_params.add_argument('--radius-factor', type=float, default=common.radius_factor,
                              help='')
     data_params.add_argument('--data-seed', type=int, default=547,
                              help='Seed used for shuffling training data')
@@ -75,20 +72,16 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--stop-condition', type=float, default=0.05,
-                              help='Min likelihood change between epochs')
+    learn_params.add_argument('--num-epochs', type=float, default=100,
+                              help='Total number of epochs')
+    learn_params.add_argument('--num-batches', type=float, default=10,
+                              help='Number of batches to divide the data for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
                               ', '.join([a.name.lower()
-                                         for a in PlaceSubModel.WeightInitValue]))
-    learn_params.add_argument('--init-accum', type=int, default=20,
-                              help='Initial accumulator value')
-    learn_params.add_argument('--smoothing-val', type=float, default=0.0,
-                              help='Additive smoothing value')
-    learn_params.add_argument('--smoothing-min', type=float, default=0.0,
-                              help='Additive smoothing min value')
-    learn_params.add_argument('--smoothing-decay', type=float, default=0.2,
-                              help='Additive smoothing decay')
+                                         for a in PlaceModel.WeightInitValue]))
+    learn_params.add_argument('--learning-rate', type=int, default=0.001,
+                              help='Learning rate for gradient descent')
     learn_params.add_argument('--value-inference', type=str, default='marginal',
                               help='Type of inference during EM upwards pass: ' +
                               ', '.join([a.name.lower()
@@ -117,9 +110,6 @@ def parse_args(parser=None, args_list=None):
         args = parser.parse_args(args_list)
 
     # Check
-    if args.submodel_class not in KNOWN_CLASSES:
-        print("ERROR: Incorrect class ('%s')." % args.submodel_class)
-        sys.exit(1)
     if args.subset not in [1, 2, 3, 4]:
         print("ERROR: Incorrect subset ('%s')." % args.subset)
         sys.exit(1)
@@ -130,13 +120,13 @@ def parse_args(parser=None, args_list=None):
         print("ERROR: Incorrect occupancy-vals ('%s')." % args.occupancy_vals)
         sys.exit(1)
     try:
-        args.view_input_dist = spn.DenseSPNGenerator.InputDist[
+        args.view_input_dist = spn.DenseSPNGeneratorLayerNodes.InputDist[
             args.view_input_dist.upper()]
     except KeyError:
         print("ERROR: Incorrect view-input-dist ('%s')." % args.view_input_dist)
         sys.exit(1)
     try:
-        args.weight_init = PlaceSubModel.WeightInitValue[args.weight_init.upper()]
+        args.weight_init = PlaceModel.WeightInitValue[args.weight_init.upper()]
     except KeyError:
         print("ERROR: Incorrect weight-init ('%s')." % args.weight_init)
         sys.exit(1)
@@ -155,7 +145,7 @@ def print_args(args):
     print("---------")
     print("* Data dir: %s" % args.data_dir)
     print("* Results dir: %s" % args.results_dir)
-    print("* Class: %s" % args.submodel_class)
+    print("* Classes: %s" % str(CategoryManager.known_categories()))
     print("* Subset: %s" % args.subset)
 
     print("\nData parameters:")
@@ -180,13 +170,10 @@ def print_args(args):
     print("* Place input mixtures: %s" % args.place_input_mixtures)
 
     print("\nLearning parameters:")
-    print("* Stopping condition: %s" % args.stop_condition)
     print("* Weight initialization: %s" % args.weight_init)
-    print("* Initial accumulator value: %s" % args.init_accum)
-    print("* Smoothing value: %s" % args.smoothing_val)
-    print("* Smoothing min value: %s" % args.smoothing_min)
-    print("* Smoothing decay: %s" % args.smoothing_decay)
-    print("* EM upwards pass inference: %s" % args.value_inference)
+    print("* Learning rate: %s" % args.learning_rate)
+    print("* Num Epocs: %s" % args.num_epochs)
+    print("* Num Batches: %s" % args.num_batches)
 
     print("\nTesting parameters:")
     print("* Mask seed: %s" % args.mask_seed)
@@ -211,7 +198,7 @@ def main(args=None):
     data = Data(args.angle_cells, args.radius_min,
                 args.radius_max, args.radius_factor)
     data.load(args.data_dir)
-    data.process(args.submodel_class, args.subset, args.occupancy_vals)
+    data.process(args.subset, args.occupancy_vals)
     data.print_info()
     data.generate_masked_scans(args.mask_seed)
     data.save_masked_scans(args.results_dir)
@@ -220,26 +207,23 @@ def main(args=None):
             os.path.join(args.results_dir, 'masked_scans'))
 
     # Model
-    model = PlaceSubModel(data=data,
-                          view_input_dist=args.view_input_dist,
-                          view_num_decomps=args.view_decomps,
-                          view_num_subsets=args.view_subsets,
-                          view_num_mixtures=args.view_mixtures,
-                          view_num_input_mixtures=args.view_input_mixtures,
-                          view_num_top_mixtures=args.view_top_mixtures,
-                          place_num_decomps=args.place_decomps,
-                          place_num_subsets=args.place_subsets,
-                          place_num_mixtures=args.place_mixtures,
-                          place_num_input_mixtures=args.place_input_mixtures,
-                          weight_init_value=args.weight_init,
-                          init_accum_value=args.init_accum,
-                          additive_smoothing_value=args.smoothing_val,
-                          value_inference_type=args.value_inference)
-    model.train(stop_condition=args.stop_condition,
-                additive_smoothing_min=args.smoothing_min,
-                additive_smoothing_decay=args.smoothing_decay,
-                results_dir=args.results_dir)
-    model.test(args.results_dir)
+    model = PlaceModel(data=data,
+                       view_input_dist=args.view_input_dist,
+                       view_num_decomps=args.view_decomps,
+                       view_num_subsets=args.view_subsets,
+                       view_num_mixtures=args.view_mixtures,
+                       view_num_input_mixtures=args.view_input_mixtures,
+                       view_num_top_mixtures=args.view_top_mixtures,
+                       place_num_decomps=args.place_decomps,
+                       place_num_subsets=args.place_subsets,
+                       place_num_mixtures=args.place_mixtures,
+                       place_num_input_mixtures=args.place_input_mixtures,
+                       weight_init_value=args.weight_init,
+                       learning_rate=args.learning_rate,
+                       value_inference_type=args.value_inference,
+                       optimizer=tf.train.AdamOptimizer)
+    model.train(args.num_batches, args.num_epochs)
+    # model.test(args.results_dir)
 
 
 if __name__ == '__main__':

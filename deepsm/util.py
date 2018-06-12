@@ -427,7 +427,8 @@ class CategoryManager:
     @staticmethod
     def known_categories():
         """Known categories should be the canonical categories besides 'unknown' and 'occluded'"""
-        return list(set(CategoryManager.canonical_category(c) for c in (set(CategoryManager.CAT_MAP.keys()) - {'UN', 'OC'})))
+        return [CategoryManager.category_map(k, rev=True)
+                for k in range(CategoryManager.NUM_CATEGORIES)]
 
     @staticmethod
     def novel_categories():

@@ -6,8 +6,9 @@ import tensorflow as tf
 from deepsm.util import CategoryManager
 from deepsm.dgsm.data import Data
 import pprint as pp
-import os
+import os, sys
 import json
+import random
 
 def norm_cm(cm):
     return cm / np.sum(cm, axis=1, keepdims=True)
@@ -124,7 +125,6 @@ class PlaceModel:
         # Sum up all sub SPNs
         print("* Root valid: %s" % self._root.is_valid())
         if not len(self._root.get_scope()[0]) == self._num_vars:
-            import pdb; pdb.set_trace()
             raise Exception()
 
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
@@ -242,6 +242,15 @@ class PlaceModel:
 
 
     def train(self, num_batches, num_epochs):
+        """Run training"""
+
+        # Get data
+        training_scans = self._data.training_scans
+        training_labels = self._data.training_labels
+
+        print("* Num training samples: %d" % len(training_scans))
+
+        # Run relevant ops
         np.set_printoptions(threshold=np.nan)
         self._sess.run(self._init_weights)
         self._sess.run(tf.global_variables_initializer())
@@ -250,7 +259,7 @@ class PlaceModel:
         # Print weights
         print(self._sess.run(self._root.weights.node.variable))
 
-        batch_size = self._data.training_scans.shape[0] // num_batches
+        batch_size = training_scans.shape[0] // num_batches
         
         prev_likelihood = 100
         likelihood = 0
@@ -272,8 +281,8 @@ class PlaceModel:
                     self._sess.run([self._train_likelihood,
                                     self._avg_train_likelihood,
                                     self._learn_spn],
-                                   feed_dict={self._ivs: self._data.training_scans[start:stop],
-                                              self._latent: self._data.training_labels[start:stop]})
+                                   feed_dict={self._ivs: training_scans[start:stop],
+                                              self._latent: training_labels[start:stop]})
                                               
                 # Print avg likelihood of this batch data on previous batch weights
                 print("  Avg likelihood (this batch data on previous weights): %s" %
@@ -420,3 +429,49 @@ class PlaceModel:
                       'accuracy': total_correct / total_cases,
                       'class_results': total_per_class})
         return stats
+
+
+    @staticmethod
+    def balance_data(scans, labels, rnd=None):
+        # Upsample the miniority class instances so that all class have the same number of training samples
+        if rnd is None:
+            rnd = random.Random()
+
+        if len(scans) != len(labels):
+            raise ValueError("Scans and labels do not have the same dimensions!")
+
+        class_counts, scans_by_class = PlaceModel._count_class_samples(scans, labels)
+        
+        print("Training samples count by classes, before balancing:")
+        pp.pprint(class_counts)
+        
+        class_with_most_samples = max(class_counts, key=lambda x: class_counts[x])
+        up_limit = class_counts[class_with_most_samples]
+
+        for catg_num in class_counts:
+            if catg_num == class_with_most_samples:
+                continue
+
+            difference = up_limit - class_counts[catg_num]
+            for i in range(difference):
+                # Randomly pick a scan from scans
+                scans.append(rnd.choice(scans_by_class[catg_num]))
+                labels.append(catg_num)
+
+        # Recompute class counts
+        class_counts, _ = PlaceModel._count_class_samples(scans, labels)
+
+        print("Training samples count by classes, after balancing:")
+        pp.pprint(class_counts)
+
+
+    @staticmethod
+    def _count_class_samples(scans, labels):
+        scans_by_class = {}
+        class_counts = {}
+        for i in range(len(scans)):
+            class_counts[labels[i]] = class_counts.get(labels[i], 0) + 1
+            if labels[i] not in scans_by_class:
+                scans_by_class[labels[i]] = []
+            scans_by_class[labels[i]].append(scans[i])
+        return class_counts, scans_by_class

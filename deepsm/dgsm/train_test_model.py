@@ -7,8 +7,10 @@ matplotlib.use('Agg')
 import os
 import sys
 import argparse
+import random
 import libspn as spn
 import tensorflow as tf
+import numpy as np
 from deepsm.dgsm.place_model import PlaceModel
 from deepsm.dgsm.data import Data
 from deepsm.util import CategoryManager
@@ -72,9 +74,9 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--num-epochs', type=float, default=1,
+    learn_params.add_argument('--num-epochs', type=float, default=100,
                               help='Total number of epochs')
-    learn_params.add_argument('--num-batches', type=float, default=1,
+    learn_params.add_argument('--num-batches', type=float, default=20,
                               help='Number of batches to divide the data for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
@@ -192,7 +194,7 @@ def create_directories(args):
 def main(args=None):
     if args is None:
         args = parse_args()
-    print_args(args)
+
     create_directories(args)
 
     data = Data(args.angle_cells, args.radius_min,
@@ -205,6 +207,37 @@ def main(args=None):
     if args.save_masked:
         data.visualize_masked_scans(
             os.path.join(args.results_dir, 'masked_scans'))
+
+    rnd = random.Random()
+    rnd.seed(567)
+    shuffle = True
+
+    # Get data
+    training_scans = list(data.training_scans)
+    training_labels = list(data.training_labels.flatten())
+
+    # Balance data
+    PlaceModel.balance_data(training_scans, training_labels, rnd=rnd)
+
+    sys.stdout.write("Verifying data balance...")
+    class_counts, _ = PlaceModel._count_class_samples(training_scans, training_labels)
+    count = class_counts[rnd.choice(list(class_counts.keys()))]
+    for catg_num in class_counts:
+        if class_counts[catg_num] != count:
+            raise ValueError("Class %s has %d samples but needs %d" % (CategoryManager.category_map(catg_num, rev=True),
+                                                                       class_counts[catg_num], count))
+    sys.stdout.write("OK\n")
+
+    # Shuffle data
+    data._training_scans = np.array(training_scans, dtype=int)
+    data._training_labels = np.array(training_labels, dtype=int).reshape(-1,1)
+    if shuffle:
+        print("Shuffling...")
+        p = np.random.permutation(len(data.training_scans))
+        data._training_scans = data.training_scans[p]
+        data._training_labels = data.training_labels[p]
+
+    print_args(args)
 
     # Model
     model = PlaceModel(data=data,

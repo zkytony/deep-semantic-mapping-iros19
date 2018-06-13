@@ -22,13 +22,21 @@ class PlaceModel:
         ONE = 1
         RANDOM = 2
 
+    class LearningType(Enum):
+        EM = 1
+        GD = 2
+
     def __init__(self, data,
                  view_input_dist, view_num_decomps, view_num_subsets,
                  view_num_mixtures, view_num_input_mixtures, view_num_top_mixtures,
                  place_num_decomps, place_num_subsets, place_num_mixtures,
                  place_num_input_mixtures,
                  weight_init_value, value_inference_type,
-                 learning_rate, optimizer=tf.train.AdamOptimizer):
+                 learning_rate,
+                 init_accum_val,
+                 smoothing_val, smoothing_min, smoothing_decay,
+                 optimizer=tf.train.AdamOptimizer,
+                 learning_type=LearningType.GD):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
         self._num_angle_cells = data.num_angle_cells
@@ -49,6 +57,11 @@ class PlaceModel:
         self._value_inference_type = value_inference_type
         self._learning_rate = learning_rate
         self._optimizer = optimizer
+        self._smoothing_val = smoothing_val
+        self._smoothing_min = smoothing_min
+        self._smoothing_decay = smoothing_decay
+        self._init_accum = init_accum_val
+        self._learning_type = learning_type
 
         self._build_model()
         self._sess = tf.Session()
@@ -120,7 +133,7 @@ class PlaceModel:
 
         # It shouldn't matter which object calls convert_to_layer_nodes since the function is independent to self.
         print("Converting to Layer SPN...")
-        self._root = view_dense_gen.convert_to_layer_nodes(self._root)
+        self._root = place_dense_gen.convert_to_layer_nodes(self._root)
 
         # Sum up all sub SPNs
         print("* Root valid: %s" % self._root.is_valid())
@@ -128,7 +141,6 @@ class PlaceModel:
             raise Exception()
 
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
-
 
         # Print structure statistics
         all_nodes = self._root.get_nodes()
@@ -166,16 +178,29 @@ class PlaceModel:
 
         # Add learning ops
         print("\nAdding learning ops...")
-        self._gd_learning = spn.GDLearning(
-            self._root, log=True,
-            value_inference_type=self._value_inference_type,
-            learning_rate=self._learning_rate,
-            learning_type=spn.LearningType.DISCRIMINATIVE,
-            learning_inference_type=spn.LearningInferenceType.SOFT,
-            use_unweighted=True)
-        self._reset_accumulators = self._gd_learning.reset_accumulators()
-        self._learn_spn = self._gd_learning.learn(optimizer=self._optimizer)
-        self._train_likelihood = self._gd_learning.value.values[self._root]
+        if self._learning_type == PlaceModel.LearningType.EM:
+            self._additive_smoothing_var = tf.Variable(self._smoothing_val,
+                                                       dtype=spn.conf.dtype)
+            self._learning = spn.EMLearning(
+                self._root, log=True,
+                value_inference_type=self._value_inference_type,
+                additive_smoothing=self._additive_smoothing_var,
+                add_random=None,
+                initial_accum_value=self._init_accum,
+                use_unweighted=True)
+            self._learn_spn = self._learning.accumulate_updates()
+            self._update_spn = self._learning.update_spn()
+        else:
+            self._learning = spn.GDLearning(
+                self._root, log=True,
+                value_inference_type=self._value_inference_type,
+                learning_rate=self._learning_rate,
+                learning_type=spn.LearningType.DISCRIMINATIVE,
+                learning_inference_type=spn.LearningInferenceType.HARD,
+                use_unweighted=True)
+            self._learn_spn = self._learning.learn(optimizer=self._optimizer)
+        self._reset_accumulators = self._learning.reset_accumulators()
+        self._train_likelihood = self._learning.value.values[self._root]
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
         self._init_weights = spn.initialize_weights(self._root)
         print("Done!")
@@ -266,7 +291,7 @@ class PlaceModel:
         epoch = 0
         # Print weights
         print(self._sess.run(self._root.weights.node.variable))
-        print(self._sess.run(self._gd_learning.root_accum()))
+        print(self._sess.run(self._learning.root_accum()))
 
         while epoch < num_epochs:
             prev_likelihood = likelihood
@@ -275,6 +300,14 @@ class PlaceModel:
                 start = (batch) * batch_size
                 stop = (batch + 1) * batch_size
                 print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
+
+                if self._learning_type == PlaceModel.LearningType.EM:
+                    # Adjust smoothing
+                    ads = max(np.exp(-epoch * self._smoothing_decay) *
+                              self._smoothing_val,
+                              self._smoothing_min)
+                    self._sess.run(self._additive_smoothing_var.assign(ads))
+                    print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
 
                 # Run learning
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
@@ -288,6 +321,10 @@ class PlaceModel:
                 print("  Avg likelihood (this batch data on previous weights): %s" %
                       (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
+
+                if self._learning_type == PlaceModel.LearningType.EM:
+                    # Update weights
+                    self._sess.run(self._update_spn)
                 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("- Batch avg likelihood: %s" % (likelihood))

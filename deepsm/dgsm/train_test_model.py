@@ -74,20 +74,31 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--num-epochs', type=float, default=100,
+    learn_params.add_argument('--num-epochs', type=float, default=10,
                               help='Total number of epochs')
-    learn_params.add_argument('--num-batches', type=float, default=20,
+    learn_params.add_argument('--num-batches', type=float, default=5,
                               help='Number of batches to divide the data for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
                               ', '.join([a.name.lower()
                                          for a in PlaceModel.WeightInitValue]))
-    learn_params.add_argument('--learning-rate', type=int, default=0.001,
-                              help='Learning rate for gradient descent')
     learn_params.add_argument('--value-inference', type=str, default='marginal',
                               help='Type of inference during EM upwards pass: ' +
                               ', '.join([a.name.lower()
-                                         for a in spn.InferenceType]))
+                                        for a in spn.InferenceType]))
+    # GDLearning
+    learn_params.add_argument('--learning-rate', type=int, default=0.001,
+                              help='Learning rate for gradient descent')
+    # EMLearning
+    learn_params.add_argument('--init-accum', type=int, default=20,
+                              help='Initial accumulator value')
+    learn_params.add_argument('--smoothing-val', type=float, default=0.0,
+                              help='Additive smoothing value')
+    learn_params.add_argument('--smoothing-min', type=float, default=0.0,
+                              help='Additive smoothing min value')
+    learn_params.add_argument('--smoothing-decay', type=float, default=0.2,
+                              help='Additive smoothing decay')
+
 
     # Testing params
     test_params = parser.add_argument_group(title="testing parameters")
@@ -253,6 +264,10 @@ def main(args=None):
                        place_num_input_mixtures=args.place_input_mixtures,
                        weight_init_value=args.weight_init,
                        learning_rate=args.learning_rate,
+                       init_accum_val=args.init_accum,
+                       smoothing_val=args.smoothing_val,
+                       smoothing_min=args.smoothing_min,
+                       smoothing_decay=args.smoothing_decay,
                        value_inference_type=args.value_inference,
                        optimizer=tf.train.AdamOptimizer)
     try:

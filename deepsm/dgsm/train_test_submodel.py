@@ -9,11 +9,8 @@ import sys
 import argparse
 import libspn as spn
 from deepsm.dgsm.place_sub_model import PlaceSubModel
-from deepsm.dgsm.data import Data
+from deepsm.dgsm.submodel_data import Data
 from deepsm.util import CategoryManager
-
-KNOWN_CLASSES = CategoryManager.known_categories()
-
 
 def create_parser():
     parser = argparse.ArgumentParser(description='Train and test an SPN place model.',
@@ -117,7 +114,7 @@ def parse_args(parser=None, args_list=None):
         args = parser.parse_args(args_list)
 
     # Check
-    if args.submodel_class not in KNOWN_CLASSES:
+    if args.submodel_class not in CategoryManager.known_categories():
         print("ERROR: Incorrect class ('%s')." % args.submodel_class)
         sys.exit(1)
     if args.subset not in [1, 2, 3, 4]:

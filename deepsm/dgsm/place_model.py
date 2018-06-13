@@ -120,7 +120,7 @@ class PlaceModel:
             num_input_mixtures=self._place_num_input_mixtures,
             balanced=True,
             input_dist=spn.DenseSPNGenerator.InputDist.RAW)
-            # node_type=spn.DenseSPNGenerator.NodeType.BLOCK)
+            # node_type=spn.DenseSPNGeneratorLayerNodes.NodeType.LAYER) 
         
         # For each class, build a sub-SPN
         class_roots = []
@@ -133,7 +133,7 @@ class PlaceModel:
 
         # It shouldn't matter which object calls convert_to_layer_nodes since the function is independent to self.
         print("Converting to Layer SPN...")
-        self._root = place_dense_gen.convert_to_layer_nodes(self._root)
+        self._root = view_dense_gen.convert_to_layer_nodes(self._root)
 
         # Sum up all sub SPNs
         print("* Root valid: %s" % self._root.is_valid())
@@ -173,7 +173,7 @@ class PlaceModel:
             wiv = spn.ValueType.RANDOM_UNIFORM(10, 11)
         else:
             raise Exception()
-        spn.generate_weights(self._root, init_value=wiv, log=True)
+        spn.generate_weights(self._root, init_value=wiv, log=True, trainable=True)
         print("Done!")
 
         # Add learning ops
@@ -284,8 +284,6 @@ class PlaceModel:
         # Print weights
         print(self._sess.run(self._root.weights.node.variable))
 
-        batch_size = training_scans.shape[0] // num_batches
-        
         prev_likelihood = 100
         likelihood = 0
         epoch = 0
@@ -296,9 +294,12 @@ class PlaceModel:
         while epoch < num_epochs:
             prev_likelihood = likelihood
             likelihoods = []
-            for batch in range(num_batches):
-                start = (batch) * batch_size
-                stop = (batch + 1) * batch_size
+
+            start = 0
+            stop = min(100, len(training_scans)) # initial batch size
+            batch_size = stop - start
+            batch = 0
+            while stop <= training_scans.shape[0]: 
                 print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
 
                 if self._learning_type == PlaceModel.LearningType.EM:
@@ -325,6 +326,13 @@ class PlaceModel:
                 if self._learning_type == PlaceModel.LearningType.EM:
                     # Update weights
                     self._sess.run(self._update_spn)
+
+                start = stop
+                stop = min(stop + batch_size*2, len(training_scans))
+                batch_size = stop - start
+                batch += 1
+                if batch_size <= 0:
+                    break
                 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("- Batch avg likelihood: %s" % (likelihood))

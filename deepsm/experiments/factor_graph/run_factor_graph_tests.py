@@ -908,7 +908,9 @@ if __name__ == "__main__":
     parser.add_argument('-tr', '--triplet', action="store_true", help="Use 3-element factors instead of pairwise factors for room connectivity.")
     parser.add_argument('-nov', '--novelty', action="store_true", help="Runs novelty detection task.")
     args = parser.parse_args()
-    
+
+    CategoryManager.TYPE = "SIMPLE"
+    CategoryManager.init()
     
     print("loading data...")
     dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)

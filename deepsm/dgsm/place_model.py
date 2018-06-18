@@ -281,23 +281,32 @@ class PlaceModel:
         self._sess.run(tf.global_variables_initializer())
         self._sess.run(self._reset_accumulators)
 
+        batch_size = min(10, len(training_scans)) # initial batch size
+
         # Print weights
         print(self._sess.run(self._root.weights.node.variable))
 
         prev_likelihood = 100
         likelihood = 0
         epoch = 0
+        ll_log = []
         # Print weights
         print(self._sess.run(self._root.weights.node.variable))
         print(self._sess.run(self._learning.root_accum()))
 
-        while epoch < num_epochs:
+        while epoch < num_epochs - 1:
             prev_likelihood = likelihood
             likelihoods = []
+            ll_log.append([])
+
+            # Shuffle
+            print("Shuffling...")
+            p = np.random.permutation(len(training_scans))
+            training_scans = training_scans[p]
+            training_labels = training_labels[p]
 
             start = 0
-            stop = min(100, len(training_scans)) # initial batch size
-            batch_size = stop - start
+            stop = min(start + batch_size, len(training_scans)) # initial batch size
             batch = 0
             while stop <= training_scans.shape[0]: 
                 print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
@@ -322,23 +331,32 @@ class PlaceModel:
                 print("  Avg likelihood (this batch data on previous weights): %s" %
                       (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
+                ll_log[epoch].append(avg_train_likelihood_val)
 
                 if self._learning_type == PlaceModel.LearningType.EM:
                     # Update weights
                     self._sess.run(self._update_spn)
 
                 start = stop
-                stop = min(stop + batch_size*2, len(training_scans))
-                batch_size = stop - start
+                stop = min(start + batch_size, len(training_scans))
                 batch += 1
-                if batch_size <= 0:
+                if stop - start <= 0:
                     break
                 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("- Batch avg likelihood: %s" % (likelihood))
             epoch += 1
+            batch_size *= 2
 
-        print("Done!")        
+        print("Done!")
+
+        # Save likelihoods
+        import csv
+        with open("tmp_train_log_batchsize%d.csv" % batch_size, "w") as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+            for epoch_likelihoods in ll_log:
+                writer.writerow(epoch_likelihoods)
+            print("Saved logs to tmp_train_log.csv")
 
 
     def test(self, results_dir, batch_size=50, graph_test=True):

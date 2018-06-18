@@ -20,6 +20,12 @@ if __name__ == "__main__":
     what = args.what
     config = eval(args.config)
 
+    if "category_type" in config:
+        CategoryManager.TYPE = config['category_type']
+    else:
+        CategoryManager.TYPE = "SIMPLE"
+    CategoryManager.init()
+
     dgsm_args = None
     if what == "DGSM_SAME_BUILDING":
         """

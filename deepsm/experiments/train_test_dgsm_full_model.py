@@ -24,7 +24,7 @@ if __name__ == "__main__":
     if "category_type" in config:
         CategoryManager.TYPE = config['category_type']
     else:
-        CategoryManager.TYPE = "BINARY"
+        CategoryManager.TYPE = "SIMPLE"
     CategoryManager.init()
 
     dgsm_args = None
@@ -75,5 +75,4 @@ if __name__ == "__main__":
                                            args_list=[tmp_data_dir,
                                                       results_dir,
                                                       '1'])
-
         dgsm_runner.main(args=dsgm_args)

@@ -466,6 +466,9 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
 
 if __name__ == "__main__":
     
+    CategoryManager.TYPE = "FULL"
+    CategoryManager.init()
+    
     seed = random.randint(200,1000)
 
     template = ThreeRelTemplate

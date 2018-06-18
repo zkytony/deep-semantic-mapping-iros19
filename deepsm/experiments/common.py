@@ -9,7 +9,7 @@ min_radius      = 0.3
 max_radius      = 5
 radius_factor   = 1.15
 
-# 32x8
+# # 32x8
 # resolution      = 0.02
 # num_angle_cells = 32
 # min_radius      = 0.3

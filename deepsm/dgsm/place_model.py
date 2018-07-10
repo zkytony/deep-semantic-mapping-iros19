@@ -85,6 +85,70 @@ class PlaceModel:
         else:
             raise Exception("Incorrect value of occupancy vals.")
 
+    @staticmethod
+    def _print_structure_stats(root):
+        all_nodes = root.get_nodes()
+        num_sums = 0
+        num_single_sums = 0
+        num_weight_mults = 0
+        num_prods = 0
+        num_single_prods = 0
+        for n in all_nodes:
+            if isinstance(n, spn.Sum):
+                num_sums += 1
+                num_single_sums += len(n.inputs) - 1
+                num_weight_mults += len(n.inputs)
+            if isinstance(n, spn.Product):
+                num_prods += 1
+                num_single_prods += len(n.inputs) - 1
+        print("* Number of sums, products: %s %s" %
+              (num_sums, num_prods))
+        print("* Number of single sum ops, product ops: %s %s" %
+              (num_single_sums, num_single_prods))
+        print("* Number of weight multiplications : %s" %
+              (num_weight_mults))
+        print("Done!")
+
+            
+    def _build_sub_model(self, num_views, view_borders, view_dense_gen, place_dense_gen):
+        view_roots = [None for _ in range(num_views)]
+        for vi in range(num_views):
+            view_start = view_borders[vi]
+            view_end = view_borders[vi + 1]
+            print("* Generating VIEW %d for start:%d end:%d" %
+                  (vi, view_start, view_end))
+            view_roots[vi] = view_dense_gen.generate(
+                (self._ivs, self._get_indices_for_view(view_borders, vi)))
+        print("* View roots: %s" % view_roots)
+        print("* Number of nodes in each view: %s" %
+              ([i.get_num_nodes() for i in view_roots]))
+        print("* Scope of first view: %s" % sorted(view_roots[0].get_scope()[0]))
+
+        # Obtain product nodes instead of roots for each view
+        view_products = [None for _ in range(num_views)]
+        for vi in range(num_views):
+            view_products[vi] = [v.node for v in view_roots[vi].values]
+
+        # Create sums for each view
+        view_sums = [None for _ in range(num_views)]
+        for vi in range(num_views):
+            prods = view_products[vi]
+            view_sums[vi] = spn.ParSums(*prods, num_sums=self._view_num_top_mixtures)# [spn.Sum(*prods)
+                             # for _ in range(self._view_num_top_mixtures)]
+        print("* View sums: %s " % (view_sums,))
+
+        # Generate place network
+        print("* Generating PLACE...")
+        root = place_dense_gen.generate(*[sums for sums in view_sums])#[i for v in view_sums for i in v])
+        print("* Root valid: %s" % root.is_valid())
+        if not len(root.get_scope()[0]) == self._num_vars:
+            raise Exception()
+        print("* Number of nodes in whole model: %s" %
+              root.get_num_nodes())
+
+        PlaceModel._print_structure_stats(root)
+        return root
+
     def _build_model(self):
         print("\nBuilding model...")
 
@@ -113,14 +177,13 @@ class PlaceModel:
             input_dist=self._view_input_dist,
             node_type=spn.DenseSPNGeneratorLayerNodes.NodeType.BLOCK)
         
-        place_dense_gen = spn.DenseSPNGenerator(
+        place_dense_gen = spn.DenseSPNGeneratorLayerNodes(
             num_decomps=self._place_num_decomps,
             num_subsets=self._place_num_subsets,
             num_mixtures=self._place_num_mixtures,
             num_input_mixtures=self._place_num_input_mixtures,
             balanced=True,
-            input_dist=spn.DenseSPNGenerator.InputDist.RAW)
-            # node_type=spn.DenseSPNGeneratorLayerNodes.NodeType.LAYER) 
+            input_dist=spn.DenseSPNGeneratorLayerNodes.InputDist.RAW)
         
         # For each class, build a sub-SPN
         class_roots = []
@@ -129,11 +192,11 @@ class PlaceModel:
             sub_root = self._build_sub_model(num_views, view_borders, view_dense_gen, place_dense_gen)
             class_roots.append(sub_root)
 
-        self._root = spn.Sum(*class_roots)
+        self._root = spn.ParSums(*class_roots)
 
         # It shouldn't matter which object calls convert_to_layer_nodes since the function is independent to self.
         print("Converting to Layer SPN...")
-        self._root = view_dense_gen.convert_to_layer_nodes(self._root)
+        self._root = place_dense_gen.convert_to_layer_nodes(self._root)
 
         # Sum up all sub SPNs
         print("* Root valid: %s" % self._root.is_valid())
@@ -143,27 +206,7 @@ class PlaceModel:
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
 
         # Print structure statistics
-        all_nodes = self._root.get_nodes()
-        num_sums = 0
-        num_single_sums = 0
-        num_weight_mults = 0
-        num_prods = 0
-        num_single_prods = 0
-        for n in all_nodes:
-            if isinstance(n, spn.Sum):
-                num_sums += 1
-                num_single_sums += len(n.inputs) - 1
-                num_weight_mults += len(n.inputs)
-            if isinstance(n, spn.Product):
-                num_prods += 1
-                num_single_prods += len(n.inputs) - 1
-        print("* Number of sums, products: %s %s" %
-              (num_sums, num_prods))
-        print("* Number of single sum ops, product ops: %s %s" %
-              (num_single_sums, num_single_prods))
-        print("* Number of weight multiplications : %s" %
-              (num_weight_mults))
-        print("Done!")
+        PlaceModel._print_structure_stats(self._root)
 
         # Add weights
         print("Adding weights...")
@@ -177,7 +220,8 @@ class PlaceModel:
         print("Done!")
 
         # Add learning ops
-        print("\nAdding learning ops...")
+        print("\nAdding learning ops..." \
+              "Learning type: %s" % ("EM" if self._learning_type == PlaceModel.LearningType.EM else "GD"))
         if self._learning_type == PlaceModel.LearningType.EM:
             self._additive_smoothing_var = tf.Variable(self._smoothing_val,
                                                        dtype=spn.conf.dtype)
@@ -204,67 +248,6 @@ class PlaceModel:
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
         self._init_weights = spn.initialize_weights(self._root)
         print("Done!")
-        
-
-    def _build_sub_model(self, num_views, view_borders, view_dense_gen, place_dense_gen):
-        view_roots = [None for _ in range(num_views)]
-        for vi in range(num_views):
-            view_start = view_borders[vi]
-            view_end = view_borders[vi + 1]
-            print("* Generating VIEW %d for start:%d end:%d" %
-                  (vi, view_start, view_end))
-            view_roots[vi] = view_dense_gen.generate(
-                (self._ivs, self._get_indices_for_view(view_borders, vi)))
-        print("* View roots: %s" % view_roots)
-        print("* Number of nodes in each view: %s" %
-              ([i.get_num_nodes() for i in view_roots]))
-        print("* Scope of first view: %s" % sorted(view_roots[0].get_scope()[0]))
-
-        # Obtain product nodes instead of roots for each view
-        view_products = [None for _ in range(num_views)]
-        for vi in range(num_views):
-            view_products[vi] = [v.node for v in view_roots[vi].values]
-
-        # Create sums for each view
-        view_sums = [None for _ in range(num_views)]
-        for vi in range(num_views):
-            prods = view_products[vi]
-            view_sums[vi] = [spn.Sum(*prods)
-                             for _ in range(self._view_num_top_mixtures)]
-        print("* View sums: %s " % (view_sums,))
-
-        # Generate place network
-        print("* Generating PLACE...")
-        root = place_dense_gen.generate(*[i for v in view_sums for i in v])
-        print("* Root valid: %s" % root.is_valid())
-        if not len(root.get_scope()[0]) == self._num_vars:
-            raise Exception()
-        print("* Number of nodes in whole model: %s" %
-              root.get_num_nodes())
-
-        all_nodes = root.get_nodes()
-        num_sums = 0
-        num_single_sums = 0
-        num_weight_mults = 0
-        num_prods = 0
-        num_single_prods = 0
-        for n in all_nodes:
-            if isinstance(n, spn.Sum):
-                num_sums += 1
-                num_single_sums += len(n.inputs) - 1
-                num_weight_mults += len(n.inputs)
-            if isinstance(n, spn.Product):
-                num_prods += 1
-                num_single_prods += len(n.inputs) - 1
-        print("* Number of sums, products: %s %s" %
-              (num_sums, num_prods))
-        print("* Number of single sum ops, product ops: %s %s" %
-              (num_single_sums, num_single_prods))
-        print("* Number of weight multiplications : %s" %
-              (num_weight_mults))
-        print("Done!")
-        return root
-
 
     def train(self, num_batches, num_epochs):
         """Run training"""
@@ -281,7 +264,8 @@ class PlaceModel:
         self._sess.run(tf.global_variables_initializer())
         self._sess.run(self._reset_accumulators)
 
-        batch_size = min(10, len(training_scans)) # initial batch size
+        # batch_size = min(10, len(training_scans)) # initial batch sizee
+        batch_size = training_scans.shape[0] // num_batches
 
         # Print weights
         print(self._sess.run(self._root.weights.node.variable))
@@ -294,69 +278,90 @@ class PlaceModel:
         print(self._sess.run(self._root.weights.node.variable))
         print(self._sess.run(self._learning.root_accum()))
 
-        while epoch < num_epochs - 1:
-            prev_likelihood = likelihood
+        while epoch < num_epochs:
+            prev_likelihood=likelihood
             likelihoods = []
-            ll_log.append([])
-
-            # Shuffle
-            print("Shuffling...")
-            p = np.random.permutation(len(training_scans))
-            training_scans = training_scans[p]
-            training_labels = training_labels[p]
-
-            start = 0
-            stop = min(start + batch_size, len(training_scans)) # initial batch size
-            batch = 0
-            while stop <= training_scans.shape[0]: 
-                print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
-
-                if self._learning_type == PlaceModel.LearningType.EM:
-                    # Adjust smoothing
-                    ads = max(np.exp(-epoch * self._smoothing_decay) *
-                              self._smoothing_val,
-                              self._smoothing_min)
-                    self._sess.run(self._additive_smoothing_var.assign(ads))
-                    print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
-
-                # Run learning
+            for batch in range(num_batches):
+                start = (batch)*batch_size
+                stop = (batch+1)*batch_size
+                print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
+                # Run accumulate_updates
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
-                    self._sess.run([self._train_likelihood,
-                                    self._avg_train_likelihood,
-                                    self._learn_spn],
-                                   feed_dict={self._ivs: training_scans[start:stop],
-                                              self._latent: training_labels[start:stop]})
-                                              
+                self._sess.run([self._train_likelihood,
+                                self._avg_train_likelihood,
+                                self._learn_spn],
+                               feed_dict={self._ivs: training_scans[start:stop],
+                                          self._latent: training_labels[start:stop]})
                 # Print avg likelihood of this batch data on previous batch weights
-                print("  Avg likelihood (this batch data on previous weights): %s" %
-                      (avg_train_likelihood_val))
+                print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
-                ll_log[epoch].append(avg_train_likelihood_val)
-
-                if self._learning_type == PlaceModel.LearningType.EM:
-                    # Update weights
-                    self._sess.run(self._update_spn)
-
-                start = stop
-                stop = min(start + batch_size, len(training_scans))
-                batch += 1
-                if stop - start <= 0:
-                    break
-                
             likelihood = sum(likelihoods) / len(likelihoods)
-            print("- Batch avg likelihood: %s" % (likelihood))
-            epoch += 1
-            batch_size *= 2
+            print("Avg likelihood: %s" % (likelihood))
+            epoch+=1
+                
+        # while epoch < num_epochs - 1:
+        #     prev_likelihood = likelihood
+        #     likelihoods = []
+        #     ll_log.append([])
+
+        #     # Shuffle
+        #     print("Shuffling...")
+        #     p = np.random.permutation(len(training_scans))
+        #     training_scans = training_scans[p]
+        #     training_labels = training_labels[p]
+
+        #     start = 0
+        #     stop = min(start + batch_size, len(training_scans)) # initial batch size
+        #     batch = 0
+        #     while stop <= training_scans.shape[0]: 
+        #         print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
+
+        #         if self._learning_type == PlaceModel.LearningType.EM:
+        #             # Adjust smoothing
+        #             ads = max(np.exp(-epoch * self._smoothing_decay) *
+        #                       self._smoothing_val,
+        #                       self._smoothing_min)
+        #             self._sess.run(self._additive_smoothing_var.assign(ads))
+        #             print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
+
+        #         # Run learning
+        #         train_likelihoods_arr, avg_train_likelihood_val, _, = \
+        #             self._sess.run([self._train_likelihood,
+        #                             self._avg_train_likelihood,
+        #                             self._learn_spn],
+        #                            feed_dict={self._ivs: training_scans[start:stop],
+        #                                       self._latent: training_labels[start:stop]})
+                                              
+        #         # Print avg likelihood of this batch data on previous batch weights
+        #         print("  Avg likelihood (this batch data on previous weights): %s" %
+        #               (avg_train_likelihood_val))
+        #         likelihoods.append(avg_train_likelihood_val)
+        #         ll_log[epoch].append(avg_train_likelihood_val)
+
+        #         if self._learning_type == PlaceModel.LearningType.EM:
+        #             # Update weights
+        #             self._sess.run(self._update_spn)
+
+        #         start = stop
+        #         stop = min(start + batch_size, len(training_scans))
+        #         batch += 1
+        #         if stop - start <= 0:
+        #             break
+                
+        #     likelihood = sum(likelihoods) / len(likelihoods)
+        #     print("- Batch avg likelihood: %s" % (likelihood))
+        #     epoch += 1
+        #     batch_size *= 2
 
         print("Done!")
 
         # Save likelihoods
-        import csv
-        with open("tmp_train_log_batchsize%d.csv" % batch_size, "w") as f:
-            writer = csv.writer(f, delimiter=',', quotechar='"')
-            for epoch_likelihoods in ll_log:
-                writer.writerow(epoch_likelihoods)
-            print("Saved logs to tmp_train_log.csv")
+        # import csv
+        # with open("tmp_train_log_batchsize%d.csv" % batch_size, "w") as f:
+        #     writer = csv.writer(f, delimiter=',', quotechar='"')
+        #     for epoch_likelihoods in ll_log:
+        #         writer.writerow(epoch_likelihoods)
+        #     print("Saved logs to tmp_train_log.csv")
 
 
     def test(self, results_dir, batch_size=50, graph_test=True):

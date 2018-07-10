@@ -55,6 +55,36 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
        'floor_prefix': (str) (e.g. "seq" or "floor")
        'rooms': {floor# -> [ ... room_id ...]}
     """
+    def _process_one_case(floor_testing, floors_training, db_info, scans, add_topo_scans=False):
+        if add_topo_scans:
+            for seq_id in sorted(db_info['floors'][floor_testing]):
+                print("    Adding topo map scans (%s)" % seq_id)
+                seq_scans = dgsm_dataset.load_one_sequence(db_name, seq_id)
+                topo_map = topo_dataset.get(db_name, seq_id)
+                # NOTE: The topo_map_scans will NEVER contain scans matched to placeholders;
+                # Because placeholders are not yet visited by the robot.
+                topo_map_scans = dgsm_dataset.polar_scans_from_graph(db_name + str(floor_testing),  # e.g. stockholm7
+                                                                     seq_id,
+                                                                     seq_scans,
+                                                                     topo_map)
+                scans.extend(topo_map_scans)
+        # Now create set_defs where fl is the test floor
+        print("    Creating set_defs")
+        seqs_testing = db_info['floors'][floor_testing]
+        floor_plan = db_info['rooms'] #get_floor_plans(db_info['rooms'][fl])
+        set_defs = DGSMDataset.make_set_defs({db_name: floor_plan},
+                                             {db_name: floors_training},
+                                             {db_name + str(floor_testing): seqs_testing})
+        # save set_defs
+        path_to_set_defs = paths.path_to_dgsm_set_defs_same_building(db_data_path,
+                                                                     "".join(map(str, floors_training)),
+                                                                     floor_testing)
+        os.makedirs(path_to_set_defs, exist_ok=True)
+        with open(os.path.join(path_to_set_defs, "set_defs"), 'wb') as f:
+            pickle.dump(set_defs, f)
+            print("    set_defs saved to %s/set_defs" % path_to_set_defs)
+        #-- End of _process_one_case() --#
+
     # Initialize dataset objects
     topo_dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
     dgsm_dataset = DGSMDataset()
@@ -69,9 +99,6 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     # print("Filtering scans by distance...")
     scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.2)
 
-    # Load graph scans and create set_defs for each floor combination
-    all_set_defs = {}
-
     # Path to where the data will be stored for this db_name
     db_data_path = paths.path_to_dgsm_dataset_same_building(CategoryManager.NUM_CATEGORIES, db_name)
     os.makedirs(db_data_path, exist_ok=True)
@@ -81,35 +108,12 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
         # Print info
         floor_testing = fl
         floors_training = sorted(list(floors - {floor_testing}))
+        
         print("Test floor: %d" % floor_testing)
         print("Train floors: %s" % floors_training)
-        
-        for seq_id in sorted(db_info['floors'][fl]):
-            print("    Adding topo map scans (%s)" % seq_id)
-            seq_scans = dgsm_dataset.load_one_sequence(db_name, seq_id)
-            topo_map = topo_dataset.get(db_name, seq_id)
-            # NOTE: The topo_map_scans will NEVER contain scans matched to placeholders;
-            # Because placeholders are not yet visited by the robot.
-            topo_map_scans = dgsm_dataset.polar_scans_from_graph(db_name + str(fl),  # e.g. stockholm7
-                                                                 seq_id,
-                                                                 seq_scans,
-                                                                 topo_map)
-            scans.extend(topo_map_scans)
-        # Now create set_defs where fl is the test floor
-        print("    Creating set_defs")
-        seqs_testing = db_info['floors'][fl]
-        floor_plan = db_info['rooms'] #get_floor_plans(db_info['rooms'][fl])
-        set_defs = DGSMDataset.make_set_defs({db_name: floor_plan},
-                                             {db_name: floors_training},
-                                             {db_name + str(fl): seqs_testing})
-        # save set_defs
-        path_to_set_defs = paths.path_to_dgsm_set_defs_same_building(db_data_path,
-                                                                     "".join(map(str, floors_training)),
-                                                                     floor_testing)
-        os.makedirs(path_to_set_defs, exist_ok=True)
-        with open(os.path.join(path_to_set_defs, "set_defs"), 'wb') as f:
-            pickle.dump(set_defs, f)
-            print("    set_defs saved to %s/set_defs" % path_to_set_defs)
+
+        _process_one_case(floor_testing, floors_training, db_info, scans, add_topo_scans=True)
+        _process_one_case(floor_testing, [floor_testing], db_info, scans, add_topo_scans=False)
 
     # Now save real_data
     scans = DGSMDataset.make_dataset(scans)
@@ -165,7 +169,7 @@ def create_datasets_across_buildings(db_info, dim="56x21"):
                     count += 1
 
         # set_defs.
-        train_buildings = sorted(list(db_names - {test_building}))
+        train_buildings = sorted(list(db_names - {test_building}))        
         db_floors_training = {d:sorted(list(db_info[d]['floors'].keys()))
                               for d in train_buildings}
         db_seqs_testing = {test_building: seqs_testing}

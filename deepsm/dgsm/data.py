@@ -47,8 +47,18 @@ class Data:
         return self._training_labels
 
     @property
-    def testing_data(self):
-        return self._testing_data
+    def testing_scans(self):
+        return self._testing_scans
+
+    @property
+    def testing_labels(self):
+        return self._testing_labels
+
+    @property
+    def testing_footprint(self):
+        """testing_footprint stores the room id, room category, and pose of
+        each scan sample in the testing data."""
+        return self._testing_footprint
 
     @property
     def all_scans(self):
@@ -121,23 +131,32 @@ class Data:
         self._novel_classes = self._set_defs['novel_categories']
         training_scans = []
         training_labels = []
-        testing_data = []
+        testing_scans = []
+        testing_labels = []
+        testing_footprint = []
         for i in self._data:
             rid = i[0]
             rcat = i[1]
+            rnum = CategoryManager.category_map(rcat, checking=True)
             scan = i[2]
-            if rid in self._train_rooms and rcat != "UN":
+            
+            if rid in self._train_rooms and rnum != CategoryManager.CAT_MAP['UN']:
                 training_scans.append(scan)
-                training_labels.append(CategoryManager.category_map(rcat))
-            if rid in self._test_rooms and rcat != "UN":
-                testing_data.append(i)
+                training_labels.append(rnum)
+            if rid in self._test_rooms and rnum != CategoryManager.CAT_MAP['UN']:
+                testing_scans.append(scan)
+                testing_labels.append(rnum)
+                testing_footprint.append([rid, rcat, i[-1]])
+
         training_scans = np.vstack(training_scans)
         training_labels = np.vstack(training_labels)
+        testing_scans = np.vstack(testing_scans)
+        testing_labels = np.vstack(testing_labels)
         all_scans = np.vstack([i[2] for i in self._data])
-        all_labels = np.vstack([CategoryManager.category_map(i[1], checking=True) for i in self._data])
 
         self._training_labels = training_labels
-        self._testing_data = testing_data
+        self._testing_labels = testing_labels
+        self._testing_footprint = testing_footprint
 
         # Modify to 3 occupancy vals
         if self._occupancy_vals == Data.OccupancyVals.THREE:
@@ -145,12 +164,17 @@ class Data:
             self._training_scans[training_scans == -1] = 0
             self._training_scans[training_scans == 0] = 1
             self._training_scans[training_scans == 1] = 2
+            self._testing_scans = np.copy(testing_scans)
+            self._testing_scans[testing_scans == -1] = 0
+            self._testing_scans[testing_scans == 0] = 1
+            self._testing_scans[testing_scans == 1] = 2
             self._all_scans = np.copy(all_scans)
             self._all_scans[all_scans == -1] = 0
             self._all_scans[all_scans == 0] = 1
             self._all_scans[all_scans == 1] = 2
         elif self._occupancy_vals == Data.OccupancyVals.TWO:
             self._training_scans = training_scans
+            self._testing_scans = testing_scans
             self._all_scans = all_scans
         else:
             raise Exception()

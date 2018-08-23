@@ -22,10 +22,6 @@ class PlaceModel:
         ONE = 1
         RANDOM = 2
 
-    class LearningType(Enum):
-        EM = 1
-        GD = 2
-
     def __init__(self, data,
                  view_input_dist, view_num_decomps, view_num_subsets,
                  view_num_mixtures, view_num_input_mixtures, view_num_top_mixtures,
@@ -36,7 +32,8 @@ class PlaceModel:
                  init_accum_val,
                  smoothing_val, smoothing_min, smoothing_decay,
                  optimizer=tf.train.AdamOptimizer,
-                 learning_type=LearningType.GD):
+                 learning_type=spn.LearningType.DISCRIMINATIVE,
+                 learning_inference_type=spn.LearningInferenceType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
         self._num_angle_cells = data.num_angle_cells
@@ -62,153 +59,98 @@ class PlaceModel:
         self._smoothing_decay = smoothing_decay
         self._init_accum = init_accum_val
         self._learning_type = learning_type
+        self._learning_inference_type = learning_inference_type
 
         self._build_model()
         self._sess = tf.Session()
 
         self._known_classes = CategoryManager.known_categories()
-        
-    def _get_indices_for_view(self, view_borders, vn):
-        alli = np.arange(self._num_angle_cells *
-                         self._num_radius_cells).reshape(self._num_radius_cells,
-                                                         self._num_angle_cells)
-        ind_var = alli[:, view_borders[vn]:view_borders[vn + 1]]
-        ind_var = ind_var.ravel().tolist()
-        # Now turn var indices to IV indices
-        if self._occupancy_vals == Data.OccupancyVals.THREE:
-            return sorted([3 * i for i in ind_var] +
-                          [(3 * i) + 1 for i in ind_var] +
-                          [(3 * i) + 2 for i in ind_var])
-        elif self._occupancy_vals == Data.OccupancyVals.TWO:
-            return sorted([2 * i for i in ind_var] +
-                          [(2 * i) + 1 for i in ind_var])
-        else:
-            raise Exception("Incorrect value of occupancy vals.")
 
     @staticmethod
-    def _print_structure_stats(root):
-        all_nodes = root.get_nodes()
-        num_sums = 0
-        num_single_sums = 0
-        num_weight_mults = 0
-        num_prods = 0
-        num_single_prods = 0
-        for n in all_nodes:
-            if isinstance(n, spn.Sum):
-                num_sums += 1
-                num_single_sums += len(n.inputs) - 1
-                num_weight_mults += len(n.inputs)
-            if isinstance(n, spn.Product):
-                num_prods += 1
-                num_single_prods += len(n.inputs) - 1
-        print("* Number of sums, products: %s %s" %
-              (num_sums, num_prods))
-        print("* Number of single sum ops, product ops: %s %s" %
-              (num_single_sums, num_single_prods))
-        print("* Number of weight multiplications : %s" %
-              (num_weight_mults))
-        print("Done!")
+    def get_ivs_indices(num_vals, start_var_index, end_var_index):
+        """start_var_index inclusive, end_var_index exclusive"""
+        return np.arange(start_var_index * num_vals,
+                         end_var_index * num_vals).tolist()
 
-            
-    def _build_sub_model(self, num_views, view_borders, view_dense_gen, place_dense_gen):
-        view_roots = [None for _ in range(num_views)]
-        for vi in range(num_views):
-            view_start = view_borders[vi]
-            view_end = view_borders[vi + 1]
-            print("* Generating VIEW %d for start:%d end:%d" %
-                  (vi, view_start, view_end))
-            view_roots[vi] = view_dense_gen.generate(
-                (self._ivs, self._get_indices_for_view(view_borders, vi)))
-        print("* View roots: %s" % view_roots)
-        print("* Number of nodes in each view: %s" %
-              ([i.get_num_nodes() for i in view_roots]))
-        print("* Scope of first view: %s" % sorted(view_roots[0].get_scope()[0]))
+    def build_sub_spn(self, gen_view, gen_place):
+        print("Building sub-SPN ...")
 
-        # Obtain product nodes instead of roots for each view
-        view_products = [None for _ in range(num_views)]
-        for vi in range(num_views):
-            view_products[vi] = [v.node for v in view_roots[vi].values]
+        # Generate lower level SPN
+        num_views = 8
+        num_vars_per_view = self._ivs.num_vars // num_views
+        roots_view = []
+        for gi in range(num_views):
+            roots_view.append(
+                gen_view.generate((self._ivs,
+                                    PlaceModel.get_ivs_indices(self._ivs.num_vals,
+                                                               gi*num_vars_per_view,
+                                                               (gi+1)*num_vars_per_view))))
+
+        # Obtain product nodes instead of roots
+        products_view = [None] * len(roots_view)
+        for ri in range(len(roots_view)):
+            products_view[ri] = [v.node for v in roots_view[ri].values]
+
 
         # Create sums for each view
-        view_sums = [None for _ in range(num_views)]
-        for vi in range(num_views):
-            prods = view_products[vi]
-            view_sums[vi] = spn.ParSums(*prods, num_sums=self._view_num_top_mixtures)# [spn.Sum(*prods)
-                             # for _ in range(self._view_num_top_mixtures)]
-        print("* View sums: %s " % (view_sums,))
+        sums_view = [None] * len(roots_view)
+        for ri in range(len(roots_view)):
+            prods = products_view[ri]
+            sums_view[ri] = spn.ParSums(*prods, num_sums=self._view_num_top_mixtures)
 
-        # Generate place network
-        print("* Generating PLACE...")
-        root = place_dense_gen.generate(*[sums for sums in view_sums])#[i for v in view_sums for i in v])
-        print("* Root valid: %s" % root.is_valid())
-        if not len(root.get_scope()[0]) == self._num_vars:
-            raise Exception()
-        print("* Number of nodes in whole model: %s" %
-              root.get_num_nodes())
+        # Generate Upper Level SPN
+        root = gen_place.generate(*[sums for sums in sums_view])
 
-        PlaceModel._print_structure_stats(root)
+        # Check if valid
+        print("Is valid? %s" % root.is_valid())
         return root
 
-    def _build_model(self):
-        print("\nBuilding model...")
 
-        # IVs
+    def _build_model(self):
+
+        # IVS
         if self._occupancy_vals == Data.OccupancyVals.THREE:
-            self._ivs = spn.IVs(num_vars=self._num_vars, num_vals=3)
+            self._ivs = spn.IVs(num_vars=self._num_radius_cells*self._num_angle_cells, num_vals=3)
         elif self._occupancy_vals == Data.OccupancyVals.TWO:
-            self._ivs = spn.IVs(num_vars=self._num_vars, num_vals=2)
+            self._ivs = spn.IVs(num_vars=self._num_radius_cells*self._num_angle_cells, num_vals=2)
         else:
             raise Exception("Incorrect value of occupancy vals.")
 
-        num_views = 8
-        view_borders = [0] + [(i + 1) * (self._num_angle_cells // num_views)
-                              for i in range(num_views)]
-        if view_borders[-1] != self._num_angle_cells:
-            raise Exception()
-        print("* View borders %s for %s angle cells and %s views" % (
-            view_borders, self._num_angle_cells, num_views))
+        # Type of inference during upward pass of learning
+        value_inference_type = spn.InferenceType.MARGINAL
 
-        view_dense_gen = spn.DenseSPNGeneratorLayerNodes(
-            num_decomps=self._view_num_decomps,
-            num_subsets=self._view_num_subsets,
-            num_mixtures=self._view_num_mixtures,
-            num_input_mixtures=self._view_num_input_mixtures,
-            balanced=True,
-            input_dist=self._view_input_dist,
-            node_type=spn.DenseSPNGeneratorLayerNodes.NodeType.BLOCK)
-        
-        place_dense_gen = spn.DenseSPNGeneratorLayerNodes(
-            num_decomps=self._place_num_decomps,
-            num_subsets=self._place_num_subsets,
-            num_mixtures=self._place_num_mixtures,
-            num_input_mixtures=self._place_num_input_mixtures,
-            balanced=True,
-            input_dist=spn.DenseSPNGeneratorLayerNodes.InputDist.RAW)
-        
-        # For each class, build a sub-SPN
+        # Create two generators
+        gen_view = \
+            spn.DenseSPNGeneratorLayerNodes(
+                num_decomps=self._view_num_decomps,
+                num_subsets=self._view_num_subsets,
+                num_mixtures=self._view_num_mixtures,
+                balanced=True,
+                input_dist=spn.DenseSPNGeneratorLayerNodes.InputDist.RAW)
+
+        gen_place = \
+            spn.DenseSPNGeneratorLayerNodes(
+                num_decomps=self._place_num_decomps,
+                num_subsets=self._place_num_subsets,
+                num_mixtures=self._place_num_mixtures,
+                balanced=True,
+                input_dist=spn.DenseSPNGeneratorLayerNodes.InputDist.RAW)
+
+        # For each class, build a sub-SPN                                                                                                         
         class_roots = []
         for i in range(CategoryManager.NUM_CATEGORIES):
             print("----Class %d (%s)----" % (i, CategoryManager.category_map(i, rev=True)))
-            sub_root = self._build_sub_model(num_views, view_borders, view_dense_gen, place_dense_gen)
+            sub_root = self.build_sub_spn(gen_view, gen_place)
             class_roots.append(sub_root)
 
+        print("***** Full Model *****")
         self._root = spn.ParSums(*class_roots)
+        self._root = gen_place.convert_to_layer_nodes(self._root)
 
-        # It shouldn't matter which object calls convert_to_layer_nodes since the function is independent to self.
-        print("Converting to Layer SPN...")
-        self._root = place_dense_gen.convert_to_layer_nodes(self._root)
+        # Check if valid
+        print("Is valid? %s" % self._root.is_valid())
 
-        # Sum up all sub SPNs
-        print("* Root valid: %s" % self._root.is_valid())
-        if not len(self._root.get_scope()[0]) == self._num_vars:
-            raise Exception()
-
-        self._latent = self._root.generate_ivs(name="root_Catg_IVs")
-
-        # Print structure statistics
-        PlaceModel._print_structure_stats(self._root)
-
-        # Add weights
+        # Generate SPN weights
         print("Adding weights...")
         if self._weight_init_value == PlaceModel.WeightInitValue.ONE:
             wiv = 1
@@ -216,68 +158,41 @@ class PlaceModel:
             wiv = spn.ValueType.RANDOM_UNIFORM(10, 11)
         else:
             raise Exception()
-        spn.generate_weights(self._root, init_value=wiv, log=True, trainable=True)
-        print("Done!")
+        spn.generate_weights(self._root, init_value=wiv, log=True)
 
-        # Add learning ops
-        print("\nAdding learning ops..." \
-              "Learning type: %s" % ("EM" if self._learning_type == PlaceModel.LearningType.EM else "GD"))
-        if self._learning_type == PlaceModel.LearningType.EM:
-            self._additive_smoothing_var = tf.Variable(self._smoothing_val,
-                                                       dtype=spn.conf.dtype)
-            self._learning = spn.EMLearning(
-                self._root, log=True,
-                value_inference_type=self._value_inference_type,
-                additive_smoothing=self._additive_smoothing_var,
-                add_random=None,
-                initial_accum_value=self._init_accum,
-                use_unweighted=True)
-            self._learn_spn = self._learning.accumulate_updates()
-            self._update_spn = self._learning.update_spn()
-        else:
-            self._learning = spn.GDLearning(
-                self._root, log=True,
-                value_inference_type=self._value_inference_type,
-                learning_rate=self._learning_rate,
-                learning_type=spn.LearningType.DISCRIMINATIVE,
-                learning_inference_type=spn.LearningInferenceType.HARD,
-                use_unweighted=True)
-            self._learn_spn = self._learning.learn(optimizer=self._optimizer)
+        # Generate Ltent IVs for the root
+        self._latent = self._root.generate_ivs(name="root_Catg_IVs")
+
+        # Learning Ops
+        self._learning = spn.GDLearning(self._root, log=True,
+                                  value_inference_type = value_inference_type,
+                                  learning_rate=self._learning_rate,
+                                  learning_type=self._learning_type,
+                                  learning_inference_type=self._learning_inference_type,
+                                  use_unweighted=True)
         self._reset_accumulators = self._learning.reset_accumulators()
+        self._learn_spn = self._learning.learn(optimizer=self._optimizer)
+
         self._train_likelihood = self._learning.value.values[self._root]
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
         self._init_weights = spn.initialize_weights(self._root)
-        print("Done!")
+        self._init_weights = [self._init_weights, tf.global_variables_initializer()]
+
 
     def train(self, num_batches, num_epochs):
-        """Run training"""
+        train_set = self._data.training_scans
+        train_labels = self._data.training_labels
 
-        # Get data
-        training_scans = self._data.training_scans
-        training_labels = self._data.training_labels
-
-        print("* Num training samples: %d" % len(training_scans))
-
-        # Run relevant ops
-        np.set_printoptions(threshold=np.nan)
         self._sess.run(self._init_weights)
-        self._sess.run(tf.global_variables_initializer())
         self._sess.run(self._reset_accumulators)
 
-        # batch_size = min(10, len(training_scans)) # initial batch sizee
-        batch_size = training_scans.shape[0] // num_batches
-
-        # Print weights
-        print(self._sess.run(self._root.weights.node.variable))
-
+        num_batches = 10
+        batch_size = train_set.shape[0] // num_batches
         prev_likelihood = 100
         likelihood = 0
         epoch = 0
-        ll_log = []
-        # Print weights
-        print(self._sess.run(self._root.weights.node.variable))
-        print(self._sess.run(self._learning.root_accum()))
-
+        #while abs(prev_likelihood - likelihood)>0.1:
+        print("Start Training...")
         while epoch < num_epochs:
             prev_likelihood=likelihood
             likelihoods = []
@@ -287,101 +202,60 @@ class PlaceModel:
                 print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
                 # Run accumulate_updates
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
-                self._sess.run([self._train_likelihood,
-                                self._avg_train_likelihood,
-                                self._learn_spn],
-                               feed_dict={self._ivs: training_scans[start:stop],
-                                          self._latent: training_labels[start:stop]})
+                        self._sess.run([self._train_likelihood,
+                                  self._avg_train_likelihood,
+                                  self._learn_spn],
+                                feed_dict={self._ivs: train_set[start:stop],
+                                           self._latent: train_labels[start:stop]})
                 # Print avg likelihood of this batch data on previous batch weights
                 print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
             likelihood = sum(likelihoods) / len(likelihoods)
             print("Avg likelihood: %s" % (likelihood))
             epoch+=1
-                
-        # while epoch < num_epochs - 1:
-        #     prev_likelihood = likelihood
-        #     likelihoods = []
-        #     ll_log.append([])
-
-        #     # Shuffle
-        #     print("Shuffling...")
-        #     p = np.random.permutation(len(training_scans))
-        #     training_scans = training_scans[p]
-        #     training_labels = training_labels[p]
-
-        #     start = 0
-        #     stop = min(start + batch_size, len(training_scans)) # initial batch size
-        #     batch = 0
-        #     while stop <= training_scans.shape[0]: 
-        #         print("- EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
-
-        #         if self._learning_type == PlaceModel.LearningType.EM:
-        #             # Adjust smoothing
-        #             ads = max(np.exp(-epoch * self._smoothing_decay) *
-        #                       self._smoothing_val,
-        #                       self._smoothing_min)
-        #             self._sess.run(self._additive_smoothing_var.assign(ads))
-        #             print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
-
-        #         # Run learning
-        #         train_likelihoods_arr, avg_train_likelihood_val, _, = \
-        #             self._sess.run([self._train_likelihood,
-        #                             self._avg_train_likelihood,
-        #                             self._learn_spn],
-        #                            feed_dict={self._ivs: training_scans[start:stop],
-        #                                       self._latent: training_labels[start:stop]})
-                                              
-        #         # Print avg likelihood of this batch data on previous batch weights
-        #         print("  Avg likelihood (this batch data on previous weights): %s" %
-        #               (avg_train_likelihood_val))
-        #         likelihoods.append(avg_train_likelihood_val)
-        #         ll_log[epoch].append(avg_train_likelihood_val)
-
-        #         if self._learning_type == PlaceModel.LearningType.EM:
-        #             # Update weights
-        #             self._sess.run(self._update_spn)
-
-        #         start = stop
-        #         stop = min(start + batch_size, len(training_scans))
-        #         batch += 1
-        #         if stop - start <= 0:
-        #             break
-                
-        #     likelihood = sum(likelihoods) / len(likelihoods)
-        #     print("- Batch avg likelihood: %s" % (likelihood))
-        #     epoch += 1
-        #     batch_size *= 2
-
-        print("Done!")
-
-        # Save likelihoods
-        # import csv
-        # with open("tmp_train_log_batchsize%d.csv" % batch_size, "w") as f:
-        #     writer = csv.writer(f, delimiter=',', quotechar='"')
-        #     for epoch_likelihoods in ll_log:
-        #         writer.writerow(epoch_likelihoods)
-        #     print("Saved logs to tmp_train_log.csv")
 
 
-    def test(self, results_dir, batch_size=50, graph_test=True):
+    def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
+
+        # scans = self._data.testing_scans
+        # labels = self._data.testing_labels
+
+        # mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
+        # mpe_ivs, mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
+
+        # num_batches = 10
+        # batch_size = scans.shape[0] // num_batches
+
+        # accuracy_per_step = []
+        # cm = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
+        # for batch in range(num_batches):
+        #     start = (batch) * batch_size
+        #     if last_batch and (batch + 1) == num_batches:
+        #         stop = scans.shape[0]
+        #     else:
+        #         stop = (batch + 1) * batch_size
+
+        #     # Session
+        #     mpe_latent_val = self._sess.run([mpe_latent],
+        #                                     feed_dict={self._ivs: scans[start:stop],
+        #                                                self._latent: np.ones((stop - start, 1)) * -1})
+        #     accuracy_per_step.append(np.mean(mpe_latent_val == labels[start:stop]))
+        #     cm[labels[start:stop], mpe_latent_val] += 1
+
+        # accuracy = np.mean(accuracy_per_step) * 100
+        # print("Classification accyracy on Training set: ", accuracy)
+        # print("Confusion Matrix:")
+        # print(cm)
+        # print("Classes:")
+        # print(self._known_classes)
 
         # Generate states
         mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
         self._mpe_ivs, self._mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
 
         # Make numpy array of test samples
-        testing_scans = []
-        testing_labels = []
-        for d in self._data.testing_data:
-            rid = d[0]
-            rcat = d[1]
-            scan = d[2]
-            testing_scans.append(scan)
-            testing_labels.append(CategoryManager.category_map(rcat))
-
-        testing_scans = np.vstack(testing_scans)
-        testing_labels = np.vstack(testing_labels)
+        testing_scans = self._data.testing_scans
+        testing_labels = self._data.testing_labels
 
         num_batches = testing_scans.shape[0] // batch_size
         accuracy_per_step = []
@@ -418,7 +292,7 @@ class PlaceModel:
         
         graph_results = {}
         likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
-        for i, d in enumerate(self._data.testing_data):
+        for i, d in enumerate(self._data.testing_footprint):
             rid = d[0]
             rcat = d[1]
             if rid not in graph_results:  # rid is actually graph_id

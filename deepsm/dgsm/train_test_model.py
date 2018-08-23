@@ -74,9 +74,9 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--num-epochs', type=float, default=10,
+    learn_params.add_argument('--num-epochs', type=float, default=2,
                               help='Total number of epochs')
-    learn_params.add_argument('--num-batches', type=float, default=5,
+    learn_params.add_argument('--num-batches', type=float, default=10,
                               help='Number of batches to divide the data for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +

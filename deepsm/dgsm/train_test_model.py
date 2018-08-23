@@ -104,6 +104,9 @@ def create_parser():
     test_params = parser.add_argument_group(title="testing parameters")
     test_params.add_argument('--mask-seed', type=int, default=100,
                              help='Seed used for randomizing masks')
+    test_params.add_argument('--graph-test', action="store_true",
+                             help='Graph-scale test, producing results to feed into GraphSPN.')
+    
 
     # Other
     other_params = parser.add_argument_group(title="other")
@@ -197,9 +200,10 @@ def print_args(args):
 
 def create_directories(args):
     os.makedirs(args.results_dir, exist_ok=True)
-    os.makedirs(os.path.join(args.results_dir, 'mpe_states'), exist_ok=True)
-    if args.save_masked:
-        os.makedirs(os.path.join(args.results_dir, 'masked_scans'), exist_ok=True)
+    if not args.graph_test:
+        os.makedirs(os.path.join(args.results_dir, 'mpe_states'), exist_ok=True)
+        if args.save_masked:
+            os.makedirs(os.path.join(args.results_dir, 'masked_scans'), exist_ok=True)
 
         
 def main(args=None):
@@ -213,11 +217,12 @@ def main(args=None):
     data.load(args.data_dir)
     data.process(args.subset, args.occupancy_vals)
     data.print_info()
-    data.generate_masked_scans(args.mask_seed)
-    data.save_masked_scans(args.results_dir)
-    if args.save_masked:
-        data.visualize_masked_scans(
-            os.path.join(args.results_dir, 'masked_scans'))
+    if not args.graph_test:
+        data.generate_masked_scans(args.mask_seed)
+        data.save_masked_scans(args.results_dir)
+        if args.save_masked:
+            data.visualize_masked_scans(
+                os.path.join(args.results_dir, 'masked_scans'))
 
     rnd = random.Random()
     rnd.seed(567)
@@ -275,7 +280,7 @@ def main(args=None):
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
-        model.test(args.results_dir, graph_test=True)
+        model.test(args.results_dir, graph_test=args.graph_test)
 
 
 if __name__ == '__main__':

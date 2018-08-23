@@ -289,9 +289,9 @@ class PlaceModel:
 
         if graph_test:
             # Save
-            os.makedirs(os.path.join(results_dir, "graphs"), exist_ok=True)
+            os.makedirs(os.path.join(results_dir), exist_ok=True)
             for graph_id in graph_results:
-                with open(os.path.join(results_dir, "graphs", graph_id + "_likelihoods.json"), 'w') as f:
+                with open(os.path.join(results_dir, graph_id + "_likelihoods.json"), 'w') as f:
                     json.dump(graph_results[graph_id], f)
 
 

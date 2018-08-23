@@ -186,7 +186,6 @@ class PlaceModel:
         self._sess.run(self._init_weights)
         self._sess.run(self._reset_accumulators)
 
-        num_batches = 10
         batch_size = train_set.shape[0] // num_batches
         prev_likelihood = 100
         likelihood = 0
@@ -216,38 +215,6 @@ class PlaceModel:
 
 
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
-
-        # scans = self._data.testing_scans
-        # labels = self._data.testing_labels
-
-        # mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
-        # mpe_ivs, mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
-
-        # num_batches = 10
-        # batch_size = scans.shape[0] // num_batches
-
-        # accuracy_per_step = []
-        # cm = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
-        # for batch in range(num_batches):
-        #     start = (batch) * batch_size
-        #     if last_batch and (batch + 1) == num_batches:
-        #         stop = scans.shape[0]
-        #     else:
-        #         stop = (batch + 1) * batch_size
-
-        #     # Session
-        #     mpe_latent_val = self._sess.run([mpe_latent],
-        #                                     feed_dict={self._ivs: scans[start:stop],
-        #                                                self._latent: np.ones((stop - start, 1)) * -1})
-        #     accuracy_per_step.append(np.mean(mpe_latent_val == labels[start:stop]))
-        #     cm[labels[start:stop], mpe_latent_val] += 1
-
-        # accuracy = np.mean(accuracy_per_step) * 100
-        # print("Classification accyracy on Training set: ", accuracy)
-        # print("Confusion Matrix:")
-        # print(cm)
-        # print("Classes:")
-        # print(self._known_classes)
 
         # Generate states
         mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)

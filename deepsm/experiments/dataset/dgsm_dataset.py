@@ -208,9 +208,9 @@ class DGSMDataset:
         """
         # Even if canonical_class is unknown, it shouldn't be a problem because
         # DGSM submodel will only pick the samples that have the same class for training.
-        for vscan in scans:
-            canonical_class = util.CategoryManager.canonical_category(vscan[1], checking=True)  # data[i][1] is the room class
-            vscan[1] = canonical_class
+        # for vscan in scans:
+        #     canonical_class = util.CategoryManager.canonical_category(vscan[1], checking=True)  # data[i][1] is the room class
+        #     vscan[1] = canonical_class
         return scans
 
     @staticmethod

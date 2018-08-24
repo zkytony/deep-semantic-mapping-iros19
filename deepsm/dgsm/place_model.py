@@ -7,7 +7,7 @@ from deepsm.util import CategoryManager
 from deepsm.dgsm.data import Data
 import pprint as pp
 import os, sys
-import json
+import json, yaml
 import random
 
 def norm_cm(cm):
@@ -280,6 +280,8 @@ class PlaceModel:
             stats = self._compute_stats(graph_results)
             print("- Overall statistics")
             pp.pprint(stats)
+            with open(os.path.join(results_dir, "results.yaml"), 'w') as f:
+                yaml.dump(stats, f)
         
         # Confusion matrix
         print("- Confusion matrix for MPE (weighted):")

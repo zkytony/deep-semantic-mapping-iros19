@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, help='Quoted string in the form of a Python dictionary,'\
                         'that provides key-value pair for configurations (e.g. "{\'test_case\': \'456-7\'}"',
                         default="{}")
+    parser.add_argument('-n', '--num-trials', type=int, help='number of trials', default=1)
     args = parser.parse_args()
 
     what = args.what
@@ -51,28 +52,33 @@ if __name__ == "__main__":
         os.symlink(original_real_data_path, symlink_real_data_path)
         os.symlink(original_set_defs_path, symlink_set_defs_path)
 
-        results_dir = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
-                                                              args.db_name,
-                                                              "combined",
-                                                              config['test_case'].split("-")[0],
-                                                              config['test_case'].split("-")[1])
+        for trial_number in range(args.num_trials):
+            print("**********Trial %d**********" % trial_number)
+            
+            results_dir = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
+                                                                  args.db_name,
+                                                                  "graphs",
+                                                                  trial_number,
+                                                                  config['test_case'].split("-")[0],
+                                                                  config['test_case'].split("-")[1])
 
-        # Print arguments:
-        print("============")
-        print(" Arguments  ")
-        print("============")
-        print("Original real_data_path: %s" % original_real_data_path)
-        print("Original set_defs_path: %s" % original_set_defs_path)
-        print("")
-        print("Symlink real_data_path: %s" % symlink_real_data_path)
-        print("Symlink set_defs_path: %s" % symlink_set_defs_path)
-        print("")
-        print("Configs:")
-        pprint(config)
+            # Print arguments:
+            print("============")
+            print(" Arguments  ")
+            print("============")
+            print("Original real_data_path: %s" % original_real_data_path)
+            print("Original set_defs_path: %s" % original_set_defs_path)
+            print("")
+            print("Symlink real_data_path: %s" % symlink_real_data_path)
+            print("Symlink set_defs_path: %s" % symlink_set_defs_path)
+            print("")
+            print("Configs:")
+            pprint(config)
 
-        dgsm_args_parser = dgsm_runner.create_parser()
-        dsgm_args = dgsm_runner.parse_args(parser=dgsm_args_parser,
-                                           args_list=[tmp_data_dir,
-                                                      results_dir,
-                                                      '1'])
-        dgsm_runner.main(args=dsgm_args)
+            dgsm_args_parser = dgsm_runner.create_parser()
+            dsgm_args = dgsm_runner.parse_args(parser=dgsm_args_parser,
+                                               args_list=[tmp_data_dir,
+                                                          results_dir,
+                                                          '1',
+                                                          '--graph-test'])
+            dgsm_runner.main(args=dsgm_args)

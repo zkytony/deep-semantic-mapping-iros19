@@ -31,8 +31,8 @@ results_root/
                     CR/
                     ...
                     graphs/
-                        {graph_id}_likelihoods.json   (graph_id == {building#}_{seq_id})
-                    combined/
+                        trial#/
+                            {graph_id}_likelihoods.json   (graph_id == {building#}_{seq_id})
                 ...
             ...
         across_buildings/
@@ -80,6 +80,7 @@ def path_to_dgsm_set_defs_same_building(dgsm_dataset_same_building_path,
 def path_to_dgsm_result_same_building(num_categories,
                                       building_name,
                                       submodel_class,
+                                      trial_number,
                                       train_floors,
                                       test_floor):
     return os.path.join(DGSM_RESULTS_ROOT,
@@ -87,7 +88,8 @@ def path_to_dgsm_result_same_building(num_categories,
                         "same_building",
                         building_name,
                         "%s-%s" % (train_floors, test_floor),
-                        submodel_class)
+                        submodel_class,
+                        "trial%d" % trial_number)
 
 ## across buildings ##
 def path_to_dgsm_dataset_across_buildings(num_categories):

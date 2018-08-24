@@ -97,7 +97,7 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     dgsm_dataset.add_datapath(paths.path_to_polar_scans(db_name, dim=dim), db_name)
     scans = dgsm_dataset.load_sequences([db_name], max_seqs_per_floor=2) # list of scans
     # print("Filtering scans by distance...")
-    scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.2)
+    scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.0)
 
     # Path to where the data will be stored for this db_name
     db_data_path = paths.path_to_dgsm_dataset_same_building(CategoryManager.NUM_CATEGORIES, db_name)

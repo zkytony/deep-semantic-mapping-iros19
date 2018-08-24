@@ -15,6 +15,7 @@ import os, sys
 import json, yaml
 from pprint import pprint
 import tensorflow as tf
+import libspn as spn
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.spn_instance import NodeTemplateInstanceSpn, EdgeRelationTemplateInstanceSpn
@@ -252,16 +253,12 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
 
 def print_args(args):
     util.print_in_box(["Arguments"])
-    print(args)
-    # print("Database name: %s" % args.db_name)
-    # print("  Sequence ID: %s" % args.seq_id)
-    # print("   Test floor: %s" % args.test_floor)
-    # print(" Train floors: %s" % args.train_floors)
-    # print("-------- Optional --------")
-    # print("            Seed: %s" % args.seed)
-    # print(" Experiment name: %s" % args.exp_name)
-    # print("     Relax Level: %s" % args.relax_level)
+    args_dict = {}
+    for arg in vars(args):
+        print("%s: %s" % (arg, getattr(args, arg)))
+        args_dict[arg] = str(getattr(args, arg))
     time.sleep(3)
+    return args_dict
 
 
 def same_building():
@@ -277,10 +274,15 @@ def same_building():
     parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
     parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
                         default="mytest")
+    parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
+    parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
     parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
+    parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
+    parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
     args = parser.parse_args(sys.argv[2:])
 
-    print_args(args)
+    util.CategoryManager.TYPE = args.category_type
+    util.CategoryManager.init()
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
 
@@ -288,6 +290,7 @@ def same_building():
     for i in range(util.CategoryManager.NUM_CATEGORIES):
         classes.append(util.CategoryManager.category_map(i, rev=True))
 
+    args_dict = print_args(args)
 
     # Global configs:
     # Configuration
@@ -300,18 +303,37 @@ def same_building():
         # spn structure
         "num_decomps": 1,
         "num_subsets": 3,
-        "num_mixtures": 5,
-        "num_input_mixtures": 5
+        "num_mixtures": 5,  # may be reset according to template type
+        "num_input_mixtures": 5,   # may be reset according to template type
+        
+        # spn learning
+        'learning_algorithm': spn.EMLearning,
+        'additive_smoothing': 30
     }
     test_kwargs = {
         'test_name': args.test_name,
-        'num_partitions': 5,
+        'num_partitions': args.num_partitions, # default is 5
         'timestamp': timestamp,
-        'relax_level': args.relax_level if args.relax_level else None
+        'relax_level': args.relax_level if args.relax_level else None,
+        'args': args_dict
     }
 
-    templates = [SingleRelTemplate, SingleTemplate, RelTemplate, ThreeRelTemplate] #SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
-
+    # Template type
+    if args.template == "VIEW":
+        templates = [SingleRelTemplate, SingleTemplate, RelTemplate, ThreeRelTemplate]
+        train_kwargs['num_mixtures'] = 2
+        train_kwargs['num_input_mixtures'] = 2
+    elif args.template == "THREE":
+        templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate]
+        train_kwargs['num_mixtures'] = 5
+        train_kwargs['num_input_mixtures'] = 5
+    elif args.template == "STAR":
+        templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
+        train_kwargs['num_mixtures'] = 5
+        train_kwargs['num_input_mixtures'] = 5
+    else:
+        raise Exception("Unrecognized template type %s" % args.template)
+    
     train_kwargs['db_names'] = ["%s%s" % (args.db_name, args.train_floors)]
     test_kwargs['db_name'] = "%s%s" % (args.db_name, args.test_floor)
 
@@ -319,6 +341,7 @@ def same_building():
         = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
                                                   args.db_name,
                                                   "graphs",
+                                                  args.trial,
                                                   args.train_floors,
                                                   args.test_floor)
     exp_name = args.exp_name
@@ -360,8 +383,12 @@ def across_buildings():
         # spn structure
         "num_decomps": 1,
         "num_subsets": 3,
-        "num_mixtures": 5,
-        "num_input_mixtures": 5
+        "num_mixtures": 2,
+        "num_input_mixtures": 2,
+
+        # spn learning
+        'learning_algorithm': spn.EMLearning,
+        'additive_smoothing': 30
     }
     test_kwargs = {
         'test_name': args.test_name,
@@ -416,7 +443,7 @@ def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=No
             catg = categories[i]
             indx = util.CategoryManager.category_map(catg)
             lh_out[int(nid)][indx] = lh[nid][2][i]
-        groundtruth = lh[nid][0]
+        groundtruth = util.CategoryManager.canonical_category(lh[nid][0])
         prediction = lh[nid][1]
         if groundtruth not in dgsm_result:
             dgsm_result[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy

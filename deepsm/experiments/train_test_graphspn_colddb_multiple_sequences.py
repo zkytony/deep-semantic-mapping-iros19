@@ -20,10 +20,14 @@ def experiment_proc(what,
                     seed,
                     exp_name,
                     test_name,
+                    trial,
                     relax_level,
+                    template,
+                    num_partitions,
                     test_floor=None,
                     train_floors_str=None,
-                    skip_placeholders=True):
+                    skip_placeholders=True,
+                    category_type="SIMPLE"):
     skip_placeholder_arg = ['--skip-placeholders'] if skip_placeholders else []
     if what == "DGSM_SAME_BUILDING":
         proc = subprocess.Popen(['./train_test_graphspn.py',
@@ -35,7 +39,11 @@ def experiment_proc(what,
                                  '-s', str(seed),
                                  '-e', exp_name,
                                  '-r', str(relax_level),
-                                 '-t', test_name] + skip_placeholder_arg)
+                                 '-t', test_name,
+                                 '-l', str(trial),
+                                 '-P', str(num_partitions),
+                                 '--category-type', category_type,
+                                 '--template', template] + skip_placeholder_arg)
     elif what == "DGSM_ACROSS_BUILDINGS":
         proc = subprocess.Popen(['./train_test_graphspn.py',
                                  "acrossbuildings",
@@ -64,16 +72,21 @@ def same_buliding(args):
             for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
                 train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
                 dirpath_to_dgsm_graphs_result = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
-                                                                                        db_name, "graphs",
-                                                                                        train_floors_str, str(test_floor))
+                                                                                        db_name,
+                                                                                        "graphs",
+                                                                                        args.trial,
+                                                                                        train_floors_str,
+                                                                                        str(test_floor))
                 if not os.path.exists(os.path.join(dirpath_to_dgsm_graphs_result, "%s%d_%s_likelihoods.json" % (db_name.lower(), test_floor, seq_id))):
                     print("Skipping %s. No DGSM result found." % seq_id)
                     continue
 
                 print("...%s..." % seq_id)
                 proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
-                                       args.seed, args.exp_name, args.test_name, args.relax_level,
-                                       test_floor=test_floor, train_floors_str=train_floors_str)
+                                       args.seed, args.exp_name, args.test_name, args.trial,
+                                       args.relax_level, args.template, args.num_partitions,
+                                       test_floor=test_floor, train_floors_str=train_floors_str,
+                                       category_type=args.category_type)
                 proc.wait()
                 num_seqs_tested += 1
                 if args.num_test_seqs >= 0 and num_seqs_tested >= args.num_test_seqs:
@@ -85,8 +98,10 @@ def same_buliding(args):
         test_floor = int(re.search("[0-9]+", seq_id).group())
         train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
         proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
-                               args.seed, args.exp_name, args.test_name, args.relax_level,
-                               test_floor=test_floor, train_floors_str=train_floors_str)
+                               args.seed, args.exp_name, args.test_name, args.trial,
+                               args.relax_level, args.template, args.num_partitions,
+                               test_floor=test_floor, train_floors_str=train_floors_str,
+                               category_type=args.category_type)
         proc.wait()
 
 
@@ -119,9 +134,16 @@ def main():
                         default=0.0)
     parser.add_argument('-N', '--num-test-seqs', type=int, help="Total number of sequences to test on",
                         default=-1)
+    parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
+    parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
     parser.add_argument('--seq-id', type=str, help="Sequence ID to run on; If supplied, -N is suppressed.")
     parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
+    parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
+    parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
     args = parser.parse_args()
+
+    util.CategoryManager.TYPE = args.category_type
+    util.CategoryManager.init()
 
     if args.what == "DGSM_SAME_BUILDING":
         same_buliding(args)

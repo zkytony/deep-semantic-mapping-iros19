@@ -90,6 +90,8 @@ def main():
 
     if what == "DGSM_SAME_BUILDING":
         stats = same_building_results(args.db_name, config)
+        print("**********%s %s (#%s)***********" % (args.db_name, config['test_case'],
+                                                    str(config['trial']) if 'trial' in config else "all"))
         pprint(stats)
 
 

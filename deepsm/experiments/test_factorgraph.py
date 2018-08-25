@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+#
 # Use factor graph to compare with graphspn for the same experiments
 
 import numpy as np
@@ -15,30 +17,36 @@ from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.experiments.factor_graph.run_factor_graph_tests import FactorGraphTest
 from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH, BP_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT
 from deepsm.util import CategoryManager, print_in_box
+from deepsm.graphspn.tests.tbm.runner import normalize_marginals
 
-# Very hard coded. Bad code.
+
 def parse_likelihood(path):
     needed = ""
     with open(path) as f:
-        content = f.readlines()
-        lh_start = False
-        # Get the part in the test_instance.log file that actually belongs to likelihoods
-        for line in content:
-            if not lh_start:
-                if re.search('likelihoods', line) is None:
-                    continue
-                else:
-                    lh_start = True
-            else:
-                if re.search('query', line) is not None:
-                    lh_start = False
-            
-            if lh_start:
-                needed += line.strip()
-    needed = needed.replace('array(', '')
-    needed = needed.replace(')', '')
-    return eval("{" + needed + "}")
+        r = yaml.load(f)
+    lh_log = r['likelihoods']
+    return normalize_marginals(lh_log)
 
+    # needed = ""
+    # with open(path) as f:
+    #     content = f.readlines()
+    #     lh_start = False
+    #     # Get the part in the test_instance.log file that actually belongs to likelihoods
+    #     for line in content:
+    #         if not lh_start:
+    #             if re.search('likelihoods', line) is None:
+    #                 continue
+    #             else:
+    #                 lh_start = True
+    #         else:
+    #             if re.search('query', line) is not None:
+    #                 lh_start = False
+
+    #         if lh_start:
+    #             needed += line.strip()
+    # needed = needed.replace('array(', '')
+    # needed = needed.replace(')', '')
+    # return eval("{" + needed + "}")
 
 def parse_test_info(path):
     test_info = {}
@@ -97,7 +105,7 @@ def same_building(args):
             groundtruth = topo_map.current_category_map()
             case_results_path = os.path.join(results_dir, case_name)
             os.makedirs(case_results_path, exist_ok=True)
-            likelihoods = parse_likelihood(os.path.join(case_path, 'test_instance.log'))['likelihoods']
+            likelihoods = parse_likelihood(os.path.join(case_path, 'test_instance.log'))
             for nid in topo_map.nodes:
                 if nid not in likelihoods:
                     if not topo_map.nodes[nid].placeholder:
@@ -120,8 +128,13 @@ def main():
     parser.add_argument("test_case", type=str, help="Name of test. e.g. Classification")
     parser.add_argument("test_name", type=str, help="Name of test. e.g. mytest")
     parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
+    parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL or BINARY", default="SIMPLE")
 
     args = parser.parse_args()
+    
+    CategoryManager.TYPE = args.category_type
+    CategoryManager.init()
+    
     if args.what == "DGSM_SAME_BUILDING":
         same_building(args)
 

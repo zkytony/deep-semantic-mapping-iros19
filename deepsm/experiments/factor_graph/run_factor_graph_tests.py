@@ -907,6 +907,7 @@ if __name__ == "__main__":
     parser.add_argument('-seg', '--segment', action="store_true", help="Segment the graph such that each node is a room, instead of a place.")
     parser.add_argument('-tr', '--triplet', action="store_true", help="Use 3-element factors instead of pairwise factors for room connectivity.")
     parser.add_argument('-nov', '--novelty', action="store_true", help="Runs novelty detection task.")
+    parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
     args = parser.parse_args()
 
     CategoryManager.TYPE = "SIMPLE"
@@ -914,9 +915,9 @@ if __name__ == "__main__":
     
     print("loading data...")
     dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
-    dataset.load(db_name="Stockholm", skip_unknown=CategoryManager.SKIP_UNKNOWN, segment=args.segment)
-    dataset.load(db_name="Saarbrucken", skip_unknown=CategoryManager.SKIP_UNKNOWN, segment=args.segment)
-    dataset.load(db_name="Freiburg", skip_unknown=CategoryManager.SKIP_UNKNOWN, segment=args.segment)
+    dataset.load(db_name="Stockholm", skip_unknown=CategoryManager.SKIP_UNKNOWN, segment=args.segment, skip_placeholders=args.skip_placeholders)
+    dataset.load(db_name="Saarbrucken", skip_unknown=CategoryManager.SKIP_UNKNOWN, segment=args.segment, skip_placeholders=args.skip_placeholders)
+    dataset.load(db_name="Freiburg", skip_unknown=CategoryManager.SKIP_UNKNOWN, segment=args.segment, skip_placeholders=args.skip_placeholders)
 
     if args.tiny_size > 0:
         tiny_dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)

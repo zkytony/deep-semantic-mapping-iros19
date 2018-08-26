@@ -78,8 +78,8 @@ def same_building(args):
         for case in building_configs[db_name]:
             train_fl = case.split("-")[0]
             test_fl = case.split("-")[1]
-            topo_dataset.load(db_name + train_fl, skip_unknown=True)
-            topo_dataset.load(db_name + test_fl, skip_unknown=True)
+            topo_dataset.load(db_name + train_fl, skip_unknown=True, skip_placeholders=args.skip_placeholders)
+            topo_dataset.load(db_name + test_fl, skip_unknown=True, skip_placeholders=args.skip_placeholders)
             fg_tester = FactorGraphTest(BP_EXEC_PATH, topo_dataset,
                                         [db_name + train_fl],
                                         db_name + test_fl,
@@ -87,7 +87,7 @@ def same_building(args):
             fg_testers[db_name + test_fl] = fg_tester
 
     graphspn_results_dir = os.path.join(GRAPHSPN_RESULTS_ROOT, args.exp_name, "results")
-    for case_name in os.listdir(graphspn_results_dir):
+    for case_name in sorted(os.listdir(graphspn_results_dir)):
         if case_name.startswith(args.test_case) \
            and args.test_name in case_name:
             # In the result directory for case_name, there is a test_instance.log file
@@ -129,6 +129,7 @@ def main():
     parser.add_argument("test_name", type=str, help="Name of test. e.g. mytest")
     parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL or BINARY", default="SIMPLE")
+    parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
 
     args = parser.parse_args()
     

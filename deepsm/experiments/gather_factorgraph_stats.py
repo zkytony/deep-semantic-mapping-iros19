@@ -20,7 +20,7 @@ def main():
     stats = {'factor_graph':{'total':0, 'correct':0, 'overall':0.0}}
 
     print("Gathering")
-    for case_name in os.listdir(results_dir):
+    for case_name in sorted(os.listdir(results_dir)):
         if case_name.startswith(args.test_case) \
            and args.test_name in case_name:
             print("    " + case_name)

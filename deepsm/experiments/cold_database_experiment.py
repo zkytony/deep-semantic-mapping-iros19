@@ -276,7 +276,7 @@ def same_building():
                         default="mytest")
     parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
     parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
-    parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
+    parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
     args = parser.parse_args(sys.argv[2:])

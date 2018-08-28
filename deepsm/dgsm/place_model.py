@@ -224,12 +224,9 @@ class PlaceModel:
 
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
 
-        # Generate states
-        mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
-        self._mpe_ivs, self._mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
-        
         # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
         likelihood_op = self._learning.value.values[self._root.values[0].node]
+        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))
 
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
@@ -246,25 +243,17 @@ class PlaceModel:
             else:
                 stop = (batch + 1) * batch_size
 
-            # Session
-            mpe_latent_val = self._sess.run([self._mpe_latent],
-                                            feed_dict={self._ivs: testing_scans[start:stop],
-                                                       self._latent: np.ones((stop - start, 1)) * -1})
-            accuracy_per_step.append(np.mean(mpe_latent_val == testing_labels[start:stop]))
-
-            # All marginals
+            # Get output from sub-SPNs as likelihoods for each class,
+            # then multiply by root's weight (in log space, that would be a sum)
             train_likelihoods_arr = self._sess.run([likelihood_op],
                                                    feed_dict={self._ivs: testing_scans[start:stop],
                                                               self._latent: np.full((stop-start, 1), -1)})[0]
-            likelihoods = np.vstack((likelihoods, train_likelihoods_arr))
-
-        accuracy = np.mean(accuracy_per_step) * 100
-        print("Classification accuracy on Test set: ", accuracy)
+            likelihoods = np.vstack((likelihoods, train_likelihoods_arr + root_weights))
 
         # Process graph results
         
         # Confusion matrices
-        cm_mpe_weighted = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
+        cm_weighted = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
         
         graph_results = {}
         # likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
@@ -278,7 +267,7 @@ class PlaceModel:
             pred_class_index = np.argmax(likelihoods[i])
                 
             # Record in confusion matrix
-            cm_mpe_weighted[true_class_index, pred_class_index] += 1
+            cm_weighted[true_class_index, pred_class_index] += 1
 
             if graph_test:
                 node_id = d[-1]
@@ -295,8 +284,8 @@ class PlaceModel:
         # Confusion matrix
         print("- Confusion matrix for MPE (weighted):")
         pp.pprint(self._known_classes)
-        pp.pprint(cm_mpe_weighted)
-        pp.pprint(norm_cm(cm_mpe_weighted) * 100.0)
+        pp.pprint(cm_weighted)
+        pp.pprint(norm_cm(cm_weighted) * 100.0)
 
         if graph_test:
             # Save

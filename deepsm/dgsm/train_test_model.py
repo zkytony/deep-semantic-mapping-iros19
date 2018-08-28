@@ -74,10 +74,10 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--num-epochs', type=float, default=2,
-                              help='Total number of epochs')
-    learn_params.add_argument('--num-batches', type=float, default=100,
-                              help='Number of batches to divide the data for training')
+    learn_params.add_argument('--update-threshold', type=float, default=0.0001,
+                              help='Threshold of likelihood update')
+    learn_params.add_argument('--batch-size', type=float, default=30,
+                              help='Size of each batch for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
                               ', '.join([a.name.lower()
@@ -87,7 +87,7 @@ def create_parser():
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
     # GDLearning
-    learn_params.add_argument('--learning-rate', type=int, default=0.001,
+    learn_params.add_argument('--learning-rate', type=int, default=0.01,
                               help='Learning rate for gradient descent')
     # EMLearning
     learn_params.add_argument('--init-accum', type=int, default=20,
@@ -188,8 +188,8 @@ def print_args(args):
     print("\nLearning parameters:")
     print("* Weight initialization: %s" % args.weight_init)
     print("* Learning rate: %s" % args.learning_rate)
-    print("* Num Epocs: %s" % args.num_epochs)
-    print("* Num Batches: %s" % args.num_batches)
+    print("* Likelihood update threshold: %s" % args.update_threshold)
+    print("* Batch size: %s" % args.batch_size)
 
     print("\nTesting parameters:")
     print("* Mask seed: %s" % args.mask_seed)
@@ -276,7 +276,7 @@ def main(args=None):
                        value_inference_type=args.value_inference,
                        optimizer=tf.train.AdamOptimizer)
     try:
-        model.train(args.num_batches, args.num_epochs)
+        model.train(args.batch_size, args.update_threshold)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:

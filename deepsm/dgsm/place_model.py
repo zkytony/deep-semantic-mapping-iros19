@@ -179,39 +179,69 @@ class PlaceModel:
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
 
 
-    def train(self, num_batches, num_epochs):
+    def train(self, batch_size, update_threshold):
         train_set = self._data.training_scans
         train_labels = self._data.training_labels
 
         self._sess.run(self._init_weights)
         self._sess.run(self._reset_accumulators)
 
-        batch_size = train_set.shape[0] // num_batches
+        num_batches = train_set.shape[0] // batch_size
         prev_likelihood = 100
         likelihood = 0
+        batch = 0
         epoch = 0
-        #while abs(prev_likelihood - likelihood)>0.1:
+        
         print("Start Training...")
-        while epoch < num_epochs:
-            prev_likelihood=likelihood
+        while abs(prev_likelihood - likelihood)>update_threshold:
+            prev_likelihood = likelihood
             likelihoods = []
-            for batch in range(num_batches):
+            for i in range(5):
                 start = (batch)*batch_size
                 stop = (batch+1)*batch_size
                 print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
                 # Run accumulate_updates
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
                         self._sess.run([self._train_likelihood,
-                                  self._avg_train_likelihood,
-                                  self._learn_spn],
-                                feed_dict={self._ivs: train_set[start:stop],
-                                           self._latent: train_labels[start:stop]})
+                                        self._avg_train_likelihood,
+                                        self._learn_spn],
+                                       feed_dict={self._ivs: train_set[start:stop],
+                                                  self._latent: train_labels[start:stop]})
                 # Print avg likelihood of this batch data on previous batch weights
                 print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
+                
+                batch += 1
+                if batch >= num_batches:
+                    epoch += 1
+                    batch = 0
+
             likelihood = sum(likelihoods) / len(likelihoods)
-            print("Avg likelihood: %s" % (likelihood))
-            epoch+=1
+            print("Avg likelihood over 5 batches: %s" % (likelihood))
+                    
+                    
+        
+        # print("Start Training...")
+        # while epoch < num_epochs:
+        #     prev_likelihood=likelihood
+        #     likelihoods = []
+        #     for batch in range(num_batches):
+        #         start = (batch)*batch_size
+        #         stop = (batch+1)*batch_size
+        #         print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
+        #         # Run accumulate_updates
+        #         train_likelihoods_arr, avg_train_likelihood_val, _, = \
+        #                 self._sess.run([self._train_likelihood,
+        #                           self._avg_train_likelihood,
+        #                           self._learn_spn],
+        #                         feed_dict={self._ivs: train_set[start:stop],
+        #                                    self._latent: train_labels[start:stop]})
+        #         # Print avg likelihood of this batch data on previous batch weights
+        #         print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
+        #         likelihoods.append(avg_train_likelihood_val)
+        #     likelihood = sum(likelihoods) / len(likelihoods)
+        #     print("Avg likelihood: %s" % (likelihood))
+        #     epoch+=1
 
 
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):

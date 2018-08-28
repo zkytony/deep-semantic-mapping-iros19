@@ -466,7 +466,7 @@ def run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=None):
 
 if __name__ == "__main__":
     
-    CategoryManager.TYPE = "FULL"
+    CategoryManager.TYPE = "SIMPLE"
     CategoryManager.init()
     
     seed = random.randint(200,1000)
@@ -493,13 +493,13 @@ if __name__ == "__main__":
 
         # spn_structure
         'num_decomps': 1,
-        'num_subsets': 3,
+        'num_subsets': 4,
         'num_mixtures': 2,
         'num_input_mixtures': 2,
 
         'template': template,
 
-        'train_db': ['Freiburg', 'Saarbrucken']
+        'train_db': ['Freiburg']
     }
 
     test_kwargs = {
@@ -517,7 +517,7 @@ if __name__ == "__main__":
         'to_do': ALL_PROB
     }
 
-    if test_kwargs['to_do'] == RANDOM:
-        test_kwargs['semantic'] = True
+    # if test_kwargs['to_do'] == RANDOM:
+    #     test_kwargs['semantic'] = True
     
     run_edge_relation_template_experiment(train_kwargs, test_kwargs, seed=seed)

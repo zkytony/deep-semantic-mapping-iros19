@@ -27,6 +27,7 @@ import numpy as np
 from numpy import float32
 from abc import abstractmethod
 import libspn as spn
+import itertools
 
 import tensorflow as tf
 
@@ -752,6 +753,64 @@ class TemplateSpnExperiment(TbmExperiment):
             return self._test_cases
 
 
+    class TestCase_AllProbabilities(TestCase):
+
+        def __init__(self, experiment):
+            super().__init__(experiment)
+            self._test_cases = []
+
+
+        def run(self, sess, **kwargs):
+            """
+            Save a table (csv file) of likelihoods for all combinations of classes.
+            """
+            template = kwargs.get("template", None)
+
+            model = self._experiment.get_model(template)
+            assert model.expanded == False
+
+            # First get all combinations of classes with repeats
+            catg_combs = set(itertools.product(CategoryManager.known_categories(), repeat=template.num_nodes()))
+            _i = 0
+            for case in catg_combs:
+                catg_nums = list(map(CategoryManager.category_map, case))
+                lh = float(model.evaluate(sess, catg_nums))
+                
+                self._test_cases.append({
+                    'case': case,
+                    'likelihood': lh
+                })
+                _i += 1
+                sys.stdout.write("Testing [%d/%d]\r" % (_i, len(catg_combs)))
+                sys.stdout.flush()
+            sys.stdout.write("\n")
+
+        def _report(self):
+            return self._test_cases
+
+
+        def save_results(self, save_path):
+            """
+            save_path (str): path to saved results (Required).
+
+            Also return the report.
+            """
+            # Save all test cases into a json file.
+            with open(os.path.join(save_path, "test_cases_lh_order.csv"), "w") as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"')
+                for tc in sorted(self._test_cases, key=lambda x: x['likelihood'], reverse=True):
+                    writer.writerow(list(tc['case']) + [tc['likelihood']])
+                    
+            with open(os.path.join(save_path, "test_cases_cl_order.csv"), "w") as f:
+                writer = csv.writer(f, delimiter=',', quotechar='"')
+                for tc in sorted(self._test_cases, key=lambda x: x['case'], reverse=True):
+                    writer.writerow(list(tc['case']) + [tc['likelihood']])
+
+            print("Everything saved in %s" % save_path)
+
+            return self._report()
+    
+
 
 
 def run_nodetemplate_experiment(train_kwargs, test_kwargs, seed=None, semantic=False):
@@ -808,6 +867,7 @@ def run_nodetemplate_experiment(train_kwargs, test_kwargs, seed=None, semantic=F
             if model.template == ThreeNodeTemplate:
                 test_kwargs['subname'] = 'doorway_lh'
                 report_dw = exp.test(TemplateSpnExperiment.TestCase_DoorwayCompletionTask, sess, **test_kwargs)
+                report_ap = exp.test(TemplateSpnExperiment.TestCase_AllProbabilities, sess, **test_kwargs)
             return train_info, report_dw, report_rnd
 
 
@@ -1011,6 +1071,9 @@ def analyze(results_dir, parameter_ranges, default_train, default_test):
 
 
 if __name__ == "__main__":
+
+    CategoryManager.TYPE = "SIMPLE"
+    CategoryManager.init()
 
     seed = random.randint(200,1000)
 

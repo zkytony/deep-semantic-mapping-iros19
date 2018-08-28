@@ -181,39 +181,45 @@ class PlaceModel:
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
 
 
-    def train(self, num_batches, num_epochs):
+    def train(self, batch_size, update_threshold):
         train_set = self._data.training_scans
         train_labels = self._data.training_labels
 
         self._sess.run(self._init_weights)
         # self._sess.run(self._reset_accumulators)
 
-        batch_size = train_set.shape[0] // num_batches
+        num_batches = train_set.shape[0] // batch_size
         prev_likelihood = 100
         likelihood = 0
+        batch = 0
         epoch = 0
-        #while abs(prev_likelihood - likelihood)>0.1:
+
         print("Start Training...")
-        while epoch < num_epochs:
-            prev_likelihood=likelihood
+        while abs(prev_likelihood - likelihood)>update_threshold:
+            prev_likelihood = likelihood
             likelihoods = []
-            for batch in range(num_batches):
+            for i in range(5):
                 start = (batch)*batch_size
                 stop = (batch+1)*batch_size
                 print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
                 # Run accumulate_updates
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
                         self._sess.run([self._train_likelihood,
-                                  self._avg_train_likelihood,
-                                  self._learn_spn],
-                                feed_dict={self._ivs: train_set[start:stop],
-                                           self._latent: train_labels[start:stop]})
+                                        self._avg_train_likelihood,
+                                        self._learn_spn],
+                                       feed_dict={self._ivs: train_set[start:stop],
+                                                  self._latent: train_labels[start:stop]})
                 # Print avg likelihood of this batch data on previous batch weights
                 print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
                 likelihoods.append(avg_train_likelihood_val)
+                
+                batch += 1
+                if batch >= num_batches:
+                    epoch += 1
+                    batch = 0
+
             likelihood = sum(likelihoods) / len(likelihoods)
-            print("Avg likelihood: %s" % (likelihood))
-            epoch+=1
+            print("Avg likelihood over 5 batches: %s" % (likelihood))
 
 
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
@@ -221,6 +227,9 @@ class PlaceModel:
         # Generate states
         mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
         self._mpe_ivs, self._mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
+        
+        # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
+        likelihood_op = self._learning.value.values[self._root.values[0].node]
 
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
@@ -228,7 +237,7 @@ class PlaceModel:
 
         num_batches = testing_scans.shape[0] // batch_size
         accuracy_per_step = []
-        likelihoods_per_step = [[] for k in range(CategoryManager.NUM_CATEGORIES)]  # NUM_CATEGORIES x num_test_scans
+        likelihoods = np.empty((0, CategoryManager.NUM_CATEGORIES))
         last_batch = True
         for batch in range(num_batches):
             start = (batch) * batch_size
@@ -242,17 +251,15 @@ class PlaceModel:
                                             feed_dict={self._ivs: testing_scans[start:stop],
                                                        self._latent: np.ones((stop - start, 1)) * -1})
             accuracy_per_step.append(np.mean(mpe_latent_val == testing_labels[start:stop]))
-            
+
             # All marginals
-            for k in range(CategoryManager.NUM_CATEGORIES):
-                train_likelihoods_arr = \
-                    self._sess.run([self._train_likelihood],
-                                   feed_dict={self._ivs: testing_scans[start:stop],
-                                              self._latent: np.full((stop - start, 1), k)})
-                likelihoods_per_step[k].extend(train_likelihoods_arr[0].flatten())
+            train_likelihoods_arr = self._sess.run([likelihood_op],
+                                                   feed_dict={self._ivs: testing_scans[start:stop],
+                                                              self._latent: np.full((stop-start, 1), -1)})[0]
+            likelihoods = np.vstack((likelihoods, train_likelihoods_arr))
 
         accuracy = np.mean(accuracy_per_step) * 100
-        print("Classification accyracy on Test set: ", accuracy)
+        print("Classification accuracy on Test set: ", accuracy)
 
         # Process graph results
         
@@ -260,7 +267,7 @@ class PlaceModel:
         cm_mpe_weighted = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
         
         graph_results = {}
-        likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
+        # likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
         for i, d in enumerate(self._data.testing_footprint):
             rid = d[0]
             rcat = d[1]

@@ -32,8 +32,9 @@ class PlaceModel:
                  init_accum_val,
                  smoothing_val, smoothing_min, smoothing_decay,
                  optimizer=tf.train.AdamOptimizer,
-                 learning_type=spn.LearningType.DISCRIMINATIVE,
-                 learning_inference_type=spn.LearningInferenceType.SOFT):
+                 learning_type=spn.LearningType.SUPERVISED,
+                 learning_method=spn.LearningMethod.DISCRIMINATIVE,
+                 gradient_type=spn.GradientType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
         self._num_angle_cells = data.num_angle_cells
@@ -59,7 +60,8 @@ class PlaceModel:
         self._smoothing_decay = smoothing_decay
         self._init_accum = init_accum_val
         self._learning_type = learning_type
-        self._learning_inference_type = learning_inference_type
+        self._learning_method = learning_method
+        self._gradient_type = gradient_type
 
         self._build_model()
         self._sess = tf.Session()
@@ -165,12 +167,12 @@ class PlaceModel:
 
         # Learning Ops
         self._learning = spn.GDLearning(self._root, log=True,
-                                  value_inference_type = value_inference_type,
-                                  learning_rate=self._learning_rate,
-                                  learning_type=self._learning_type,
-                                  learning_inference_type=self._learning_inference_type,
-                                  use_unweighted=True)
-        self._reset_accumulators = self._learning.reset_accumulators()
+                                        value_inference_type = value_inference_type,
+                                        learning_rate=self._learning_rate,
+                                        learning_type=self._learning_type,
+                                        learning_method=self._learning_method,
+                                        gradient_type=self._gradient_type)
+        # self._reset_accumulators = self._learning.reset_accumulators()
         self._learn_spn = self._learning.learn(optimizer=self._optimizer)
 
         self._train_likelihood = self._learning.value.values[self._root]
@@ -184,7 +186,7 @@ class PlaceModel:
         train_labels = self._data.training_labels
 
         self._sess.run(self._init_weights)
-        self._sess.run(self._reset_accumulators)
+        # self._sess.run(self._reset_accumulators)
 
         batch_size = train_set.shape[0] // num_batches
         prev_likelihood = 100

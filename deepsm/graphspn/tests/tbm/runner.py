@@ -10,13 +10,14 @@ import heapq
 import time
 import numpy as np
 from pprint import pprint
+import json
 
 from deepsm.graphspn.tests.runner import Experiment, TestCase
 from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.spn_model import SpnModel
-from deepsm.util import CategoryManager, ColdDatabaseManager
+from deepsm.util import CategoryManager, ColdDatabaseManager, json_safe
 from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
 
 
@@ -293,7 +294,8 @@ class TbmExperiment(Experiment):
             #                                                (D,2*n) if Edgetemplate
             samples = np.array([ p for db in samples_dict for p in samples_dict[db]], dtype=int)
 
-            self._data_count['train_%s' % model.template.__name__] = {db:len(samples_dict[db]) for db in samples_dict}
+            self._data_count['train_%s' % model.template.__name__] = {"counts_by_db": {db:len(samples_dict[db]) for db in samples_dict},
+                                                                      "counts_by_sample": self._get_sample_frequencies(samples, model)}
             
             if self._template_mode == 1:  ## EdgeTemplate
                 samples = samples.reshape(-1, 2, model.num_nodes)
@@ -323,7 +325,8 @@ class TbmExperiment(Experiment):
 
         if save_training_info:
             with open(os.path.join(os.path.dirname(model_save_path), "training_info_%s.log" % timestamp), 'w') as f:
-                pprint(dict(kwargs), stream=f)
+                json.dump(json_safe({'params':dict(kwargs),
+                                     'train_info':train_info}), f, indent=4)
             sys.stdout.write("Saved training info. \n")
         return train_info
 
@@ -378,6 +381,19 @@ class TbmExperiment(Experiment):
     def get_stats(self, *args, **kwargs):
         raise NotImplementedError("`get_stats` is not implemented in TbmExperiment")
 
+    def _get_sample_frequencies(self, samples, model):
+        """
+        Return a 2D list of frequencies of samples in a readable way (all categories
+        are strings. If there are multiple types of data in each sample, by convention,
+        the first N elements in that sample are place categories, where N is the
+        number of nodes.
+        """
+        results = []
+        unique, counts = np.unique(samples, return_counts=True, axis=0)
+        for i in range(len(unique)):
+            catg_strs = [CategoryManager.category_map(catg_num, rev=True) for catg_num in unique[i][:model.num_nodes]]
+            results.append(catg_strs + unique[i][model.num_nodes:].tolist() + [counts[i]])
+        return results
 
     @classmethod
     def strip_spn_params(cls, train_kwargs, learning_algorithm):

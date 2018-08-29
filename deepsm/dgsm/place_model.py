@@ -32,8 +32,9 @@ class PlaceModel:
                  init_accum_val,
                  smoothing_val, smoothing_min, smoothing_decay,
                  optimizer=tf.train.AdamOptimizer,
-                 learning_type=spn.LearningType.DISCRIMINATIVE,
-                 learning_inference_type=spn.LearningInferenceType.SOFT):
+                 learning_type=spn.LearningType.SUPERVISED,
+                 learning_method=spn.LearningMethod.DISCRIMINATIVE,
+                 gradient_type=spn.GradientType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
         self._num_angle_cells = data.num_angle_cells
@@ -59,7 +60,8 @@ class PlaceModel:
         self._smoothing_decay = smoothing_decay
         self._init_accum = init_accum_val
         self._learning_type = learning_type
-        self._learning_inference_type = learning_inference_type
+        self._learning_method = learning_method
+        self._gradient_type = gradient_type
 
         self._build_model()
         self._sess = tf.Session()
@@ -165,12 +167,12 @@ class PlaceModel:
 
         # Learning Ops
         self._learning = spn.GDLearning(self._root, log=True,
-                                  value_inference_type = value_inference_type,
-                                  learning_rate=self._learning_rate,
-                                  learning_type=self._learning_type,
-                                  learning_inference_type=self._learning_inference_type,
-                                  use_unweighted=True)
-        self._reset_accumulators = self._learning.reset_accumulators()
+                                        value_inference_type = value_inference_type,
+                                        learning_rate=self._learning_rate,
+                                        learning_type=self._learning_type,
+                                        learning_method=self._learning_method,
+                                        gradient_type=self._gradient_type)
+        # self._reset_accumulators = self._learning.reset_accumulators()
         self._learn_spn = self._learning.learn(optimizer=self._optimizer)
 
         self._train_likelihood = self._learning.value.values[self._root]
@@ -184,14 +186,14 @@ class PlaceModel:
         train_labels = self._data.training_labels
 
         self._sess.run(self._init_weights)
-        self._sess.run(self._reset_accumulators)
+        # self._sess.run(self._reset_accumulators)
 
         num_batches = train_set.shape[0] // batch_size
         prev_likelihood = 100
         likelihood = 0
         batch = 0
         epoch = 0
-        
+
         print("Start Training...")
         while abs(prev_likelihood - likelihood)>update_threshold:
             prev_likelihood = likelihood
@@ -218,37 +220,13 @@ class PlaceModel:
 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("Avg likelihood over 5 batches: %s" % (likelihood))
-                    
-                    
-        
-        # print("Start Training...")
-        # while epoch < num_epochs:
-        #     prev_likelihood=likelihood
-        #     likelihoods = []
-        #     for batch in range(num_batches):
-        #         start = (batch)*batch_size
-        #         stop = (batch+1)*batch_size
-        #         print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
-        #         # Run accumulate_updates
-        #         train_likelihoods_arr, avg_train_likelihood_val, _, = \
-        #                 self._sess.run([self._train_likelihood,
-        #                           self._avg_train_likelihood,
-        #                           self._learn_spn],
-        #                         feed_dict={self._ivs: train_set[start:stop],
-        #                                    self._latent: train_labels[start:stop]})
-        #         # Print avg likelihood of this batch data on previous batch weights
-        #         print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
-        #         likelihoods.append(avg_train_likelihood_val)
-        #     likelihood = sum(likelihoods) / len(likelihoods)
-        #     print("Avg likelihood: %s" % (likelihood))
-        #     epoch+=1
 
 
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
 
-        # Generate states
-        mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
-        self._mpe_ivs, self._mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
+        # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
+        likelihood_op = self._learning.value.values[self._root.values[0].node]
+        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))
 
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
@@ -256,7 +234,7 @@ class PlaceModel:
 
         num_batches = testing_scans.shape[0] // batch_size
         accuracy_per_step = []
-        likelihoods_per_step = [[] for k in range(CategoryManager.NUM_CATEGORIES)]  # NUM_CATEGORIES x num_test_scans
+        likelihoods = np.empty((0, CategoryManager.NUM_CATEGORIES))
         last_batch = True
         for batch in range(num_batches):
             start = (batch) * batch_size
@@ -265,30 +243,20 @@ class PlaceModel:
             else:
                 stop = (batch + 1) * batch_size
 
-            # Session
-            mpe_latent_val = self._sess.run([self._mpe_latent],
-                                            feed_dict={self._ivs: testing_scans[start:stop],
-                                                       self._latent: np.ones((stop - start, 1)) * -1})
-            accuracy_per_step.append(np.mean(mpe_latent_val == testing_labels[start:stop]))
-            
-            # All marginals
-            for k in range(CategoryManager.NUM_CATEGORIES):
-                train_likelihoods_arr = \
-                    self._sess.run([self._train_likelihood],
-                                   feed_dict={self._ivs: testing_scans[start:stop],
-                                              self._latent: np.full((stop - start, 1), k)})
-                likelihoods_per_step[k].extend(train_likelihoods_arr[0].flatten())
-
-        accuracy = np.mean(accuracy_per_step) * 100
-        print("Classification accyracy on Test set: ", accuracy)
+            # Get output from sub-SPNs as likelihoods for each class,
+            # then multiply by root's weight (in log space, that would be a sum)
+            train_likelihoods_arr = self._sess.run([likelihood_op],
+                                                   feed_dict={self._ivs: testing_scans[start:stop],
+                                                              self._latent: np.full((stop-start, 1), -1)})[0]
+            likelihoods = np.vstack((likelihoods, train_likelihoods_arr + root_weights))
 
         # Process graph results
         
         # Confusion matrices
-        cm_mpe_weighted = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
+        cm_weighted = np.zeros((CategoryManager.NUM_CATEGORIES, CategoryManager.NUM_CATEGORIES))
         
         graph_results = {}
-        likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
+        # likelihoods = np.transpose(np.array(likelihoods_per_step, dtype=float))
         for i, d in enumerate(self._data.testing_footprint):
             rid = d[0]
             rcat = d[1]
@@ -299,7 +267,7 @@ class PlaceModel:
             pred_class_index = np.argmax(likelihoods[i])
                 
             # Record in confusion matrix
-            cm_mpe_weighted[true_class_index, pred_class_index] += 1
+            cm_weighted[true_class_index, pred_class_index] += 1
 
             if graph_test:
                 node_id = d[-1]
@@ -316,8 +284,8 @@ class PlaceModel:
         # Confusion matrix
         print("- Confusion matrix for MPE (weighted):")
         pp.pprint(self._known_classes)
-        pp.pprint(cm_mpe_weighted)
-        pp.pprint(norm_cm(cm_mpe_weighted) * 100.0)
+        pp.pprint(cm_weighted)
+        pp.pprint(norm_cm(cm_weighted) * 100.0)
 
         if graph_test:
             # Save

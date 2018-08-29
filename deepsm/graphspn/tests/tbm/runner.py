@@ -10,13 +10,14 @@ import heapq
 import time
 import numpy as np
 from pprint import pprint
+import json
 
 from deepsm.graphspn.tests.runner import Experiment, TestCase
 from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.spn_model import SpnModel
-from deepsm.util import CategoryManager, ColdDatabaseManager
+from deepsm.util import CategoryManager, ColdDatabaseManager, json_safe
 from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
 
 
@@ -324,7 +325,8 @@ class TbmExperiment(Experiment):
 
         if save_training_info:
             with open(os.path.join(os.path.dirname(model_save_path), "training_info_%s.log" % timestamp), 'w') as f:
-                pprint(dict(kwargs), stream=f)
+                json.dump(json_safe({'params':dict(kwargs),
+                                     'train_info':train_info}), f, indent=4)
             sys.stdout.write("Saved training info. \n")
         return train_info
 

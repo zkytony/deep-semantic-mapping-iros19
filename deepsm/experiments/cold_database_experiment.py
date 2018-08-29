@@ -299,6 +299,8 @@ def same_building():
         'load_if_exists': True,
         'shuffle': True,
         "save": True,
+        'save_training_info': True,
+        'timestamp': timestamp,
 
         # spn structure
         "num_decomps": 1,
@@ -379,6 +381,8 @@ def across_buildings():
         'load_if_exists': True,
         'shuffle': True,
         "save": True,
+        'save_training_info': True,
+        'timestamp': timestamp,
 
         # spn structure
         "num_decomps": 1,

@@ -285,14 +285,16 @@ def main(args=None):
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
+        dirpath = os.path.join("analysis", "dgsm")
+        
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
                      xlabel='iterations (per %d batches)' % (500 // args.batch_size),
-                     ylabel='Mean Squared Loss', path='loss-%s.png' % args.trial_name)
+                     ylabel='Mean Squared Loss', path=os.path.join(dirpath, 'loss-%s.png' % args.trial_name))
         cm_weighted, cm_weighted_norm = model.test(args.results_dir, graph_test=args.graph_test)
-        model.test_samples_exam(args.trial_name)
+        model.test_samples_exam(dirpath, args.trial_name)
 
-        with open('cm-%s.txt' % args.trial_name, 'w') as f:
+        with open(os.path.join(dirpath, 'cm-%s.txt' % args.trial_name), 'w') as f:
             pprint(cm_weighted, stream=f)
             pprint(cm_weighted_norm, stream=f)
 

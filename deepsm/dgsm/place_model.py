@@ -246,7 +246,7 @@ class PlaceModel:
 
                 # Compute loss if required
                 if train_loss is not None and test_loss is not None \
-                   and (num_batches * batch_size + batch) % (500 // batch_size) == 0:
+                   and batch % (500 // batch_size) == 0:
                     # Compute loss
                     print("Computing train set loss...")
                     pred_train = self._predict(train_set)
@@ -336,7 +336,7 @@ class PlaceModel:
 
     
 
-    def test_samples_exam(self, trial_name):
+    def test_samples_exam(self, dirpath, trial_name):
         """This function is created only to respond to Andrzej's request"""
         likelihood_op = self._learning.value.values[self._root.values[0].node]
         
@@ -344,7 +344,7 @@ class PlaceModel:
         testing_scans = self._data.testing_scans
         testing_labels = self._data.testing_labels
 
-        with open("test_samples_exam-%s.csv" % trial_name, 'w') as f:
+        with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             for i in range(len(testing_scans)):
                 train_likelihoods_arr = self._sess.run([likelihood_op],
@@ -357,7 +357,7 @@ class PlaceModel:
                                 + [CategoryManager.category_map(testing_labels[i][0], rev=True)])
 
         root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
-        with open("dgsm_root_weights-%s.csv" % trial_name, 'w') as f:
+        with open(os.path.join("dgsm_root_weights-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             writer.writerow(root_weights.tolist())
 

@@ -36,7 +36,8 @@ if __name__ == "__main__":
         """
         Configurations:
         "test_case": (str) e.g. '456-7'
-        "training_params: (str) e.g. '--batch-size 10 --learning-rate 0.01'
+        "training_params: (str) e.g. '#batch-size 10 #learning-rate 0.01'
+             note: all `#` will be replaced as `--`
         """
         
         # Create symbolic links to the data files in a temporary directory
@@ -83,7 +84,7 @@ if __name__ == "__main__":
 
             training_params = []
             if "training_params" in config:
-                training_params = [config['training_params']
+                training_params = config['training_params'].split()
 
             dgsm_args_parser = dgsm_runner.create_parser()
             dsgm_args = dgsm_runner.parse_args(parser=dgsm_args_parser,

@@ -79,7 +79,7 @@ def create_parser():
     learn_params = parser.add_argument_group(title="learning parameters")
     learn_params.add_argument('--update-threshold', type=float, default=0.001,
                               help='Threshold of likelihood update')
-    learn_params.add_argument('--batch-size', type=float, default=10,
+    learn_params.add_argument('--batch-size', type=int, default=10,
                               help='Size of each batch for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
@@ -90,7 +90,7 @@ def create_parser():
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
     # GDLearning
-    learn_params.add_argument('--learning-rate', type=int, default=0.001,
+    learn_params.add_argument('--learning-rate', type=float, default=0.001,
                               help='Learning rate for gradient descent')
     # EMLearning
     learn_params.add_argument('--init-accum', type=int, default=20,

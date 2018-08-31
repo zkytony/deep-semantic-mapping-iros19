@@ -13,13 +13,6 @@ import random
 def norm_cm(cm):
     return cm / np.sum(cm, axis=1, keepdims=True)
 
-def squared_loss(y_hat, y):
-    """
-    y_hat (np.array): predicted labels
-    y (np.array): groundtruth labels
-    """
-    return np.mean((y_hat - y)**2)
-
 
 class PlaceModel:
     """SPN place model for multiple classes.
@@ -247,16 +240,24 @@ class PlaceModel:
                 # Compute loss if required
                 if train_loss is not None and test_loss is not None \
                    and batch % (500 // batch_size) == 0:
-                    # Compute loss
-                    print("Computing train set loss...")
-                    pred_train = self._predict(train_set)
-                    loss_train = squared_loss(pred_train, train_labels)
-                    print("Computing test set loss...")
-                    pred_test = self._predict(self._data.testing_scans)
-                    loss_test = squared_loss(pred_test, self._data.testing_labels)
+                                       
+                    print("Computing losses...")
+                    loss_train = self.cross_entropy(train_set, train_labels)
+                    loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
                     print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
                     train_loss.append(loss_train)
                     test_loss.append(loss_test)
+                    
+                    # # Compute loss
+                    # print("Computing train set loss...")
+                    # pred_train = self._predict(train_set)
+                    # loss_train = squared_loss(pred_train, train_labels)
+                    # print("Computing test set loss...")
+                    # pred_test = self._predict(self._data.testing_scans)
+                    # loss_test = squared_loss(pred_test, self._data.testing_labels)
+                    # print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
+                    # train_loss.append(loss_train)
+                    # test_loss.append(loss_test)
 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("Avg likelihood over 5 batches: %s" % (likelihood))
@@ -361,13 +362,34 @@ class PlaceModel:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             writer.writerow(root_weights.tolist())
 
-    def _predict(self, samples):
+
+    def cross_entropy(self, samples, labels):
+        likelihood_op = self._learning.value.values[self._root.values[0].node]
+        
+        # P(X|Y)
+        likelihoods_arr = self._sess.run([likelihood_op],
+                                         feed_dict={self._ivs: samples,
+                                                    self._latent: np.full((len(samples), 1), -1)})[0]
+        # P(Y)
+        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))[0]
+
+        # P(X) = sum_Y P(X|Y)P(Y)
+        denominator = np.log(np.sum(np.exp((likelihoods_arr + root_weights) - np.max(likelihoods_arr)), axis=1)) + np.max(likelihoods_arr)
+
+        # P(Y|X) Bayesian Rule, then compute the cross entropy
+        return -np.mean([(likelihoods_arr[i][labels[i]] + root_weights[labels[i]] - denominator[i]) for i in range(len(samples))])
+
+            
+    def _predict(self, samples, labels):
         likelihood_op = self._learning.value.values[self._root.values[0].node]
         root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))
         likelihoods_arr = self._sess.run([likelihood_op],
                                          feed_dict={self._ivs: samples,
                                                     self._latent: np.full((len(samples), 1), -1)})[0]
         likelihoods = np.vstack((likelihoods_arr + root_weights))
+        
+        
+        
         return np.argmax(likelihoods, axis=1).reshape(-1,1)
 
 

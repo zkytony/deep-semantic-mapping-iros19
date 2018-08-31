@@ -13,8 +13,9 @@ import tensorflow as tf
 import numpy as np
 from deepsm.dgsm.place_model import PlaceModel
 from deepsm.dgsm.data import Data
-from deepsm.util import CategoryManager
+from deepsm.util import CategoryManager, plot_to_file
 import deepsm.experiments.common as common
+from pprint import pprint
 
 def create_parser():
     parser = argparse.ArgumentParser(description='Train and test an SPN place model.',
@@ -46,6 +47,8 @@ def create_parser():
                              help='')
     data_params.add_argument('--data-seed', type=int, default=547,
                              help='Seed used for shuffling training data')
+    data_params.add_argument('--balance-data', action='store_true',
+                             help='Upsample the miniority class instances so that all class have the same number of training samples')
 
     # Model params
     model_params = parser.add_argument_group(title="model parameters")
@@ -74,9 +77,9 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--update-threshold', type=float, default=0.0001,
+    learn_params.add_argument('--update-threshold', type=float, default=0.001,
                               help='Threshold of likelihood update')
-    learn_params.add_argument('--batch-size', type=float, default=30,
+    learn_params.add_argument('--batch-size', type=float, default=10,
                               help='Size of each batch for training')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
@@ -87,7 +90,7 @@ def create_parser():
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
     # GDLearning
-    learn_params.add_argument('--learning-rate', type=int, default=0.01,
+    learn_params.add_argument('--learning-rate', type=int, default=0.001,
                               help='Learning rate for gradient descent')
     # EMLearning
     learn_params.add_argument('--init-accum', type=int, default=20,
@@ -112,6 +115,10 @@ def create_parser():
     other_params = parser.add_argument_group(title="other")
     other_params.add_argument('--save-masked', action='store_true',
                               help='Save masked scans')
+    other_params.add_argument('--save-loss', action='store_true',
+                              help='Save losses during training')
+    other_params.add_argument('--trial-name', type=str, default='default',
+                              help='Name for this run. Used to name plots and csv files.')
     return parser
 
     
@@ -172,6 +179,7 @@ def print_args(args):
     print("* Max radius: %s" % args.radius_max)
     print("* Radius factor: %s" % args.radius_factor)
     print("* Training data shuffling seed: %s" % args.data_seed)
+    print("* Balance data: %s" % args.balance_data)
 
     print("\nModel parameters:")
     print("* View input distributions: %s" % args.view_input_dist)
@@ -196,6 +204,7 @@ def print_args(args):
 
     print("\nOther:")
     print("* Save masked scans: %s" % args.save_masked)
+    print("* Save losses: %s" % args.save_loss)
 
 
 def create_directories(args):
@@ -233,25 +242,17 @@ def main(args=None):
     training_labels = list(data.training_labels.flatten())
 
     # Balance data
-    PlaceModel.balance_data(training_scans, training_labels, rnd=rnd)
+    if args.balance_data:
+        PlaceModel.balance_data(training_scans, training_labels, rnd=rnd)
 
-    sys.stdout.write("Verifying data balance...")
-    class_counts, _ = PlaceModel._count_class_samples(training_scans, training_labels)
-    count = class_counts[rnd.choice(list(class_counts.keys()))]
-    for catg_num in class_counts:
-        if class_counts[catg_num] != count:
-            raise ValueError("Class %s has %d samples but needs %d" % (CategoryManager.category_map(catg_num, rev=True),
-                                                                       class_counts[catg_num], count))
-    sys.stdout.write("OK\n")
-
-    # Shuffle data
-    data._training_scans = np.array(training_scans, dtype=int)
-    data._training_labels = np.array(training_labels, dtype=int).reshape(-1,1)
-    if shuffle:
-        print("Shuffling...")
-        p = np.random.permutation(len(data.training_scans))
-        data._training_scans = data.training_scans[p]
-        data._training_labels = data.training_labels[p]
+        sys.stdout.write("Verifying data balance...")
+        class_counts, _ = PlaceModel._count_class_samples(training_scans, training_labels)
+        count = class_counts[rnd.choice(list(class_counts.keys()))]
+        for catg_num in class_counts:
+            if class_counts[catg_num] != count:
+                raise ValueError("Class %s has %d samples but needs %d" % (CategoryManager.category_map(catg_num, rev=True),
+                                                                           class_counts[catg_num], count))
+        sys.stdout.write("OK\n")
 
     print_args(args)
 
@@ -275,13 +276,25 @@ def main(args=None):
                        smoothing_decay=args.smoothing_decay,
                        value_inference_type=args.value_inference,
                        optimizer=tf.train.AdamOptimizer)
+    train_loss, test_loss = [], []
     try:
-        model.train(args.batch_size, args.update_threshold)
+        if args.save_loss:
+            model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle)
+        else:
+            model.train(args.batch_size, args.update_threshold, shuffle=shuffle)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
-        model.test(args.results_dir, graph_test=args.graph_test)
+        plot_to_file(train_loss, test_loss,
+                     labels=['train loss', 'test loss'],
+                     xlabel='iterations (per %d batches)' % (500 // args.batch_size),
+                     ylabel='Mean Squared Loss', path='loss-%s.png' % args.trial_name)
+        cm_weighted, cm_weighted_norm = model.test(args.results_dir, graph_test=args.graph_test)
+        model.test_samples_exam(args.trial_name)
 
+        with open('cm-%s.txt' % args.trial_name, 'w') as f:
+            pprint(cm_weighted, stream=f)
+            pprint(cm_weighted_norm, stream=f)
 
 if __name__ == '__main__':
     main()

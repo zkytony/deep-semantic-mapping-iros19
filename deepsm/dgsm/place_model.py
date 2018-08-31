@@ -7,11 +7,19 @@ from deepsm.util import CategoryManager
 from deepsm.dgsm.data import Data
 import pprint as pp
 import os, sys
-import json, yaml
+import json, yaml, csv
 import random
 
 def norm_cm(cm):
     return cm / np.sum(cm, axis=1, keepdims=True)
+
+def squared_loss(y_hat, y):
+    """
+    y_hat (np.array): predicted labels
+    y (np.array): groundtruth labels
+    """
+    return np.mean((y_hat - y)**2)
+
 
 class PlaceModel:
     """SPN place model for multiple classes.
@@ -181,7 +189,16 @@ class PlaceModel:
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
 
 
-    def train(self, batch_size, update_threshold):
+    def train(self, batch_size, update_threshold, train_loss=None, test_loss=None, shuffle=True):
+        """
+        Train the model.
+        
+        batch_size (int): size of each mini-batch.
+        update_threshold (float): minimum update required between steps to continue.
+        save_loss (bool): if true, return two arrays, one that tracks loss on the 
+                          training dataset, and the other that tracks loss on the
+                          testing dataset. The loss is computed per 100 batches.
+        """
         train_set = self._data.training_scans
         train_labels = self._data.training_labels
 
@@ -195,7 +212,9 @@ class PlaceModel:
         epoch = 0
 
         print("Start Training...")
-        while abs(prev_likelihood - likelihood)>update_threshold:
+        while epoch < 30:
+            #abs(prev_likelihood - likelihood)>update_threshold:
+            
             prev_likelihood = likelihood
             likelihoods = []
             for i in range(5):
@@ -217,16 +236,36 @@ class PlaceModel:
                 if batch >= num_batches:
                     epoch += 1
                     batch = 0
+                    
+                    # Shuffle
+                    if shuffle:
+                        print("Shuffling...")
+                        p = np.random.permutation(len(train_set))
+                        train_set = train_set[p]
+                        train_labels = train_labels[p] 
+
+                # Compute loss if required
+                if train_loss is not None and test_loss is not None \
+                   and (num_batches * batch_size + batch) % (500 // batch_size) == 0:
+                    # Compute loss
+                    print("Computing train set loss...")
+                    pred_train = self._predict(train_set)
+                    loss_train = squared_loss(pred_train, train_labels)
+                    print("Computing test set loss...")
+                    pred_test = self._predict(self._data.testing_scans)
+                    loss_test = squared_loss(pred_test, self._data.testing_labels)
+                    print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
+                    train_loss.append(loss_train)
+                    test_loss.append(loss_test)
 
             likelihood = sum(likelihoods) / len(likelihoods)
             print("Avg likelihood over 5 batches: %s" % (likelihood))
 
-
+            
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
 
         # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
         likelihood_op = self._learning.value.values[self._root.values[0].node]
-        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))
 
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
@@ -243,12 +282,11 @@ class PlaceModel:
             else:
                 stop = (batch + 1) * batch_size
 
-            # Get output from sub-SPNs as likelihoods for each class,
-            # then multiply by root's weight (in log space, that would be a sum)
+            # Get output from sub-SPNs as likelihoods for each class. Likelihood for class i is representing P(X|Y=i)
             train_likelihoods_arr = self._sess.run([likelihood_op],
                                                    feed_dict={self._ivs: testing_scans[start:stop],
                                                               self._latent: np.full((stop-start, 1), -1)})[0]
-            likelihoods = np.vstack((likelihoods, train_likelihoods_arr + root_weights))
+            likelihoods = np.vstack((likelihoods, train_likelihoods_arr))
 
         # Process graph results
         
@@ -294,6 +332,44 @@ class PlaceModel:
                 with open(os.path.join(results_dir, graph_id + "_likelihoods.json"), 'w') as f:
                     json.dump(graph_results[graph_id], f)
 
+        return cm_weighted, norm_cm(cm_weighted) * 100.0
+
+    
+
+    def test_samples_exam(self, trial_name):
+        """This function is created only to respond to Andrzej's request"""
+        likelihood_op = self._learning.value.values[self._root.values[0].node]
+        
+        # Make numpy array of test samples
+        testing_scans = self._data.testing_scans
+        testing_labels = self._data.testing_labels
+
+        with open("test_samples_exam-%s.csv" % trial_name, 'w') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+            for i in range(len(testing_scans)):
+                train_likelihoods_arr = self._sess.run([likelihood_op],
+                                                       feed_dict={self._ivs: testing_scans[i:i+1],
+                                                                  self._latent: np.full((1, 1), -1)})[0]
+                writer.writerow([len(testing_scans[i])]
+                                + testing_scans[i].tolist()
+                                + [CategoryManager.NUM_CATEGORIES]
+                                + train_likelihoods_arr.reshape(-1,).tolist()
+                                + [CategoryManager.category_map(testing_labels[i][0], rev=True)])
+
+        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
+        with open("dgsm_root_weights-%s.csv" % trial_name, 'w') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+            writer.writerow(root_weights.tolist())
+
+    def _predict(self, samples):
+        likelihood_op = self._learning.value.values[self._root.values[0].node]
+        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))
+        likelihoods_arr = self._sess.run([likelihood_op],
+                                         feed_dict={self._ivs: samples,
+                                                    self._latent: np.full((len(samples), 1), -1)})[0]
+        likelihoods = np.vstack((likelihoods_arr + root_weights))
+        return np.argmax(likelihoods, axis=1).reshape(-1,1)
+
 
     def _compute_stats(self, graph_results):
         stats = {}
@@ -305,7 +381,7 @@ class PlaceModel:
             graph_correct = 0
             graph_per_class = {}
             for nid in graph_results[graph_id]:
-                groundtruth = graph_results[graph_id][nid][0]
+                groundtruth = CategoryManager.canonical_category(graph_results[graph_id][nid][0])
                 # We skip unknown cases
                 if groundtruth not in self._known_classes:
                     continue

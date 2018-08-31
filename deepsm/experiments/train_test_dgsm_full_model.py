@@ -17,6 +17,9 @@ if __name__ == "__main__":
                         'that provides key-value pair for configurations (e.g. "{\'test_case\': \'456-7\'}"',
                         default="{}")
     parser.add_argument('-n', '--num-trials', type=int, help='number of trials', default=1)
+    parser.add_argument('--save-loss', action='store_true', help='Save loss during training')
+    parser.add_argument('--name', type=str, help='name of this trial. Used as file names when saving plots and stuffs.',
+                        default='default')
     args = parser.parse_args()
 
     what = args.what
@@ -33,6 +36,7 @@ if __name__ == "__main__":
         """
         Configurations:
         "test_case": (str) e.g. '456-7'
+        "training_params: (str) e.g. '--batch-size 10 --learning-rate 0.01'
         """
         
         # Create symbolic links to the data files in a temporary directory
@@ -51,6 +55,8 @@ if __name__ == "__main__":
             os.remove(symlink_set_defs_path)
         os.symlink(original_real_data_path, symlink_real_data_path)
         os.symlink(original_set_defs_path, symlink_set_defs_path)
+
+        save_loss_option = ['--save-loss'] if args.save_loss else []
 
         for trial_number in range(args.num_trials):
             print("**********Trial %d**********" % trial_number)
@@ -75,10 +81,15 @@ if __name__ == "__main__":
             print("Configs:")
             pprint(config)
 
+            training_params = []
+            if "training_params" in config:
+                training_params = [config['training_params']
+
             dgsm_args_parser = dgsm_runner.create_parser()
             dsgm_args = dgsm_runner.parse_args(parser=dgsm_args_parser,
                                                args_list=[tmp_data_dir,
                                                           results_dir,
                                                           '1',
-                                                          '--graph-test'])
+                                                          '--graph-test',
+                                                          '--trial-name', args.name] + save_loss_option + training_params)
             dgsm_runner.main(args=dsgm_args)

@@ -215,6 +215,24 @@ def zoom_rect(p, img, ax, h_zoom_level=0.35, v_zoom_level=0.35):
     ax.set_ylim(py - ysidelen/2, py + ysidelen/2)
 
 
+def plot_to_file(*args, labels=[], path="plot.png", xlabel=None, ylabel=None):
+    """
+    Plot data in *args to a file specified by path. If
+    path is None, just save to plot.png locally.
+    """
+    for i, data in enumerate(args):
+        if i < len(labels):
+            plt.plot(data, label=labels[i])
+        else:
+            plt.plot(data)
+    if xlabel:
+        plt.xlabel(xlabel)
+    if ylabel:
+        plt.ylabel(ylabel)
+    plt.legend(loc='upper right')
+    plt.savefig(path)
+
+############# Printing ##################
 def print_banner(text, ch='=', length=78):
     """Source: http://code.activestate.com/recipes/306863-printing-a-bannertitle-line/"""
     spaced_text = ' %s ' % text

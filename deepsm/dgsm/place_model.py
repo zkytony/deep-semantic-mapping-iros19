@@ -9,6 +9,7 @@ import pprint as pp
 import os, sys
 import json, yaml, csv
 import random
+from sklearn import metrics
 
 def norm_cm(cm):
     return cm / np.sum(cm, axis=1, keepdims=True)
@@ -120,7 +121,7 @@ class PlaceModel:
             raise Exception("Incorrect value of occupancy vals.")
 
         # Type of inference during upward pass of learning
-        value_inference_type = spn.InferenceType.MARGINAL
+        value_inference_type = self._value_inference_type
 
         # Create two generators
         gen_view = \
@@ -196,7 +197,6 @@ class PlaceModel:
         train_labels = self._data.training_labels
 
         self._sess.run(self._init_weights)
-        # self._sess.run(self._reset_accumulators)
 
         num_batches = train_set.shape[0] // batch_size
         prev_likelihood = 100
@@ -205,62 +205,56 @@ class PlaceModel:
         epoch = 0
 
         print("Start Training...")
-        while epoch < 30:
-            #abs(prev_likelihood - likelihood)>update_threshold:
-            
-            prev_likelihood = likelihood
+        while epoch < 50 \
+              and abs(prev_likelihood - likelihood)>update_threshold:
             likelihoods = []
-            for i in range(5):
-                start = (batch)*batch_size
-                stop = (batch+1)*batch_size
-                print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
-                # Run accumulate_updates
-                train_likelihoods_arr, avg_train_likelihood_val, _, = \
-                        self._sess.run([self._train_likelihood,
-                                        self._avg_train_likelihood,
-                                        self._learn_spn],
-                                       feed_dict={self._ivs: train_set[start:stop],
-                                                  self._latent: train_labels[start:stop]})
-                # Print avg likelihood of this batch data on previous batch weights
-                print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
-                likelihoods.append(avg_train_likelihood_val)
+
+            start = (batch)*batch_size
+            stop = (batch+1)*batch_size
+            print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev likelihood", prev_likelihood, "likelihood", likelihood)
+            # Run accumulate_updates
+            train_likelihoods_arr, avg_train_likelihood_val, _, = \
+                    self._sess.run([self._train_likelihood,
+                                    self._avg_train_likelihood,
+                                    self._learn_spn],
+                                   feed_dict={self._ivs: train_set[start:stop],
+                                              self._latent: train_labels[start:stop]})
+
+            # Print avg likelihood of this batch data on previous batch weights
+            print("Avg likelihood for epoch %d: %s" % (epoch, avg_train_likelihood_val))
+            likelihoods.append(avg_train_likelihood_val)
+
+            batch += 1
+            if batch >= num_batches:
+                epoch += 1
+                batch = 0
                 
-                batch += 1
-                if batch >= num_batches:
-                    epoch += 1
-                    batch = 0
-                    
-                    # Shuffle
-                    if shuffle:
-                        print("Shuffling...")
-                        p = np.random.permutation(len(train_set))
-                        train_set = train_set[p]
-                        train_labels = train_labels[p] 
+                # Shuffle
+                if shuffle:
+                    print("Shuffling...")
+                    p = np.random.permutation(len(train_set))
+                    train_set = train_set[p]
+                    train_labels = train_labels[p] 
 
-                # Compute loss if required
-                if train_loss is not None and test_loss is not None \
-                   and batch % (500 // batch_size) == 0:
-                                       
-                    print("Computing losses...")
-                    loss_train = self.cross_entropy(train_set, train_labels)
-                    loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
-                    print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
-                    train_loss.append(loss_train)
-                    test_loss.append(loss_test)
-                    
-                    # # Compute loss
-                    # print("Computing train set loss...")
-                    # pred_train = self._predict(train_set)
-                    # loss_train = squared_loss(pred_train, train_labels)
-                    # print("Computing test set loss...")
-                    # pred_test = self._predict(self._data.testing_scans)
-                    # loss_test = squared_loss(pred_test, self._data.testing_labels)
-                    # print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
-                    # train_loss.append(loss_train)
-                    # test_loss.append(loss_test)
+                if epoch % 5 == 0:
+                    # Update stopping measure per 5 epochs
+                    prev_likelihood = likelihood
+                    likelihood = sum(likelihoods) / len(likelihoods)
+                    print("Avg likelihood over EPOCH %d: %s" % (epoch, likelihood))
 
-            likelihood = sum(likelihoods) / len(likelihoods)
-            print("Avg likelihood over 5 batches: %s" % (likelihood))
+
+            # Compute loss if required
+            if train_loss is not None and test_loss is not None \
+               and batch % (500 // batch_size) == 0:
+
+                print("Computing losses...")
+                loss_train = self.cross_entropy(train_set, train_labels)
+                loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
+                print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
+                train_loss.append(loss_train)
+                test_loss.append(loss_test)
+
+        return epoch
 
             
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
@@ -312,19 +306,18 @@ class PlaceModel:
                 node_id = d[-1]
                 graph_results[rid][node_id] = [rcat, self._known_classes[pred_class_index], list(likelihoods[i]), list(likelihoods[i])]
 
-        if graph_test:
-            # Overall statistics
-            stats = self._compute_stats(graph_results)
-            print("- Overall statistics")
-            pp.pprint(stats)
-            with open(os.path.join(results_dir, "results.yaml"), 'w') as f:
-                yaml.dump(stats, f)
-        
         # Confusion matrix
         print("- Confusion matrix for MPE (weighted):")
         pp.pprint(self._known_classes)
         pp.pprint(cm_weighted)
         pp.pprint(norm_cm(cm_weighted) * 100.0)
+
+        # ROC curves
+        roc_results = []
+        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))[0]
+        for rcat_num in range(CategoryManager.NUM_CATEGORIES):
+            fpr, tpr, auc = self._roc(likelihoods, root_weights, testing_labels, rcat_num)
+            roc_results.append((fpr, tpr))
 
         if graph_test:
             # Save
@@ -333,7 +326,14 @@ class PlaceModel:
                 with open(os.path.join(results_dir, graph_id + "_likelihoods.json"), 'w') as f:
                     json.dump(graph_results[graph_id], f)
 
-        return cm_weighted, norm_cm(cm_weighted) * 100.0
+            # Overall statistics
+            stats = self._compute_stats(graph_results)
+            print("- Overall statistics")
+            pp.pprint(stats)
+            with open(os.path.join(results_dir, "results.yaml"), 'w') as f:
+                yaml.dump(stats, f)
+        
+            return cm_weighted, norm_cm(cm_weighted) * 100.0, stats, roc_results
 
     
 
@@ -358,7 +358,7 @@ class PlaceModel:
                                 + [CategoryManager.category_map(testing_labels[i][0], rev=True)])
 
         root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
-        with open(os.path.join("dgsm_root_weights-%s.csv" % trial_name), 'w') as f:
+        with open(os.path.join(dirpath, "dgsm_root_weights-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             writer.writerow(root_weights.tolist())
 
@@ -377,31 +377,47 @@ class PlaceModel:
         denominator = np.log(np.sum(np.exp((likelihoods_arr + root_weights) - np.max(likelihoods_arr)), axis=1)) + np.max(likelihoods_arr)
 
         # P(Y|X) Bayesian Rule, then compute the cross entropy
-        return -np.mean([(likelihoods_arr[i][labels[i]] + root_weights[labels[i]] - denominator[i]) for i in range(len(samples))])
+        H = np.array([(likelihoods_arr[i][labels[i]] + root_weights[labels[i]] - denominator[i]) for i in range(len(samples))])
+        return -np.nanmean(H[H != float('inf')])
 
-            
-    def _predict(self, samples, labels):
-        likelihood_op = self._learning.value.values[self._root.values[0].node]
-        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))
-        likelihoods_arr = self._sess.run([likelihood_op],
-                                         feed_dict={self._ivs: samples,
-                                                    self._latent: np.full((len(samples), 1), -1)})[0]
-        likelihoods = np.vstack((likelihoods_arr + root_weights))
+
+    def _roc(self, likelihoods, root_weights, labels, room_class_num):
+        """
+        room_class_num is an integer representation for a class.
+        """
+        y_true = np.copy(labels)
+        y_true[labels == room_class_num] = 1
+        y_true[labels != room_class_num] = 0
+        y_true = y_true.reshape(-1,)
         
-        
-        
-        return np.argmax(likelihoods, axis=1).reshape(-1,1)
+        # P(X) = sum_Y P(X|Y)P(Y)
+        denominator = np.log(np.sum(np.exp((likelihoods + root_weights) - np.max(likelihoods)), axis=1)) + np.max(likelihoods)
+        # P(Y=room_class_num|X)
+        y_dist = np.array([(likelihoods[i][room_class_num] + root_weights[room_class_num] - denominator[i])
+                           for i in range(len(likelihoods))])
+        y_score = np.array([np.exp(y_dist[i])
+                            for i in range(len(likelihoods))])
+        fpr, tpr, _ = metrics.roc_curve(y_true, y_score)
+        return fpr, tpr, metrics.auc(fpr, tpr)
 
 
     def _compute_stats(self, graph_results):
         stats = {}
         total_cases = 0
         total_correct = 0
+        total_correct_top2 = 0
+        total_correct_top3 = 0
         total_per_class = {}
+        total_per_class_top2 = {}
+        total_per_class_top3 = {}
         for graph_id in graph_results:
             graph_cases = 0
             graph_correct = 0
+            graph_correct_top2 = 0
+            graph_correct_top3 = 0
             graph_per_class = {}
+            graph_per_class_top2 = {}
+            graph_per_class_top3 = {}
             for nid in graph_results[graph_id]:
                 groundtruth = CategoryManager.canonical_category(graph_results[graph_id][nid][0])
                 # We skip unknown cases
@@ -409,32 +425,69 @@ class PlaceModel:
                     continue
                 if groundtruth not in total_per_class:
                     total_per_class[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                    total_per_class_top2[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                    total_per_class_top3[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
                 if groundtruth not in graph_per_class:
                     graph_per_class[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                    graph_per_class_top2[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
+                    graph_per_class_top3[groundtruth] = [0, 0, 0]  # total cases, correct cases, accuracy
                 
                 # We have one more test case
                 total_cases += 1
                 graph_cases += 1
                 total_per_class[groundtruth][0] += 1
                 graph_per_class[groundtruth][0] += 1
+                total_per_class_top2[groundtruth][0] += 1
+                graph_per_class_top2[groundtruth][0] += 1
+                total_per_class_top3[groundtruth][0] += 1
+                graph_per_class_top3[groundtruth][0] += 1
+
+                prediction_ranking = [CategoryManager.category_map(c, rev=True)
+                                      for c in np.argsort(graph_results[graph_id][nid][2])[::-1]]
+                assert prediction_ranking[0] == graph_results[graph_id][nid][1]
+                in_top_pred = groundtruth == prediction_ranking[0]
+                in_top2_pred = groundtruth in prediction_ranking[:2]
+                in_top3_pred = groundtruth in prediction_ranking[:3]
                 
-                prediction = graph_results[graph_id][nid][1]
-                if prediction == groundtruth:
+                if in_top_pred:
                     graph_correct += 1
                     total_correct += 1
                     total_per_class[groundtruth][1] += 1
                     graph_per_class[groundtruth][1] += 1
+                if in_top2_pred:
+                    graph_correct_top2 += 1
+                    total_correct_top2 += 1
+                    total_per_class_top2[groundtruth][1] += 1
+                    graph_per_class_top2[groundtruth][1] += 1
+                if in_top3_pred:
+                    graph_correct_top3 += 1
+                    total_correct_top3 += 1
+                    total_per_class_top3[groundtruth][1] += 1
+                    graph_per_class_top3[groundtruth][1] += 1
+                    
                 total_per_class[groundtruth][2] = total_per_class[groundtruth][1] / total_per_class[groundtruth][0]
+                total_per_class_top2[groundtruth][2] = total_per_class_top2[groundtruth][1] / total_per_class_top2[groundtruth][0]
+                total_per_class_top3[groundtruth][2] = total_per_class_top3[groundtruth][1] / total_per_class_top3[groundtruth][0]
                 graph_per_class[groundtruth][2] = graph_per_class[groundtruth][1] / graph_per_class[groundtruth][0]
+                graph_per_class_top2[groundtruth][2] = graph_per_class_top2[groundtruth][1] / graph_per_class_top2[groundtruth][0]
+                graph_per_class_top3[groundtruth][2] = graph_per_class_top3[groundtruth][1] / graph_per_class_top3[groundtruth][0]
             
             stats[graph_id] = {'num_cases': graph_cases,
                                'num_correct': graph_correct,
                                'accuracy': graph_correct / graph_cases,
-                               'class_results': graph_per_class}
+                               'accuracy_top2': graph_correct_top2 / graph_cases,
+                               'accuracy_top3': graph_correct_top3 / graph_cases,
+                               'class_results': graph_per_class,
+                               'class_results_top2': graph_per_class_top2,
+                               'class_results_top3': graph_per_class_top3}
         stats.update({'num_cases': total_cases,
                       'num_correct': total_correct,
                       'accuracy': total_correct / total_cases,
-                      'class_results': total_per_class})
+                      'accuracy_top2': total_correct_top2 / total_cases,
+                      'accuracy_top3': total_correct_top3 / total_cases,
+                      'class_results': total_per_class,
+                      'class_results_top2': total_per_class_top2,
+                      'class_results_top3': total_per_class_top3})
         return stats
 
 

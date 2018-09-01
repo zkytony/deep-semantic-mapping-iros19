@@ -13,9 +13,10 @@ import tensorflow as tf
 import numpy as np
 from deepsm.dgsm.place_model import PlaceModel
 from deepsm.dgsm.data import Data
-from deepsm.util import CategoryManager, plot_to_file
+from deepsm.util import CategoryManager, plot_to_file, plot_roc
 import deepsm.experiments.common as common
 from pprint import pprint
+import csv
 
 def create_parser():
     parser = argparse.ArgumentParser(description='Train and test an SPN place model.',
@@ -277,26 +278,51 @@ def main(args=None):
                        value_inference_type=args.value_inference,
                        optimizer=tf.train.AdamOptimizer)
     train_loss, test_loss = [], []
+    epoch = 0
     try:
         if args.save_loss:
-            model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle)
+            epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle)
         else:
-            model.train(args.batch_size, args.update_threshold, shuffle=shuffle)
+            epoch = model.train(args.batch_size, args.update_threshold, shuffle=shuffle)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
         dirpath = os.path.join("analysis", "dgsm")
-        
+
+        loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % args.trial_name)
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
                      xlabel='iterations (per %d batches)' % (500 // args.batch_size),
-                     ylabel='Mean Squared Loss', path=os.path.join(dirpath, 'loss-%s.png' % args.trial_name))
-        cm_weighted, cm_weighted_norm = model.test(args.results_dir, graph_test=args.graph_test)
+                     ylabel='Mean Squared Loss', path=loss_plot_path)
+        cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         model.test_samples_exam(dirpath, args.trial_name)
 
+        # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % args.trial_name), 'w') as f:
             pprint(cm_weighted, stream=f)
             pprint(cm_weighted_norm, stream=f)
+            pprint(stats, stream=f)
+
+        # Plot roc
+        roc_plot_path = os.path.join(dirpath, 'roc-%s.png' % args.trial_name)
+        plot_roc(roc_results, savepath=roc_plot_path,
+                 names=CategoryManager.known_categories())
+
+        # Report file
+        with open(os.path.join(dirpath, 'full-report-%s.csv' % args.trial_name), 'w') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+
+            # Header
+            writer.writerow(['learning_rate', 'batch_size', 'stopping_condition', 'inference_type',
+                             'epochs', 'class_rate', 'class_rate_top2', 'class_rate-top3',
+                             'cm_diagonal', 'loss_plot', 'ROC_curve'])
+            writer.writerow([args.learning_rate, args.batch_size, args.update_threshold, args.value_inference,
+                             epoch, stats['accuracy'], stats['accuracy_top2'], stats['accuracy_top3'],
+                             str([cm_weighted_norm[i,i] for i in range(cm_weighted.shape[0])]),
+                             os.path.join("https://github.com/pronobis/deep-semantic-mapping/blob/master/deepsm/experiments/analysis/dgsm",
+                                          os.path.basename(loss_plot_path)),
+                             os.path.join("https://github.com/pronobis/deep-semantic-mapping/blob/master/deepsm/experiments/analysis/dgsm",
+                                          os.path.basename(roc_plot_path))])
 
 if __name__ == '__main__':
     main()

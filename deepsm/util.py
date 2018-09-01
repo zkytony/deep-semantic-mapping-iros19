@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import matplotlib.lines as lines
 import matplotlib.patheffects as path_effects
+import sklearn.metrics
 
 ##########Convenient##########
 def sure_add(dictionary, key, value):
@@ -231,6 +232,27 @@ def plot_to_file(*args, labels=[], path="plot.png", xlabel=None, ylabel=None):
         plt.ylabel(ylabel)
     plt.legend(loc='upper right')
     plt.savefig(path)
+
+
+def plot_roc(roc_data, savepath='roc.png', names=[]):
+    """roc_data is list of tuples (fpr, tpr)"""
+    plt.figure(figsize=(4, 4))
+    for i, item in enumerate(roc_data):
+        fpr, tpr = item
+        name = names[i] if len(names[i]) > i else "Model%d" % i
+        plt.plot(fpr, tpr, label='%s (area = %0.2f)' %
+                 (name, sklearn.metrics.auc(fpr, tpr)))
+
+    plt.plot([0, 1], [0, 1], 'k--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.0])
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.legend(loc="lower right")
+    plt.savefig(savepath, dpi=200, bbox_inches='tight')
+    plt.close()
+
+    
 
 ############# Printing ##################
 def print_banner(text, ch='=', length=78):

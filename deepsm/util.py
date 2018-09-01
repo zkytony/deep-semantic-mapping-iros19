@@ -239,7 +239,7 @@ def plot_roc(roc_data, savepath='roc.png', names=[]):
     plt.figure(figsize=(4, 4))
     for i, item in enumerate(roc_data):
         fpr, tpr = item
-        name = names[i] if len(names[i]) > i else "Model%d" % i
+        name = names[i] if len(names) > i else "Model%d" % i
         plt.plot(fpr, tpr, label='%s (area = %0.2f)' %
                  (name, sklearn.metrics.auc(fpr, tpr)))
 

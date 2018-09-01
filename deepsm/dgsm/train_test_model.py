@@ -292,7 +292,7 @@ def main(args=None):
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % args.trial_name)
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
-                     xlabel='iterations (per %d batches)' % (500 // args.batch_size),
+                     xlabel='iterations (per %d batches)' % (1000 // args.batch_size),
                      ylabel='Mean Squared Loss', path=loss_plot_path)
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         model.test_samples_exam(dirpath, args.trial_name)

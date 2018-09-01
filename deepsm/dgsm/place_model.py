@@ -245,7 +245,7 @@ class PlaceModel:
 
             # Compute loss if required
             if train_loss is not None and test_loss is not None \
-               and batch % (500 // batch_size) == 0:
+               and batch % (1000 // batch_size) == 0:
 
                 print("Computing losses...")
                 loss_train = self.cross_entropy(train_set, train_labels)

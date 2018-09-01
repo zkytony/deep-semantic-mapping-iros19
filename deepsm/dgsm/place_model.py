@@ -444,7 +444,6 @@ class PlaceModel:
 
                 prediction_ranking = [CategoryManager.category_map(c, rev=True)
                                       for c in np.argsort(graph_results[graph_id][nid][2])[::-1]]
-                assert prediction_ranking[0] == graph_results[graph_id][nid][1]
                 in_top_pred = groundtruth == prediction_ranking[0]
                 in_top2_pred = groundtruth in prediction_ranking[:2]
                 in_top3_pred = groundtruth in prediction_ranking[:3]

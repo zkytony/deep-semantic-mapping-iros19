@@ -78,7 +78,7 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--update-threshold', type=float, default=0.001,
+    learn_params.add_argument('--update-threshold', type=float, default=0.1,
                               help='Threshold of likelihood update')
     learn_params.add_argument('--batch-size', type=int, default=10,
                               help='Size of each batch for training')
@@ -293,7 +293,7 @@ def main(args=None):
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
                      xlabel='iterations (per %d batches)' % (1000 // args.batch_size),
-                     ylabel='Mean Squared Loss', path=loss_plot_path)
+                     ylabel='Cross Entropy Loss', path=loss_plot_path)
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         model.test_samples_exam(dirpath, args.trial_name)
 
@@ -313,10 +313,10 @@ def main(args=None):
             writer = csv.writer(f, delimiter=',', quotechar='"')
 
             # Header
-            writer.writerow(['learning_rate', 'batch_size', 'stopping_condition', 'inference_type',
+            writer.writerow(['trial_name', 'learning_rate', 'batch_size', 'stopping_condition', 'inference_type',
                              'epochs', 'class_rate', 'class_rate_top2', 'class_rate-top3',
                              'cm_diagonal', 'loss_plot', 'ROC_curve'])
-            writer.writerow([args.learning_rate, args.batch_size, args.update_threshold, args.value_inference,
+            writer.writerow([args.trial_name, args.learning_rate, args.batch_size, args.update_threshold, args.value_inference,
                              epoch, stats['accuracy'], stats['accuracy_top2'], stats['accuracy_top3'],
                              str([cm_weighted_norm[i,i] for i in range(cm_weighted.shape[0])]),
                              os.path.join("https://github.com/pronobis/deep-semantic-mapping/blob/master/deepsm/experiments/analysis/dgsm",

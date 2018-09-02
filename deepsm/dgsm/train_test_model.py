@@ -293,7 +293,7 @@ def main(args=None):
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
                      xlabel='epochs',
-                     ylabel='Mean Squared Loss', path=loss_plot_path)
+                     ylabel='Cross Entropy Loss', path=loss_plot_path)
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         model.test_samples_exam(dirpath, args.trial_name)
 

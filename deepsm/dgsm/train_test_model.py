@@ -16,6 +16,7 @@ from deepsm.dgsm.data import Data
 from deepsm.util import CategoryManager, plot_to_file, plot_roc
 import deepsm.experiments.common as common
 from pprint import pprint
+import math
 import csv
 
 def create_parser():
@@ -118,8 +119,8 @@ def create_parser():
                               help='Save masked scans')
     other_params.add_argument('--save-loss', action='store_true',
                               help='Save losses during training')
-    other_params.add_argument('--trial-name', type=str, default='default',
-                              help='Name for this run. Used to name plots and csv files.')
+    other_params.add_argument('--building', type=str, default='default',
+                              help='Building identifier for this run.')
     return parser
 
     
@@ -215,6 +216,20 @@ def create_directories(args):
         if args.save_masked:
             os.makedirs(os.path.join(args.results_dir, 'masked_scans'), exist_ok=True)
 
+def make_trial_name(args):
+    trial_name = ""
+    if args.balance_data:
+        trial_name = "balanced"
+    else:
+        trial_name = "unbalanced"
+
+    trial_name += "_lr" + str(abs(round(math.log(args.learning_rate, 10))))
+    trial_name += "_b" + str(args.batch_size)
+    trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
+    trial_name += "_mpe" if args.value_inference == "mpe" else "_marginal"
+    trial_name += "_" + args.building
+    return trial_name
+
         
 def main(args=None):
     if args is None:
@@ -289,34 +304,36 @@ def main(args=None):
     finally:
         dirpath = os.path.join("analysis", "dgsm")
 
-        loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % args.trial_name)
+        trial_name = make_trial_name(args)
+
+        loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        model.test_samples_exam(dirpath, args.trial_name)
+        model.test_samples_exam(dirpath, trial_name)
 
         # Report cm
-        with open(os.path.join(dirpath, 'cm-%s.txt' % args.trial_name), 'w') as f:
+        with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:
             pprint(cm_weighted, stream=f)
             pprint(cm_weighted_norm, stream=f)
             pprint(stats, stream=f)
 
         # Plot roc
-        roc_plot_path = os.path.join(dirpath, 'roc-%s.png' % args.trial_name)
+        roc_plot_path = os.path.join(dirpath, 'roc-%s.png' % trial_name)
         plot_roc(roc_results, savepath=roc_plot_path,
                  names=CategoryManager.known_categories())
 
         # Report file
-        with open(os.path.join(dirpath, 'full-report-%s.csv' % args.trial_name), 'w') as f:
+        with open(os.path.join(dirpath, 'full-report-%s.csv' % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
 
             # Header
             writer.writerow(['trial_name', 'learning_rate', 'batch_size', 'stopping_condition', 'inference_type',
                              'epochs', 'class_rate', 'class_rate_top2', 'class_rate-top3',
                              'cm_diagonal', 'loss_plot', 'ROC_curve'])
-            writer.writerow([args.trial_name, args.learning_rate, args.batch_size, args.update_threshold, args.value_inference,
+            writer.writerow([trial_name, args.learning_rate, args.batch_size, args.update_threshold, args.value_inference,
                              epoch, stats['accuracy'], stats['accuracy_top2'], stats['accuracy_top3'],
                              str([cm_weighted_norm[i,i] for i in range(cm_weighted.shape[0])]),
                              os.path.join("https://github.com/pronobis/deep-semantic-mapping/blob/master/deepsm/experiments/analysis/dgsm",

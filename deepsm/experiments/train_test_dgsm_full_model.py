@@ -18,8 +18,6 @@ if __name__ == "__main__":
                         default="{}")
     parser.add_argument('-n', '--num-trials', type=int, help='number of trials', default=1)
     parser.add_argument('--save-loss', action='store_true', help='Save loss during training')
-    parser.add_argument('--name', type=str, help='name of this trial. Used as file names when saving plots and stuffs.',
-                        default='default')
     args = parser.parse_args()
 
     what = args.what
@@ -92,5 +90,5 @@ if __name__ == "__main__":
                                                           results_dir,
                                                           '1',
                                                           '--graph-test',
-                                                          '--trial-name', args.name] + save_loss_option + training_params)
+                                                          '--building', args.db_name + "_" + config['test_case']] + save_loss_option + training_params)
             dgsm_runner.main(args=dsgm_args)

@@ -183,7 +183,7 @@ class PlaceModel:
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
 
 
-    def train(self, batch_size, update_threshold, train_loss=None, test_loss=None, shuffle=True):
+    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True):
         """
         Train the model.
         
@@ -199,19 +199,19 @@ class PlaceModel:
         self._sess.run(self._init_weights)
 
         num_batches = train_set.shape[0] // batch_size
-        prev_likelihood = 100
-        likelihood = 0
+        prev_loss = 100
+        loss = 0
+        losses = []
         batch = 0
         epoch = 0
 
         print("Start Training...")
         while epoch < 50 \
-              and abs(prev_likelihood - likelihood)>update_threshold:
-            likelihoods = []
+              and abs(prev_loss - loss)>update_threshold:
 
             start = (batch)*batch_size
             stop = (batch+1)*batch_size
-            print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev likelihood", prev_likelihood, "likelihood", likelihood)
+            print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev loss", prev_loss, "loss", loss)
             # Run accumulate_updates
             train_likelihoods_arr, avg_train_likelihood_val, _, = \
                     self._sess.run([self._train_likelihood,
@@ -220,39 +220,32 @@ class PlaceModel:
                                    feed_dict={self._ivs: train_set[start:stop],
                                               self._latent: train_labels[start:stop]})
 
-            # Print avg likelihood of this batch data on previous batch weights
-            print("Avg likelihood for epoch %d: %s" % (epoch, avg_train_likelihood_val))
-            likelihoods.append(avg_train_likelihood_val)
-
             batch += 1
             if batch >= num_batches:
                 epoch += 1
                 batch = 0
-                
+
                 # Shuffle
                 if shuffle:
                     print("Shuffling...")
                     p = np.random.permutation(len(train_set))
                     train_set = train_set[p]
-                    train_labels = train_labels[p] 
-
-                if epoch % 5 == 0:
-                    # Update stopping measure per 5 epochs
-                    prev_likelihood = likelihood
-                    likelihood = sum(likelihoods) / len(likelihoods)
-                    print("Avg likelihood over EPOCH %d: %s" % (epoch, likelihood))
-
-
-            # Compute loss if required
-            if train_loss is not None and test_loss is not None \
-               and batch % (1000 // batch_size) == 0:
-
+                    train_labels = train_labels[p]
+                    
                 print("Computing losses...")
                 loss_train = self.cross_entropy(train_set, train_labels)
                 loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
                 print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
                 train_loss.append(loss_train)
                 test_loss.append(loss_test)
+
+                losses.append(loss_train)
+
+                if len(losses) == 5:
+                    prev_loss = loss
+                    loss = sum(losses) / len(losses)
+                    losses.pop(0)
+                    print("Avg loss over 5 EPOCHs: %s" % (loss))
 
         return epoch
 
@@ -444,7 +437,6 @@ class PlaceModel:
 
                 prediction_ranking = [CategoryManager.category_map(c, rev=True)
                                       for c in np.argsort(graph_results[graph_id][nid][2])[::-1]]
-                assert prediction_ranking[0] == graph_results[graph_id][nid][1]
                 in_top_pred = groundtruth == prediction_ranking[0]
                 in_top2_pred = groundtruth in prediction_ranking[:2]
                 in_top3_pred = groundtruth in prediction_ranking[:3]

@@ -1,0 +1,2 @@
+learning_rate,batch_size,stopping_condition,inference_type,epochs,class_rate,class_rate_top2,class_rate-top3,cm_diagonal,loss_plot,ROC_curve
+0.01,200,0.1,InferenceType.MPE,7,0.871304347826087,0.9721739130434782,1.0,"[91.428571428571431, 98.353909465020578, 67.81609195402298, 79.428571428571431]",https://github.com/pronobis/deep-semantic-mapping/blob/master/deepsm/experiments/analysis/dgsm/loss-balanced_lr01_b200_mpe_Stockholm_457-6.png,https://github.com/pronobis/deep-semantic-mapping/blob/master/deepsm/experiments/analysis/dgsm/roc-balanced_lr01_b200_mpe_Stockholm_457-6.png

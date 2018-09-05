@@ -337,6 +337,42 @@ class CategoryManager:
                 4: '#FFFFFF',
             }
         },
+        'SIX': {
+            'FW': {
+                # DW = 0; CR = 1; 1PO = 2; 2PO = 3; UN = 4
+                'OC': -1,  # occluded
+                'DW': 0,
+                'CR': 1,
+                # 'PT' : 1,
+                '1PO': 2,
+                '2PO': 3,
+                'MPO': 3,
+                'PRO': 3,
+                'BA': 4,   # bathroom      (BA)
+                'KT': 5,
+                'UN': 6
+            },
+            'BW': {
+                -1: 'OC',
+                0: 'DW',
+                1: 'CR',
+                2: '1PO',
+                3: '2PO',
+                4: 'BA',
+                5: 'KT',
+                6: 'UN'
+            },
+            'CL': {
+                -1: '#000000',
+                0: '#00FFFF', # cyan
+                1: '#FF0000',
+                2: '#0000FF',
+                3: '#00FF00',
+                4: '#cf22ef',
+                5: '#d99188',
+                6: '#FFFFFF',
+            }
+        },
         'FULL': {
             'FW': {
                 'OC': -1,

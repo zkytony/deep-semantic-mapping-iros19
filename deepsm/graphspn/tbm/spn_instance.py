@@ -43,6 +43,8 @@ class InstanceSpn(SpnModel):
            extra_partition_multiplyer (int): Used to multiply num_partitions so that more partitions
                                              are tried and ones with higher coverage are picked.
            db_name (str): Database name. Required if visualization_partitions_dirpath is not None.
+           partitions (list):  list of pre-specified partitions of the graph on which the graphspn is
+                               built. Therefore, no more partition is produced when building the model.
 
            If template is EdgeTemplate or EdgeRelationTemplate, then:
              divisions (int) number of views per place
@@ -67,7 +69,7 @@ class InstanceSpn(SpnModel):
 
 
     @abstractmethod
-    def _init_struct(self, sess, divisions=-1, num_partitions=1,
+    def _init_struct(self, sess, divisions=-1, num_partitions=1, partitions=None,
                      visualize_partitions_dirpath=None, db_name=None, extra_partition_multiplyer=1):
         """
         Initialize the structure for training. (private method)
@@ -211,6 +213,12 @@ class NodeTemplateInstanceSpn(InstanceSpn):
 
     
     def __init__(self, topo_map, sess, *spns, **kwargs):
+        """
+        partitions (list): list of partitions to build the GraphSPN on, if not None.
+                           Each partition is a dictionary, mapping from template class
+                           to a graph (TopologicalMap object) that covers the nodes and
+                           edges that were grouped by that template.
+        """
         super().__init__(topo_map, sess, *spns, **kwargs)
 
         assert self._template_mode == NodeTemplate.code()
@@ -219,6 +227,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         num_partitions = kwargs.get('num_partitions', 1)
         self._init_struct(sess, divisions=kwargs.get('divisions', -1),
                           num_partitions=kwargs.get('num_partitions', 1),
+                          partitions=kwargs.get('partitions', None),
                           visualize_partitions_dirpath=kwargs.get('visualize_partitions_dirpath', None),
                            db_name=kwargs.get('db_name', None), extra_partition_multiplyer=kwargs.get('extra_partition_multiplyer', 1))
         self._inputs_size = len(self._topo_map.nodes)
@@ -242,7 +251,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         return inputs
 
         
-    def _init_struct(self, sess, divisions=-1, num_partitions=1,
+    def _init_struct(self, sess, divisions=-1, num_partitions=1, partitions=None,
                      visualize_partitions_dirpath=None, db_name=None, extra_partition_multiplyer=1):
         """
         Initialize the structure for training. (private method)
@@ -280,32 +289,47 @@ class NodeTemplateInstanceSpn(InstanceSpn):
             self._label_node_map[_i] = nid
             _i += 1
 
-        """Try partition the graph `extra_partition_multiplyer` times more than what is asked for. Then pick the top `num_partitions` with the highest
-        coverage of the main template."""
-        print("Partitioning the graph... (Selecting %d from %d attempts)" % (num_partitions, extra_partition_multiplyer*num_partitions))
-        partitioned_results = {}
-        main_template = self._spns[0][1]
-        for i in range(extra_partition_multiplyer*num_partitions):
-            """Note: here, we only partition with the main template. The results (i.e. supergraph, unused graph) are stored
-            and will be used later. """
-            supergraph, unused_graph = self._topo_map.partition(main_template, get_unused=True)
-            if self._template_mode == NodeTemplate.code():  ## NodeTemplate
-                coverage = len(supergraph.nodes)*main_template.size() / len(self._topo_map.nodes)
-                partitioned_results[(i, coverage)] = (supergraph, unused_graph)
-        used_partitions = []
-        used_coverages = set({})
-        _i = 0
-        for i, coverage in sorted(partitioned_results, reverse=True, key=lambda x:x[1]):
-            used_partitions.append(partitioned_results[i, coverage])
-            sys.stdout.write("%.3f  " % coverage)
-            _i += 1
-            if len(used_partitions) >= num_partitions:
-                break
-        sys.stdout.write("\n")
-        """Delete unused partitions"""
-        for coverage in list(partitioned_results.keys()):
-            if coverage not in used_coverages:
-                del partitioned_results[coverage]
+        if partitions is None:
+
+            """Try partition the graph `extra_partition_multiplyer` times more than what is asked for. Then pick the top `num_partitions` with the highest
+            coverage of the main template."""
+            print("Partitioning the graph... (Selecting %d from %d attempts)" % (num_partitions, extra_partition_multiplyer*num_partitions))
+            partitioned_results = {}
+            main_template = self._spns[0][1]
+            for i in range(extra_partition_multiplyer*num_partitions):
+                """Note: here, we only partition with the main template. The results (i.e. supergraph, unused graph) are stored
+                and will be used later. """
+                supergraph, unused_graph = self._topo_map.partition(main_template, get_unused=True)
+                if self._template_mode == NodeTemplate.code():  ## NodeTemplate
+                    coverage = len(supergraph.nodes)*main_template.size() / len(self._topo_map.nodes)
+                    partitioned_results[(i, coverage)] = (supergraph, unused_graph)
+            used_partitions = []
+            used_coverages = set({})
+            _i = 0
+            for i, coverage in sorted(partitioned_results, reverse=True, key=lambda x:x[1]):
+                used_coverages.add(coverage)
+                used_partitions.append(partitioned_results[i, coverage])
+                sys.stdout.write("%.3f  " % coverage)
+                _i += 1
+                if len(used_partitions) >= num_partitions:
+                    break
+            sys.stdout.write("\n")
+            """Delete unused partitions"""
+            for i, coverage in list(partitioned_results.keys()):
+                if coverage not in used_coverages:
+                    del partitioned_results[(i, coverage)]
+
+            """Keep partitioning the used partitions, and obtain a list of partitions in the same format as the `partitions` parameter"""
+            partitions = []
+            for key in partitioned_results:
+                supergraph, unused_graph = partitioned_results[key]
+                partition = {main_template: supergraph}
+                # Keep partitioning the unused_graph using smaller templates
+                for _, template in self._spns[1:]:  # skip main template
+                    supergraph_2nd, unused_graph_2nd = unused_graph.partition(template, get_unused=True)
+                    partition[template] = supergraph_2nd
+                    unused_graph = unused_graph_2nd
+                partitions.append(partition)
 
         """Building instance spn"""
         print("Building instance spn...")
@@ -318,39 +342,16 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         """Now, partition the graph, copy structure, and connect self._catg_inputs appropriately to the network."""
         # Main template partition
         _k = 0
-        for supergraph, unused_graph in used_partitions:
+
+        for _k, partition in enumerate(partitions):
             print("Partition %d" % (_k+1))
             nodes_covered = set({})
             template_spn_roots = []
-            main_template_spn = self._spns[0][0]
-            print("Will duplicate %s %d times." % (main_template.__name__, len(supergraph.nodes)))
-            template_spn_roots.extend(NodeTemplateInstanceSpn._duplicate_template_spns(self, tspns, main_template, supergraph, nodes_covered))
-
-            ## TEST CODE: COMMENT OUT WHEN ACTUALLY RUNNING
-            # original_tspn_root = tspns[main_template.__name__][0]
-            # duplicated_tspn_root = template_spn_roots[-1]
-            # original_tspn_weights = sess.run(original_tspn_root.weights.node.get_value())
-            # duplicated_tspn_weights = sess.run(duplicated_tspn_root.weights.node.get_value())
-            # print(original_tspn_weights)
-            # print(duplicated_tspn_weights)
-            # print(original_tspn_weights == duplicated_tspn_weights)
-            # import pdb; pdb.set_trace()
-
-            tmp_graph = unused_graph
-            """If visualize"""
-            if visualize_partitions_dirpath:
-                ctype = 2
-                node_ids = []
-                for snid in supergraph.nodes:
-                    node_ids.append(supergraph.nodes[snid].to_place_id_list())
-                img = self._topo_map.visualize_partition(plt.gca(), node_ids,
-                                                         coldmgr.groundtruth_file(self._seq_id.split("_")[0], 'map.yaml'), ctype=ctype)
-                ctype += 1
-            """Further partition the graph with remaining templates."""
-            for template_spn, template in self._spns[1:]:  # skip main template
-                supergraph_2nd, unused_graph_2nd = tmp_graph.partition(template, get_unused=True)
-                print("Will duplicate %s %d times." % (template.__name__, len(supergraph_2nd.nodes)))
-                template_spn_roots.extend(NodeTemplateInstanceSpn._duplicate_template_spns(self, tspns, template, supergraph_2nd, nodes_covered))
+            ctype = 2
+            for template_spn, template in self._spns:
+                supergraph = partition[template]
+                print("Will duplicate %s %d times." % (template.__name__, len(supergraph.nodes)))
+                template_spn_roots.extend(NodeTemplateInstanceSpn._duplicate_template_spns(self, tspns, template, supergraph, nodes_covered))
 
                 ## TEST CODE: COMMENT OUT WHEN ACTUALLY RUNNING
                 # original_tspn_root = tspns[template.__name__][0]
@@ -362,28 +363,19 @@ class NodeTemplateInstanceSpn(InstanceSpn):
                 # print(original_tspn_weights == duplicated_tspn_weights)
                 # import pdb; pdb.set_trace()
 
-                tmp_graph = unused_graph_2nd
-                """If visualize"""
                 if visualize_partitions_dirpath:
-                    # img should have been created from above.
                     node_ids = []
-                    for snid in supergraph_2nd.nodes:
-                        node_ids.append(supergraph_2nd.nodes[snid].to_place_id_list())
+                    for snid in supergraph.nodes:
+                        node_ids.append(supergraph.nodes[snid].to_place_id_list())
                     img = self._topo_map.visualize_partition(plt.gca(), node_ids,
-                                                             coldmgr.groundtruth_file(self._seq_id.split("_")[0], 'map.yaml'), ctype=ctype, img=img)
+                                                             coldmgr.groundtruth_file(self._seq_id.split("_")[0], 'map.yaml'), ctype=ctype)
                     ctype += 1
-            """If visualize. Save."""
-            if visualize_partitions_dirpath:
-                plt.savefig(os.path.join(visualize_partitions_dirpath, "partition-%d.png" % (_k+1)))
-                plt.clf()
-                print("Visualized partition %d" % (_k+1))
 
             assert nodes_covered == self._topo_map.nodes.keys()
 
             p = spn.Product(*template_spn_roots)
             assert p.is_valid()
             pspns.append(p) # add spn for one partition
-            _k += 1  # increment partition counter
         ## End for loop ##
         
         # Sum up all
@@ -392,6 +384,7 @@ class NodeTemplateInstanceSpn(InstanceSpn):
         self._root.generate_weights(trainable=True)
         # initialize ONLY the weights node for the root
         sess.run(self._root.weights.node.initialize())
+                
     #---- end init_struct ----#
 
     @classmethod    

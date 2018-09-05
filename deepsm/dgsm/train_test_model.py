@@ -79,7 +79,7 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
-    learn_params.add_argument('--update-threshold', type=float, default=0.1,
+    learn_params.add_argument('--update-threshold', type=float, default=0.00001,
                               help='Threshold of likelihood update')
     learn_params.add_argument('--batch-size', type=int, default=10,
                               help='Size of each batch for training')
@@ -91,6 +91,8 @@ def create_parser():
                               help='Type of inference during EM upwards pass: ' +
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
+    learn_params.add_argument('--dropout', action='store_true',
+                              help='Dropout (0.2 probability)')
     # GDLearning
     learn_params.add_argument('--learning-rate', type=float, default=0.001,
                               help='Learning rate for gradient descent')
@@ -200,6 +202,7 @@ def print_args(args):
     print("* Learning rate: %s" % args.learning_rate)
     print("* Likelihood update threshold: %s" % args.update_threshold)
     print("* Batch size: %s" % args.batch_size)
+    print("* Value Inference: %s"  % args.value_inference)
 
     print("\nTesting parameters:")
     print("* Mask seed: %s" % args.mask_seed)
@@ -223,10 +226,13 @@ def make_trial_name(args):
     else:
         trial_name = "unbalanced"
 
+    if args.dropout:
+        trial_name += "_dropout"
+
     trial_name += "_lr" + str(abs(round(math.log(args.learning_rate, 10))))
     trial_name += "_b" + str(args.batch_size)
     trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
-    trial_name += "_mpe" if args.value_inference == "mpe" else "_marginal"
+    trial_name += "_mpe" if args.value_inference == spn.InferenceType.MPE else "_marginal"
     trial_name += "_" + args.building
     return trial_name
 
@@ -296,9 +302,9 @@ def main(args=None):
     epoch = 0
     try:
         if args.save_loss:
-            epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle)
+            epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout)
         else:
-            epoch = model.train(args.batch_size, args.update_threshold, shuffle=shuffle)
+            epoch = model.train(args.batch_size, args.update_threshold, shuffle=shuffle, dropout=args.dropout)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:

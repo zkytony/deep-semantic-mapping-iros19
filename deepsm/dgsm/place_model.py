@@ -183,7 +183,7 @@ class PlaceModel:
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
 
 
-    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True):
+    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, dropout=False):
         """
         Train the model.
         
@@ -193,6 +193,12 @@ class PlaceModel:
                           training dataset, and the other that tracks loss on the
                           testing dataset. The loss is computed per 100 batches.
         """
+        def drop_it(cell):
+            if random.random() < 0.2: # 20% chance dropped
+                return -1
+            else:
+                return cell
+        
         train_set = self._data.training_scans
         train_labels = self._data.training_labels
 
@@ -212,12 +218,23 @@ class PlaceModel:
             start = (batch)*batch_size
             stop = (batch+1)*batch_size
             print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev loss", prev_loss, "loss", loss)
+
+            # Dropout
+            if dropout:
+                train_batch = np.empty_like(train_set[start:stop])
+                np.copyto(train_batch, train_set[start:stop])
+                
+                drop_func = np.vectorize(drop_it)
+                train_batch = drop_func(train_batch)
+            else:
+                train_batch = train_set[start:stop]
+            
             # Run accumulate_updates
             train_likelihoods_arr, avg_train_likelihood_val, _, = \
                     self._sess.run([self._train_likelihood,
                                     self._avg_train_likelihood,
                                     self._learn_spn],
-                                   feed_dict={self._ivs: train_set[start:stop],
+                                   feed_dict={self._ivs: train_batch,
                                               self._latent: train_labels[start:stop]})
 
             batch += 1
@@ -357,21 +374,15 @@ class PlaceModel:
 
 
     def cross_entropy(self, samples, labels):
-        likelihood_op = self._learning.value.values[self._root.values[0].node]
         
-        # P(X|Y)
-        likelihoods_arr = self._sess.run([likelihood_op],
-                                         feed_dict={self._ivs: samples,
-                                                    self._latent: np.full((len(samples), 1), -1)})[0]
-        # P(Y)
-        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))[0]
+        joint = self._learning.value.get_value(self._root, with_ivs=True)
+        marginalized = self._learning.value.get_value(self._root, with_ivs=False)
+        loss = -tf.reduce_mean(joint - marginalized)
 
-        # P(X) = sum_Y P(X|Y)P(Y)
-        denominator = np.log(np.sum(np.exp((likelihoods_arr + root_weights) - np.max(likelihoods_arr)), axis=1)) + np.max(likelihoods_arr)
-
-        # P(Y|X) Bayesian Rule, then compute the cross entropy
-        H = np.array([(likelihoods_arr[i][labels[i]] + root_weights[labels[i]] - denominator[i]) for i in range(len(samples))])
-        return -np.nanmean(H[H != float('inf')])
+        loss_val = self._sess.run(loss,
+                                  feed_dict={self._ivs:samples,
+                                             self._latent:labels})
+        return loss_val
 
 
     def _roc(self, likelihoods, root_weights, labels, room_class_num):

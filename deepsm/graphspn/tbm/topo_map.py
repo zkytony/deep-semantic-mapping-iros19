@@ -165,6 +165,25 @@ class TopologicalMap:
             components.append(component)
             to_cover -= set(component.nodes.keys())
         return components
+
+
+    #--- High level graph operation
+    def subtract(self, other_map):
+        """
+        Given another graph "other_map", produce a graph equivalent
+        as subtracting the other_map from this graph. It does not
+        matter whether other_map contains nodes that are not in this graph.
+        """
+        nodes = {}
+        conns = {}
+        for nid in self.nodes:
+            if nid not in other_map.nodes:
+                nodes[nid] = copy.deepcopy(self.nodes[nid])
+                conns[nid] = set()
+                for neighbor_nid in self.neighbors(nid):
+                    if neighbor_nid not in other_map.nodes:
+                        conns[nid].add((neighbor_nid, util.compute_view_number(self.nodes[nid], self.nodes[neighbor_nid])))
+        return TopologicalMap(nodes, conns)
     
     
     #--- Partition ---#
@@ -486,7 +505,7 @@ class TopologicalMap:
 
 
     #--- Visualizations ---#
-    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, img=None, consider_placeholders=False, show_nids=False):
+    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, linewidth=1.0, img=None, consider_placeholders=False, show_nids=False):
         """Visualize the topological map `self`. Nodes are colored by labels, if possible."""
         # Open the yaml file
         with open(canonical_map_yaml_path) as f:
@@ -509,7 +528,7 @@ class TopologicalMap:
             node_color = util.CategoryManager.category_color(place.label) if not (consider_placeholders and place.placeholder) else util.CategoryManager.PLACEHOLDER_COLOR
             pose_x, pose_y = place.pose  # gmapping coordinates
             plot_x, plot_y = util.plot_dot(ax, pose_x, pose_y, map_spec, img,
-                                           dotsize=dotsize, color=node_color, zorder=2, linewidth=1.0, edgecolor='black', label_text=nid_text)
+                                           dotsize=dotsize, color=node_color, zorder=2, linewidth=linewidth, edgecolor='black', label_text=nid_text)
 
             # Plot the edges
             for neighbor_id in self.__conns[nid]:
@@ -522,7 +541,7 @@ class TopologicalMap:
 
                 
     def visualize_partition(self, ax, node_ids, canonical_map_yaml_path, ctype=1,
-                            alpha=0.8, dotsize=6, img=None):
+                            alpha=0.8, dotsize=6, linewidth=3, img=None):
         """
         node_ids is the list of tuples where each represents node ids on a template.
 
@@ -555,13 +574,13 @@ class TopologicalMap:
                     if nid != mid:
                         if self.edge_between(nid, mid):
                             util.plot_line(ax, self.nodes[nid].pose, self.nodes[mid].pose, map_spec, img,
-                                           linewidth=3, color=color, zorder=3)
+                                           linewidth=linewidth, color=color, zorder=3)
 
         return img
 
 
     def visualize_edge_relation_partition(self, ax, ert_map, canonical_map_yaml_path,
-                                          dotsize=6, alpha=0.8, img=None):
+                                          dotsize=6, linewidth=3, alpha=0.8, img=None):
         """
         Visualize the result of partitioning using edge relation templates. The result is specified
         by `ert_map`, a dictionary that maps from a tuple (num_nodes, num_edge_pairs) indicating
@@ -594,7 +613,7 @@ class TopologicalMap:
                     for edge in ert.edge_pair:
                         node1, node2 = edge.nodes
                         util.plot_line(ax, node1.pose, node2.pose, map_spec, img,
-                                       linewidth=3, color=color, zorder=3)
+                                       linewidth=linewidth, color=color, zorder=3)
             ctype += 1
         return img
 

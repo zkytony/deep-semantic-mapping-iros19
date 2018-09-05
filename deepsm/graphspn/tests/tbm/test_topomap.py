@@ -5,15 +5,16 @@
 # author: Kaiyu Zheng
 
 import matplotlib
-# matplotlib.use('Agg')
+matplotlib.use('Agg')
 from pylab import rcParams
 #matplotlib.use('Agg')
 
+from deepsm.graphspn.tbm.topo_map import TopologicalMap
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, ThreeRelTemplate
 from deepsm.graphspn.tbm.graph_builder import build_graph
 #from deepsm.graphspn.tests.tbm.runner import TbmExperiment
-from deepsm.util import CategoryManager, ColdDatabaseManager
+from deepsm.util import CategoryManager, ColdDatabaseManager, compute_view_number
 import csv
 import matplotlib.pyplot as plt
 import os, sys
@@ -272,14 +273,50 @@ def TEST_build_graph_from_file():
     pprint(likelihoods)
     topo_map.visualize(plt.gca(), coldmgr.groundtruth_file("env1", 'map.yaml'))
     plt.show()
+
+def TEST_subtract(dataset, coldmgr):
+    seq_id = "seq2_cloudy1"#"floor4_cloudy_a2"
+    topo_maps = dataset.get_topo_maps(db_name="Freiburg", amount=1, seq_id=seq_id)
+    topo_map = topo_maps[seq_id]
+
+    # build a small graph
+    nid = np.random.choice(list(topo_map.nodes.keys()))
+    nodes = {nid:topo_map.nodes[nid]}
+    conns = {nid:set()}
+    for neighbor_nid in topo_map.neighbors(nid):
+        nodes[neighbor_nid] = topo_map.nodes[neighbor_nid]
+        conns[neighbor_nid] = set([(nid, compute_view_number(topo_map.nodes[nid], topo_map.nodes[neighbor_nid]))])
+        conns[nid].add((neighbor_nid, compute_view_number(topo_map.nodes[neighbor_nid], topo_map.nodes[nid])))
+    small_graph = TopologicalMap(nodes, conns)
+
+    remainder = topo_map.subtract(small_graph)
+    
+    topo_map.visualize(plt.gca(), coldmgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'))
+    plt.savefig('orig.png')
+    plt.clf()
+    print("Saved orig.png")
+
+    small_graph.visualize(plt.gca(), coldmgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'))
+    plt.savefig('small_graph.png')
+    plt.clf()
+    print("Saved small_graph.png")
+
+    remainder.visualize(plt.gca(), coldmgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'))
+    plt.savefig('remainder.png')
+    plt.clf()
+    print("Saved remainder.png")
+        
     
 
 
 if __name__ == "__main__":
 
-    coldmgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
+    CategoryManager.TYPE = "SIMPLE"
+    CategoryManager.init()
+    
+    coldmgr = ColdDatabaseManager("Freiburg", COLD_ROOT)
     dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
-    dataset.load("Stockholm", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
+    dataset.load("Freiburg", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
     # dataset.load("Saarbrucken", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
     # #TEST_refine_partition(dataset, coldmgr)
     # #TEST_topo_map_copy(dataset)
@@ -290,5 +327,6 @@ if __name__ == "__main__":
     # TEST_node_id_unique()
     # TEST_topo_map_visualization(dataset, coldmgr, seq_id='floor6_base_cloudy_b')
     # TEST_build_graph_from_file()
-    TEST_load_edge_rel_template_samples(dataset)
+    # TEST_load_edge_rel_template_samples(dataset)
     # TEST_visualize_edge_relation_partition(dataset, coldmgr)
+    TEST_subtract(dataset, coldmgr)

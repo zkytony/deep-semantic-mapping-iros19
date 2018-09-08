@@ -30,11 +30,13 @@ class PartitionSampler:
 
     def __init__(self, topo_map, **kwargs):
         self._topo_map = topo_map
-        self._similarity_coeff        = kwargs.get('similarity_coeff', 0.02)
-        self._complexity_coeff        = kwargs.get('complexity_coeff', 3)
-        self._straight_template_coeff = kwargs.get('straight_template_coeff', 10)
-        self._dom_coeff               = kwargs.get('dom_coeff', 3)
-        self._separable_coeff         = kwargs.get('separable_coeff', 10)
+
+        # The default values are set according to random search.
+        self._similarity_coeff        = kwargs.get('similarity_coeff', -3.2892620362926266)
+        self._complexity_coeff        = kwargs.get('complexity_coeff', 6.8987258916531236)
+        self._straight_template_coeff = kwargs.get('straight_template_coeff', 7.997020601228423)
+        self._dom_coeff               = kwargs.get('dom_coeff', 4.8590878043033126)
+        self._separable_coeff         = kwargs.get('separable_coeff', 2.1314365714437775)
 
 
     def set_params(self, **kwargs):
@@ -45,26 +47,33 @@ class PartitionSampler:
         self._separable_coeff         = kwargs.get('separable_coeff', self._separable_coeff)
 
 
-    def sample_partition_set(self, num_rounds, num_partitions, accept_threshold=float('inf')):
+    def sample_partition_sets(self, num_rounds, num_partitions, accept_threshold=float('inf'), pick_best=False):
         """
-        Pick the best set of partitions (with size `num_partitions`) among
-        `num_rounds` of rounds.
+        Sample `num_rounds` sets of partitions, each with size `num_partitions`
+
+        Returns partition_sets (list of partitions)
+            and attributes (list of dictionaries with 'energies' and 'factors' as keys)
+
+            If pick_best is True, the third element to be returned is the index for the best partition_set.
         """
         attributes = []
         partition_sets = []
 
         for i in range(num_rounds):
+            p, a = self.sample_partitions(num_partitions, accept_threshold=accept_threshold)
+            partition_sets.append(p)
+            attributes.append(a)
+
+            # print progress
             sys.stdout.write("round %d/%d\r" % (i+1, num_rounds))
             sys.stdout.flush()
-            partition_sets[i], attributes[i] = sampler.sample_partitions(num_partitions, accept_threshold=accept_threshold)
+        sys.stdout.write("\n")
 
-        indices = sorted(range(len(attributes)), key=lambda i:np.median(attributes[i]['energies']))
-        top_partition_set = partition_sets[indices[0]]
-        energies = attributes[indices[0]]['energies']
-        factors = attributes[indices[0]]['factors']
-
-        return top_partition_set, {'energies': energies,
-                                   'factors': factors}
+        if pick_best:
+            indices = sorted(range(len(attributes)), key=lambda i:np.median(attributes[i]['energies']))
+            return partition_sets, attributes, indices[0]
+        else:
+            return partition_sets, attributes
 
 
     def sample_partitions(self, amount,
@@ -103,7 +112,7 @@ class PartitionSampler:
             'separable': self._separable_by_middle_node(partition),
         }
         score = np.exp(-self._complexity_coeff*factors['complexity']) \
-                * np.exp(-self._straight_coeff*factors['straight']) \
+                * np.exp(-self._straight_template_coeff*factors['straight']) \
                 * np.exp(-self._dom_coeff*factors['dom']) \
                 * np.exp(-self._separable_coeff*factors['separable'])
 
@@ -122,12 +131,31 @@ class PartitionSampler:
 
         return score, factors
 
+    def visualize_partition(self, partition, groundtruth_file):
+        pass
+
+    def _complexity(self, partition):
+        pass
+
+    def _similarity(self, partition, partitions):
+        pass
+
+    def _straight_template(self, partition, dist_func=util.abs_view_distance):
+        pass
+
+    def _degree_of_middle_node(self, partition, divisions=8):
+        pass
+
+    def _separable_by_middle_node(self, partition):
+        pass
+
     
 
 class NodeTemplatePartitionSampler(PartitionSampler):
 
     """
-    A partition is a dictionary that maps from template class to a TopologicalMap
+    For NodeTemplatePartitionSampler:
+      A partition is a dictionary that maps from template class to a TopologicalMap
     object that represents the subgraph resulted from partitioning the graph using
     that template.
     """
@@ -141,7 +169,6 @@ class NodeTemplatePartitionSampler(PartitionSampler):
         kwargs:
             similarity_coeff
             complexity_coeff
-            straight_template_coeff
             straight_template_coeff
             dom_coeff (degree_of_middle_node_coefficient)
             separable_coeff (separable by middle node coefficient)
@@ -160,10 +187,8 @@ class NodeTemplatePartitionSampler(PartitionSampler):
         return partition
             
 
-    def visualize_partition(self, partition, groundtruth_file):
+    def visualize_partition(self, partition, groundtruth_file, ax=plt.gca()):
         """presult is the returned object from partition()"""
-
-        rcParams['figure.figsize'] = 22, 14
 
         ctype = 2
         for template in self._templates:
@@ -171,7 +196,9 @@ class NodeTemplatePartitionSampler(PartitionSampler):
             node_ids = []
             for snid in sgraph.nodes:
                 node_ids.append(sgraph.nodes[snid].to_place_id_list())
-            self._topo_map.visualize_partition(plt.gca(), node_ids, groundtruth_file,  ctype=ctype)
+
+            rcParams['figure.figsize'] = 22, 14
+            self._topo_map.visualize_partition(ax, node_ids, groundtruth_file,  ctype=ctype)
             ctype += 1
 
     def _complexity(self, partition):
@@ -187,27 +214,25 @@ class NodeTemplatePartitionSampler(PartitionSampler):
 
     def _similarity(self, partition, partitions):
         """
-        % of nodes with identical templates
+        similarity equals to
+
+           number of nodes in `partition` that is in the same main template as any partition in `partitions`
+        =  --------------------------------------------------------------------------------------------
+                   number of nodes in main template of all `partitions`
         """
         count = 0
         
         for template in self._templates:
             supergraph = partition[template]
             for i in supergraph.nodes:
-                num_contained = 0
                 for q in partitions:
-                    contained = False
                     for j in q[template].nodes:
                         if supergraph.nodes[i].to_place_id_list() == q[template].nodes[j].to_place_id_list() \
                            or list(reversed(supergraph.nodes[i].to_place_id_list())) == q[template].nodes[j].to_place_id_list():
-                            contained = True  # in identical templates
+                            count += template.size()
                             break
-                    if contained is True:
-                        num_contained += 1
-                if num_contained > (len(partitions) // 2):
-                    count += template.size()
                             
-        return count / len(self._topo_map.nodes)
+        return count / (len(self._topo_map.nodes)*max(1, len(partitions)))
 
     def _straight_template(self, partition, dist_func=util.abs_view_distance):
         """
@@ -268,3 +293,222 @@ class NodeTemplatePartitionSampler(PartitionSampler):
 
         return count / len(self._topo_map.nodes)
         
+
+class EdgeRelationPartitionSampler(PartitionSampler):
+
+    """
+    For EdgeRelationPartitionSampler
+      A partition is an ert_map (see topo_map:partition_by_edge_relatoins).
+    This is a dictionary that maps from a tuple (num_nodes, num_edge_pairs) indicating
+    the type of the template, to a list of such EdgeRelationTemplate instances.
+    """
+
+    def __init__(self, topo_map, **kwargs):
+        super().__init__(topo_map, **kwargs)
+
+
+    def random_partition(self):
+        return self._topo_map.partition_by_edge_relations()
+
+    def visualize_partition(self, partition, groundtruth_file, ax=plt.gca()):
+        rcParams['figure.figsize'] = 22, 14
+        self._topo_map.visualize_edge_relation_partition(ax, partition, groundtruth_file)
+        
+    def _complexity(self, partition):
+        """
+        should be equal to 1 for a graph completely covered by most complex templates
+        """
+        score = 0
+        template_weight = 0.5
+        for i, key in enumerate(partition):
+            if key[0] != 0:
+                score += template_weight * key[0] * len(partition[key])
+                template_weight /= 2
+        return score
+
+    def _similarity(self, partition, partitions):
+        """
+        similarity equals to
+
+           number of variables `partition` that is in the same main template as any partition in `partitions`
+        =  --------------------------------------------------------------------------------------------
+                   total number of variables in main template of all `partiions`
+
+        As implied by the above, we only look at main template (3 nodes, 1 edge pair)
+        """
+        count = 0
+        total = 0
+        for key in partition:
+            if key == (3,1):
+                for i in partition[key]:
+                    for q in partitions:
+                        for j in q[key]:
+                            nids1 = [n.id for n in i.nodes]
+                            nids2 = [n.id for n in j.nodes]
+                            if nids1 == nids2 or reversed(nids1) == nids2:
+                                count += 4
+        for q in partitions:
+            total += len(q[(3,1)]) * 4  # num_vars is 4
+        return count / total
+                            
+
+    def _straight_template(self, partition, dist_func=util.abs_view_distance):
+        """
+        Percentage of nodes in straight templates
+        """
+        count = 0
+        for i in partition[(3,1)]:
+            _, vdist = i.to_sample()
+            if vdist == 4:
+                count += 4  # 4 variables per template
+        return count / (len(partition[(3,1)]) * 4)
+
+    def _degree_of_middle_node(self, partition, divisions=8):
+        """
+        Computes average degree of middle node, normalized by divisions (total number
+        of possible degrees).
+        """
+        count = 0
+        for i in partition[(3,1)]:
+            middle_node = i.nodes[len(i.nodes)//2]
+            count += self._topo_map.neighbors(middle_node.id)
+        return count / len(partition[(3,1)]) / 8
+
+
+    def _separable_by_middle_node(self, partition):
+        count = 0
+        for i in partition[(3,1)]:
+            middle_node = i.nodes[len(i.nodes)//2]
+
+            # Ignores if the degree of middle node is only 2. Otherwise, the middle node could be
+            # a room node in a thin change of room nodes. We hope middle node to be doorway node.
+            if len(self._topo_map.neighbors(middle_node.id)) <= 2:
+                continue
+
+            single_node_graph = TopologicalMap({middle_node.id:middle_node}, {middle_node.id:set()})
+            remainder = self._topo_map.subtract(single_node_graph)
+
+            if len(remainder.connected_components()) > 1:
+                # separates, and non-trivial.
+                count += 1
+
+        return count / len(self._topo_map.nodes)
+
+
+
+
+
+
+        return count / len(partition[(3,1)]) / 8
+
+
+
+
+### Useful for parameter selection ###
+def factor_correlations(factor_names, num_rounds=20, num_partitions=5,
+                        params=None, plot=False, dbs=['Stockholm', 'Freiburg', 'Saarbrucken'], num_seqs=10):
+    """Sample a bunch of partitions. Then, for each parameter, plot each partition's value for that parameter
+    versus the partition's energy. See if they correlate in the way we want.
+    
+    Returns a dictionary of the format:
+    
+        factor name -> {
+            db_name -> {
+                factor_name -> correlation_coefficient
+            }
+            _average_ -> average correlation coefficient
+        }
+    
+    that maps from factor name to correlation coefficient of that factor to energy.
+    """
+    def corr_plot(ax, x, y, xlabel):
+        ax.scatter(x, y)
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("energy")
+    
+    result = {}
+    dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
+                             
+    for db in dbs:
+        print("On DB %s" % db)
+        dataset.load(db, skip_unknown=True, skip_placeholders=True, single_component=True)
+        topo_maps = dataset.get_topo_maps(db_name=db, amount=num_seqs)
+        
+        x = {}
+        y = {}
+    
+        for seq_id in topo_maps:
+            topo_map = topo_maps[seq_id]
+            sampler = NodeTemplatePartitionSampler(topo_map=topo_map)
+            if params is not None:
+                sampler.set_params(**params)
+
+            partition_sets, attributes = sampler.sample_partition_sets(num_rounds, num_partitions)
+
+            for i in range(len(partition_sets)):
+                for f in factor_names:
+                    if f not in x:
+                        x[f] = []
+                        y[f] = []
+                    for j, p in enumerate(partition_sets[i]):
+                        attr = attributes[i]
+                        if f in attr['factors'][j]:
+                            x[f].append(attr['factors'][j][f])
+                            y[f].append(attr['energies'][j])
+                            
+        if plot:
+            fig, axes = plt.subplots(len(factor_names)//3+1, 3, sharey=True)
+            fig.suptitle('%s' % db)
+            for i, p in enumerate(factor_names):
+                # Plot
+                corr_plot(axes[i//3,i%3], x[p], y[p], p)
+                
+                
+        # Compute correlation coefficent
+        for f in factor_names:
+            if f not in result:
+                result[f] = {}
+            result[f][db] = np.corrcoef(x[f], y[f])
+            
+    for f in factor_names:
+        result[f]['_average_'] = np.mean([result[f][db] for db in dbs])
+    return result
+
+
+def random_search(params, ranges, desired, factor_names,
+                  rounds=50, **fc_params):
+    """Goal is to find a set of parameters that best separate the
+    different partitions, and maximize desired correlation with
+    the energy.
+    
+    The ith element in `desired` should be 1 if we hope the ith
+    parameter to have a positive correlation with the energy. -1
+    if otherwise.
+    
+    The ith element in prarams should be the coefficient for the
+    ith element in factor_names.
+    """
+    best_setting = {}
+    best_corrs = {}
+    lowest_avg_gap = float('inf')
+    for r in range(rounds):
+        sys.stdout.write('*** round %d/%d ***\n' % (r+1, rounds)); sys.stdout.flush()
+        setting = {}
+        gaps = []
+        for i in range(len(params)):
+            setting[params[i]] = np.random.uniform(low=ranges[i][0], high=ranges[i][1])
+        print(setting)
+        
+        corrs = factor_correlations(factor_names, **fc_params)
+        for i in range(len(params)):
+            f = factor_names[i]
+            gaps.append(abs(desired[i] - corrs[f]['_average_']))
+        
+        avg_gap = np.mean(gaps)
+        if avg_gap < lowest_avg_gap:
+            lowest_averge_gap = avg_gap
+            best_setting = setting
+            best_corrs = corrs
+            
+    return best_setting, best_corrs, lowest_avg_gap
+    

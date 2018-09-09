@@ -224,7 +224,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                                             "partitions_%s_%s_%s" % (db_name, test_kwargs['timestamp'], seq_id))
                 os.makedirs(visp_dirpath, exist_ok=True)
                 if exp._template_mode == NodeTemplate.code():
-                    sampler = NodeTemplatePartitionSampler(topo_map, templates=[spns[i].template for i in range(len(spns))])
+                    sampler = NodeTemplatePartitionSampler(topo_map, templates=[s.template for s in sorted(spns, key=lambda x:x.template.num_nodes(), reverse=True)])
                     psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
                                                                        pick_best=True)
                     instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
@@ -245,6 +245,13 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                                                                    visualize_partitions_dirpath=visp_dirpath,
                                                                    db_name=db_name,
                                                                    partitions=psets[indx])
+                # Save the attributes from partitioning
+                for i in range(test_kwargs['num_partitions']):
+                    energy = attrs[indx]['energies'][i]
+                    factors = attrs[indx]['factors'][i]
+                    with open(os.path.join(visp_dirpath, "partition-%d-stats.json" % i), 'w') as f:
+                        json.dump(util.json_safe({'energy':energy,'factors':factors}), f)
+
                 test_kwargs['instance_spn'] = instance_spn
                 test_kwargs['graph_id'] = db_name + "_" + seq_id
                 test_kwargs['topo_map'] = topo_map

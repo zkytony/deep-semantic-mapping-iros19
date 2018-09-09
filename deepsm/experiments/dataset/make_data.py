@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 #
 # Create datasets for DGSM training and testing on a single floor
+#
+# OR
+#
+# Create datasets for template SPN training.
 
 import matplotlib.pyplot as plt
 from pylab import rcParams
@@ -9,6 +13,8 @@ import pickle
 import os
 import json
 import argparse
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, ThreeRelTemplate
+from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.experiments.common import DGSM_DB_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT, COLD_ROOT
 from deepsm.experiments.dataset.dgsm_dataset import DGSMDataset
 import deepsm.experiments.paths as paths
@@ -193,14 +199,32 @@ def create_datasets_across_buildings(db_info, dim="56x21"):
         print("real_data saved to %s/real_data" % db_data_path)
     print("Done!")
 
-    
+
+def create_topo_map_samples(num_rounds, num_partitions, template, single_component=True):
+
+    # Iterate through all db names
+    for db_name in sorted(os.listdir(TOPO_MAP_DB_ROOT)):
+        print(db_name + "...")
+        # Create dataset instance
+        dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
+        dataset.load(db_name, skip_unknown=True, skip_placeholders=True, single_component=single_component)
+
+        dataset.create_template_dataset(template.lower(),
+                                        num_rounds=num_rounds,
+                                        num_partitions=num_partitions,
+                                        save=True,
+                                        db_names=[db_name])
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Make data for experiments")
-    parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
+    parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS, TOPO_SAMPLES)')
     parser.add_argument("-d", "--db_name", type=str, help='e.g. Freiburg')
     parser.add_argument("-k", "--catg-type", type=str, help='e.g. FULL, SIMPLE, or BINARY', default="SIMPLE")
     parser.add_argument("--dim", type=str, help='Dimension of polar scans. AxB where A and B are numbers.', default="56x21")
+    parser.add_argument("-r", "--num-rounds", type=int, help='see graphspn/dataset.py:create_template_dataset function', default=5)
+    parser.add_argument("-p", "--num-partitions", type=int, help='see graphspn/dataset.py:create_template_dataset function', default=5)
+    parser.add_argument("-t", "--template", type=str, help='Can either be VIEW or THREE', default="THREE")
+    parser.add_argument("--single-component", action="store_true", help="load single component")
     args = parser.parse_args()
 
     CategoryManager.TYPE = args.catg_type
@@ -215,3 +239,5 @@ if __name__ == "__main__":
         for db_name in ['Freiburg', 'Saarbrucken', 'Stockholm']:
             db_info[db_name] = get_db_info(db_name)
         create_datasets_across_buildings(db_info, dim=args.dim)
+    elif what == "TOPO_SAMPLES":
+        create_topo_map_samples(args.num_rounds, args.num_partitions, args.template, single_component=args.single_component)

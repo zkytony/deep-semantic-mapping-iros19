@@ -547,6 +547,12 @@ class NodeTemplateInstanceSpn(InstanceSpn):
 class EdgeRelationTemplateInstanceSpn(InstanceSpn):
 
     def __init__(self, topo_map, sess, *spns, **kwargs):
+        """
+        partitions (list): list of partitions to build the GraphSPN on, if not None.
+                           A partition is an ert_map (see topo_map:partition_by_edge_relatoins).
+                           This is a dictionary that maps from a tuple (num_nodes, num_edge_pairs) indicating
+                           the type of the template, to a list of such EdgeRelationTemplate instances.
+        """
         super().__init__(topo_map, sess, *spns, **kwargs)
 
         assert self._template_mode == EdgeRelationTemplate.code()
@@ -554,7 +560,8 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
         self._init_struct(sess, divisions=kwargs.get('divisions', 8),
                           num_partitions=kwargs.get('num_partitions', 1),
                           visualize_partitions_dirpath=kwargs.get('visualize_partitions_dirpath', None),
-                          db_name=kwargs.get('db_name', None))
+                          db_name=kwargs.get('db_name', None),
+                          partitions=kwargs.get('partitions', None))
     @property
     def vn(self):
         return {
@@ -565,7 +572,7 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
             'LH_CONT': "Exp_Lh_%d_%s" % (self._template_mode, self._seq_id)
         }
     
-    def _init_struct(self, sess, divisions=-1, num_partitions=1,
+    def _init_struct(self, sess, divisions=-1, num_partitions=1, partitions=None,
                      visualize_partitions_dirpath=None, db_name=None, **kwargs):
         """
         Initialize structure for instance spn using edge relation templates
@@ -616,13 +623,19 @@ class EdgeRelationTemplateInstanceSpn(InstanceSpn):
 
         graph_num_vars = [len(self._topo_map.nodes), len(self._edpairs)]
 
+        """Partition the graph"""
+        if partitions is None:
+            print("Random partitioning...")
+            partitions = []
+            for _k in range(num_partitions):
+                print("Partition %d" % (_k+1))
+                partitions.append(self._topo_map.partition_by_edge_relations())
+
         """Making an SPN"""
         pspns = []
-        for _k in range(num_partitions):
+        for _k, ert_map in enumerate(partitions):
             print("Partition %d" % (_k+1))
             template_spn_roots = []
-            
-            ert_map = self._topo_map.partition_by_edge_relations()
             
             for t in ert_map:
                 num_nodes, num_edge_pair = t

@@ -24,6 +24,7 @@ def experiment_proc(what,
                     relax_level,
                     template,
                     num_partitions,
+                    num_sampling_rounds,
                     test_floor=None,
                     train_floors_str=None,
                     skip_placeholders=True,
@@ -42,6 +43,7 @@ def experiment_proc(what,
                                  '-t', test_name,
                                  '-l', str(trial),
                                  '-P', str(num_partitions),
+                                 '-R', str(num_sampling_rounds),
                                  '--category-type', category_type,
                                  '--template', template] + skip_placeholder_arg)
     elif what == "DGSM_ACROSS_BUILDINGS":
@@ -84,7 +86,7 @@ def same_buliding(args):
                 print("...%s..." % seq_id)
                 proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
                                        args.seed, args.exp_name, args.test_name, args.trial,
-                                       args.relax_level, args.template, args.num_partitions,
+                                       args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
                                        test_floor=test_floor, train_floors_str=train_floors_str,
                                        category_type=args.category_type)
                 proc.wait()
@@ -99,7 +101,7 @@ def same_buliding(args):
         train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
         proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
                                args.seed, args.exp_name, args.test_name, args.trial,
-                               args.relax_level, args.template, args.num_partitions,
+                               args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
                                test_floor=test_floor, train_floors_str=train_floors_str,
                                category_type=args.category_type)
         proc.wait()
@@ -135,6 +137,7 @@ def main():
     parser.add_argument('-N', '--num-test-seqs', type=int, help="Total number of sequences to test on",
                         default=-1)
     parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
+    parser.add_argument('-R', '--num-sampling-rounds', type=int, help="Number of rounds to sample partition sets before picking the best one.", default=100)
     parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
     parser.add_argument('--seq-id', type=str, help="Sequence ID to run on; If supplied, -N is suppressed.")
     parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')

@@ -21,6 +21,7 @@ from deepsm.graphspn.tbm.spn_template import NodeTemplateSpn, EdgeRelationTempla
 from deepsm.graphspn.tbm.spn_instance import NodeTemplateInstanceSpn, EdgeRelationTemplateInstanceSpn
 from deepsm.graphspn.tbm.template import NodeTemplate, PairTemplate, SingletonTemplate, ThreeNodeTemplate, StarTemplate, \
     EdgeRelationTemplate, ThreeRelTemplate, RelTemplate, SingleRelTemplate, SingleTemplate
+from deepsm.graphspn.tbm.algorithm import NodeTemplatePartitionSampler, EdgeRelationPartitionSampler
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment, normalize_marginals, normalize_marginals_remain_log, get_category_map_from_lh
 from deepsm.graphspn.tests.runner import TestCase
 import deepsm.util as util
@@ -223,19 +224,27 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                                             "partitions_%s_%s_%s" % (db_name, test_kwargs['timestamp'], seq_id))
                 os.makedirs(visp_dirpath, exist_ok=True)
                 if exp._template_mode == NodeTemplate.code():
+                    sampler = NodeTemplatePartitionSampler(topo_map, templates=[spns[i].template for i in range(len(spns))])
+                    psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
+                                                                       pick_best=True)
                     instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                            num_partitions=test_kwargs['num_partitions'],
                                                            seq_id=seq_id,
                                                            divisions=8,
                                                            visualize_partitions_dirpath=visp_dirpath,
-                                                           db_name=db_name)
+                                                           db_name=db_name,
+                                                           partitions=psets[indx])
                 elif exp._template_mode == EdgeRelationTemplate.code():
+                    sampler = EdgeRelationPartitionSampler(topo_map)
+                    psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
+                                                                       pick_best=True)
                     instance_spn = EdgeRelationTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                                    num_partitions=test_kwargs['num_partitions'],
                                                                    seq_id=seq_id,
                                                                    divisions=8,
                                                                    visualize_partitions_dirpath=visp_dirpath,
-                                                                   db_name=db_name)
+                                                                   db_name=db_name,
+                                                                   partitions=psets[indx])
                 test_kwargs['instance_spn'] = instance_spn
                 test_kwargs['graph_id'] = db_name + "_" + seq_id
                 test_kwargs['topo_map'] = topo_map
@@ -276,6 +285,7 @@ def same_building():
                         default="mytest")
     parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
     parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
+    parser.add_argument('-R', '--num-sampling-rounds', type=int, help="Number of rounds to sample partition sets before picking the best one.", default=100)
     parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
@@ -314,6 +324,7 @@ def same_building():
     }
     test_kwargs = {
         'test_name': args.test_name,
+        'num_rounds': args.num_sampling_rounds,
         'num_partitions': args.num_partitions, # default is 5
         'timestamp': timestamp,
         'relax_level': args.relax_level if args.relax_level else None,

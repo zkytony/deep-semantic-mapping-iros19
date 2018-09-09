@@ -252,7 +252,7 @@ class TbmExperiment(Experiment):
         """
         save = kwargs.get("save", False)
         load_if_exists = kwargs.get("load_if_exists", False)
-        num_partitions = kwargs.get("num_partitions", 10)
+        num_partitions = kwargs.get("num_partitions", 10)  # deprecated, useless.
         num_batches = kwargs.get("num_batches", 1)
         num_epochs = kwargs.get('num_epochs', None)
         likelihood_thres = kwargs.get("likelihood_thres", 0.05)
@@ -279,27 +279,21 @@ class TbmExperiment(Experiment):
                 source = {'seq_ids': self._train_seqs}
             else:
                 source = {'db_names': self._train_db}
-            if self._template_mode == NodeTemplate.code():    ## NodeTemplate
-                samples_dict = self._dataset.create_template_dataset(model.template,
-                                                                     num_partitions=num_partitions,
-                                                                     **source)
-            elif self._template_mode == EdgeRelationTemplate.code():  ## EdgeRelationTemplate
-                samples_dict = self._dataset.create_edge_relation_template_dataset(model.template,
-                                                                                  num_partitions=num_partitions,
-                                                                                  **source)
-            else:
-                 raise ValueError("Invalid template mode %d" % self._template_mode)
-                
+
+            samples_dict = self._dataset.load_template_dataset(model.template,
+                                                               **source)
             # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
             #                                                (D,2*n) if Edgetemplate
-            samples = np.array([ p for db in samples_dict for p in samples_dict[db]], dtype=int)
+            samples = None
+            for db in samples_dict:
+                if samples is None:
+                    samples = samples_dict[db]
+                else:
+                    samples = np.vstack(samples, samples_dict[db])
 
             self._data_count['train_%s' % model.template.__name__] = {"counts_by_db": {db:len(samples_dict[db]) for db in samples_dict},
                                                                       "counts_by_sample": self._get_sample_frequencies(samples, model)}
             
-            if self._template_mode == 1:  ## EdgeTemplate
-                samples = samples.reshape(-1, 2, model.num_nodes)
-
             # initialize model with random weights
             model.generate_random_weights()
             model.init_weights_ops()

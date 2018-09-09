@@ -305,9 +305,33 @@ def TEST_subtract(dataset, coldmgr):
     plt.savefig('remainder.png')
     plt.clf()
     print("Saved remainder.png")
-        
-    
 
+
+def TEST_create_samples():
+    
+    coldmgr = ColdDatabaseManager("Freiburg", COLD_ROOT)
+    dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
+    dataset.load("Freiburg", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)    
+    
+    samples = dataset.create_template_dataset("view", num_rounds=1, save=True, db_names=['Freiburg'], seq_ids=['seq1_sunny3'])
+    for db_name in samples:
+        print(db_name)
+        for seq_id in samples[db_name]:
+            print("    " + seq_id)
+            for template in samples[db_name][seq_id]:
+                print("        "
+                      + str(template) + ": "
+                      + str(len(samples[db_name][seq_id][template])))
+
+def TEST_load_samples():
+
+    coldmgr = ColdDatabaseManager("Freiburg", COLD_ROOT)
+    dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
+    dataset.load("Freiburg", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
+
+    samples = dataset.load_template_dataset(ThreeRelTemplate, db_names=['Freiburg'], seq_ids=['seq1_sunny3'])
+    print(samples.shape)
+    print(samples)
 
 if __name__ == "__main__":
 
@@ -329,4 +353,6 @@ if __name__ == "__main__":
     # TEST_build_graph_from_file()
     # TEST_load_edge_rel_template_samples(dataset)
     # TEST_visualize_edge_relation_partition(dataset, coldmgr)
-    TEST_subtract(dataset, coldmgr)
+    # TEST_subtract(dataset, coldmgr)
+    TEST_create_samples()
+    TEST_load_samples()

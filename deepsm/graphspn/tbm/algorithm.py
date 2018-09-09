@@ -187,8 +187,11 @@ class NodeTemplatePartitionSampler(PartitionSampler):
         return partition
             
 
-    def visualize_partition(self, partition, groundtruth_file, ax=plt.gca()):
+    def visualize_partition(self, partition, groundtruth_file, ax=None):
         """presult is the returned object from partition()"""
+
+        if ax is None:
+            ax = plt.gca()
 
         ctype = 2
         for template in self._templates:
@@ -220,8 +223,9 @@ class NodeTemplatePartitionSampler(PartitionSampler):
         =  --------------------------------------------------------------------------------------------
                    number of nodes in main template of all `partitions`
         """
+        if len(partitions) == 0:
+            return 0  # nothing to compare with
         count = 0
-        
         for template in self._templates:
             supergraph = partition[template]
             for i in supergraph.nodes:
@@ -310,7 +314,9 @@ class EdgeRelationPartitionSampler(PartitionSampler):
     def random_partition(self):
         return self._topo_map.partition_by_edge_relations()
 
-    def visualize_partition(self, partition, groundtruth_file, ax=plt.gca()):
+    def visualize_partition(self, partition, groundtruth_file, ax=None):
+        if ax is None:
+            ax = plt.gca()
         rcParams['figure.figsize'] = 22, 14
         self._topo_map.visualize_edge_relation_partition(ax, partition, groundtruth_file)
         
@@ -336,6 +342,8 @@ class EdgeRelationPartitionSampler(PartitionSampler):
 
         As implied by the above, we only look at main template (3 nodes, 1 edge pair)
         """
+        if len(partitions) == 0:
+            return 0  # nothing to compare with
         count = 0
         total = 0
         for key in partition:
@@ -363,6 +371,7 @@ class EdgeRelationPartitionSampler(PartitionSampler):
                 count += 4  # 4 variables per template
         return count / (len(partition[(3,1)]) * 4)
 
+
     def _degree_of_middle_node(self, partition, divisions=8):
         """
         Computes average degree of middle node, normalized by divisions (total number
@@ -371,7 +380,7 @@ class EdgeRelationPartitionSampler(PartitionSampler):
         count = 0
         for i in partition[(3,1)]:
             middle_node = i.nodes[len(i.nodes)//2]
-            count += self._topo_map.neighbors(middle_node.id)
+            count += len(self._topo_map.neighbors(middle_node.id))
         return count / len(partition[(3,1)]) / 8
 
 
@@ -393,15 +402,6 @@ class EdgeRelationPartitionSampler(PartitionSampler):
                 count += 1
 
         return count / len(self._topo_map.nodes)
-
-
-
-
-
-
-        return count / len(partition[(3,1)]) / 8
-
-
 
 
 ### Useful for parameter selection ###

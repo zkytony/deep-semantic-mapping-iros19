@@ -6,7 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from deepsm.graphspn.tbm.topo_map import PlaceNode, TopologicalMap
-from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, EdgeRelationTemplateInstance
+from deepsm.graphspn.tbm.algorithm import NodeTemplatePartitionSampler, EdgeRelationPartitionSampler
 from deepsm.util import CategoryManager, compute_view_number
 import os, sys
 import numpy as np
@@ -26,11 +27,60 @@ class TopoMapDataset:
         self.db_root = db_root
         self._topo_maps_data = {}  # {db_name: {seq_id: topo_map}}
         self._using_tiny_graphs = {}
+
+    def load_template_dataset(self, template, db_names=None, seq_ids=None, seqs_limit=-1):
+        """
+        Loads samples of node template from file. The file is in path 
         
+          TOPO_DB_PATH/
+              building/
+                  seq_id/
+                      samples/
+                          samples_{template}-{num_classes}.csv
+
+        If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
+        will treat `seq_ids` as None. `seq_ids` should be a list of "{db}-{seq_id}" strings.
+
+        `template` can be either one of these classes:
+
+            ThreeNodeTemplate, PairTemplate, SingletonTemplate,
+            ThreeRelTemplate, SingleRelTemplate, SingleTemplate, RelTemplate
+
+        Returns a dictionary from db_name to samples in it.
+        """
+        if db_names is None and seq_ids is None:
+            db_names = self._topo_maps_data.keys()
+
+        topo_maps = {}  # map from "{db}_{seq_id}" to topo map
+        if db_names is not None:
+            for db_name in db_names:
+                for seq_id in self._topo_maps_data[db_name]:
+                    topo_maps[db_name+"-"+seq_id] = self._topo_maps_data[db_name][seq_id]
+        else:  # seq_ids must not be None
+            for db_seq_id in seq_ids:
+                db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+                topo_maps[db_seq_id] = self._topo_maps_data[db_name][seq_id]
+        
+        samples = {}
+        for db_seq_id in topo_maps:
+            db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+
+            if db_name not in samples:
+                samples[db_name] = None
+            
+            samples_path = os.path.join(self.db_root, db_name, seq_id, "samples",
+                                        "samples_%s-%s.csv" % (template.__name__, CategoryManager.NUM_CATEGORIES))
+            loaded_samples = np.loadtxt(samples_path, dtype=int, delimiter=",")
+            if samples[db_name] is None:
+                samples[db_name] = loaded_samples
+            else:
+                samples[db_name] = np.vstack((samples[db_name], loaded_samples))
+
+        return samples
 
 
-    def create_template_dataset(self, *templates, num_partitions=10,
-                                db_names=None, seq_ids=None, seqs_limit=-1):
+    def create_template_dataset(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1,
+                                num_partitions=5, num_rounds=100, repeat=1, save=True):
         """
         Return a dataset of samples that can be used to train template SPNs. This
         dataset contains symmetrical data, i.e. for every pair of semantics, its
@@ -39,166 +89,278 @@ class TopoMapDataset:
         If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
         will treat `seq_ids` as None. `seq_ids` should be a list of "{db}-{seq_id}" strings.
 
-        Return format:
+        `num_partitions` number of partitions are created per topo map among `num_rounds`
+        of partition sampling. This process is executed for `repeat` number of times.
 
-           {K:V}, K is database name, V is -->
-            --> NxM list, where N is the number of data samples, and M is the number of
-           nodes in the templates provided. For example, with 3-node template, each
-           data sample would be a list [a, b, c] where a, b, c are the category numbers
-           for the nodes on the template.
+        `template_type` determines the sampler to be used. Its value can be 'VIEW' or 'THREE'
         """
         samples = {}
-        total_seqs_count = 0
+
         if db_names is None and seq_ids is None:
             db_names = self._topo_maps_data.keys()
 
         topo_maps = {}  # map from "{db}_{seq_id}" to topo map
         if db_names is not None:
             for db_name in db_names:
-                samples[db_name] = []
+                samples[db_name] = {}
                 for seq_id in self._topo_maps_data[db_name]:
                     topo_maps[db_name+"-"+seq_id] = self._topo_maps_data[db_name][seq_id]
-
+                    samples[db_name][seq_id] = {}
         else:  # seq_ids must not be None
             for db_seq_id in seq_ids:
                 db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
                 topo_maps[db_seq_id] = self._topo_maps_data[db_name][seq_id]
                 if db_name not in samples:
-                    samples[db_name] = []
-                
-        for kk in range(num_partitions):
-            for db_seq_id in topo_maps:
-                db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
-                supergraph = topo_maps[db_seq_id]
+                    samples[db_name] = {}
+                samples[db_name][seq_id] = {}
 
-                for tmpl in templates:
-                    supergraph = supergraph.partition(tmpl)
+        for db_seq_id in topo_maps:
+            db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+            topo_map = topo_maps[db_seq_id]
+            print("Partitioning topo map %s" % (db_seq_id))
 
-                for n in supergraph.nodes:
-                    template_sample = supergraph.nodes[n].to_catg_list()
-                    samples[db_name].append(template_sample)
-                    samples[db_name].append(list(reversed(template_sample)))
+            if template_type.lower() == "three":
+                sampler = NodeTemplatePartitionSampler(topo_map)
+            elif template_type.lower() == "view":
+                sampler = EdgeRelationPartitionSampler(topo_map)
+            else:
+                raise ValueError("Unrecognized template type %s" % template_type)
+            
+            partition_sets, _, best_index = sampler.sample_partition_sets(num_rounds,
+                                                                                   num_partitions,
+                                                                                   pick_best=True)
+            
+            top_pset = partition_sets[best_index]
+            for p in top_pset:
+                if template_type.lower() == "three":
+                    for template in p:
+                        if template not in samples[db_name][seq_id]:
+                            samples[db_name][seq_id][template] = []
+                        supergraph = p[template]
+                        for snid in supergraph.nodes:
+                            samples[db_name][seq_id][template].append(supergraph.nodes[snid].to_catg_list())
+                            if template.num_nodes() >= 2:
+                                samples[db_name][seq_id][template].append(list(reversed(supergraph.nodes[snid].to_catg_list())))
 
-                total_seqs_count += 1
+                elif template_type.lower() == "view":
+                    for template in p:  # template here is a tuple (num_nodes, num_edge_pair)
+                        if template not in samples[db_name][seq_id]:
+                            samples[db_name][seq_id][template] = []
+                        for i in p[template]:
+                            catg_list, vdist = i.to_sample()
+                            if catg_list is not None:
+                                if vdist is None:
+                                    samples[db_name][seq_id][template].append(catg_list)
+                                else:
+                                    vdist -= 1 # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
+                                    samples[db_name][seq_id][template].append(catg_list + [vdist])
+                                    samples[db_name][seq_id][template].append(list(reversed(catg_list)) + [vdist])
+                            else:
+                                vdist -= 1 # same reason as above
+                                samples[db_name][seq_id][template].append([vdist])
 
-                if seqs_limit > 0 and total_seqs_count >= seqs_limit:
-                    return samples
+                else:
+                    raise ValueError("Unrecognized template type %s" % template_type)
+
+        # Save
+        if save:
+            for db_name in samples:
+                for seq_id in samples[db_name]:
+                    for template in samples[db_name][seq_id]:
+                        save_dirpath = os.path.join(self.db_root, db_name, seq_id, "samples")
+                        os.makedirs(save_dirpath, exist_ok=True)
+                        samples_for_template = np.array(samples[db_name][seq_id][template], dtype=int)
+                        
+                        if template_type.lower() == "three":
+                            np.savetxt(os.path.join(save_dirpath, 'samples_%s-%s.csv' % (template.__name__, CategoryManager.NUM_CATEGORIES)),
+                                       samples_for_template, delimiter=",", fmt='%i')
+                        elif template_type.lower() == "view":
+                            np.savetxt(os.path.join(save_dirpath, 'samples_%s-%s.csv' % (EdgeRelationTemplateInstance.get_class(template).__name__,
+                                                              CategoryManager.NUM_CATEGORIES)),
+                                       samples_for_template, delimiter=",", fmt='%i')
+                        else:
+                            raise ValueError("Unrecognized template type %s" % template_type)
+                        
+                        print("Saved samples for %s %s %s" % (db_name, seq_id, template))
+        print("Done!")
         return samples
+            
         
 
-    def create_edge_template_dataset(self, edge_template, num_partitions=10,
-                                     db_names=None, seqs_limit=-1, return_stats=False):
-        """
-        WARNING: IMPLEMENTATION OUT OF DATE
-        Returns samples used to train edge template SPNs. Each sample is also
-        a tuple, where the first half of elements are semantics, and
-        the second half of elements are view numbers.
+    # def create_template_dataset(self, *templates, num_partitions=10,
+    #                             db_names=None, seq_ids=None, seqs_limit=-1):
+    #     """
+    #     Return a dataset of samples that can be used to train template SPNs. This
+    #     dataset contains symmetrical data, i.e. for every pair of semantics, its
+    #     reverse is also present in the dataset.
 
-        Samples are stored in a dictionary. {db_name: [...samples...]}
+    #     If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
+    #     will treat `seq_ids` as None. `seq_ids` should be a list of "{db}-{seq_id}" strings.
 
-        Return format:
+    #     Return format:
 
-           {K:V}, K is database name, V is -->
-            --> NxM list, where N is the number of data samples, and M is the number of
-           ELEMENTS in a edge_template sample (refer to EdgeTemplate.to_sample() for
-           details).
-        """
-        samples = {}
-        total_seqs_count = 0
-        if db_names is None:
-            db_names = self._topo_maps_data.keys()
+    #        {K:V}, K is database name, V is -->
+    #         --> NxM list, where N is the number of data samples, and M is the number of
+    #        nodes in the templates provided. For example, with 3-node template, each
+    #        data sample would be a list [a, b, c] where a, b, c are the category numbers
+    #        for the nodes on the template.
+    #     """
+    #     samples = {}
+    #     total_seqs_count = 0
+    #     if db_names is None and seq_ids is None:
+    #         db_names = self._topo_maps_data.keys()
 
-        __stats = {}
-            
-        for db_name in db_names:
-            samples[db_name] = []
-            __stats[db_name] = {'coverage':[0,0,0]}
-            __seqs_in_db = 0
-            __edges_covered, __total_edges = 0, 0
-            for kk in range(num_partitions):
-                for seq_id in self._topo_maps_data[db_name]:
-                    topo_map = self._topo_maps_data[db_name][seq_id]
-                    edge_tmpls, edge_singles = topo_map.partition_by_edge(edge_template)
-                    # if the given edge template is a SingleEdgeTemplate, then edge_singles
-                    # should be empty. So we only need to deal with edge_tmpls
-                    for etmpl in edge_tmpls:
-                        samples[db_name].extend(list(etmpl.to_sample()))
-                        
-                    total_seqs_count += 1
-                    __edges_covered += len(edge_tmpls)*edge_template.num_edges()
-                    __total_edges += len(topo_map.edges)
-                    __seqs_in_db += 1
-                    __stats[db_name]['coverage'][0] = __edges_covered / __seqs_in_db
-                    __stats[db_name]['coverage'][1] = __total_edges / __seqs_in_db
-                    __stats[db_name]['coverage'][2] = __edges_covered / __total_edges
-                    
-                    if seqs_limit > 0 and total_seqs_count >= seqs_limit:
-                        if return_stats:
-                            return samples, __stats
-                        else:
-                            return samples
-            if return_stats:
-                return samples, __stats
-            else:
-                return samples
+    #     topo_maps = {}  # map from "{db}_{seq_id}" to topo map
+    #     if db_names is not None:
+    #         for db_name in db_names:
+    #             samples[db_name] = []
+    #             for seq_id in self._topo_maps_data[db_name]:
+    #                 topo_maps[db_name+"-"+seq_id] = self._topo_maps_data[db_name][seq_id]
 
-
-    def create_edge_relation_template_dataset(self, template, num_partitions=10,
-                                              db_names=None, seqs_limit=-1, return_stats=False,
-                                              balance_views=False):
-        """
-        template (AbsEdgeRelationTemplate):
-                   a class name which is a subclass of AbsEdgeRelationTemplate
-
-        balance_views (bool): If true, will make sure that for each view distance value, the total
-                   number of samples that have that value is the same.
-
-        Returns a dictionary from database name to a list of samples (each sample is also a list
-        """
-        template = template.to_tuple() # we only need to work with the tuple representation of the template
-        samples = {}
-        total_seqs_count = 0
-        if db_names is None:
-            db_names = self._topo_maps_data.keys()
-
-        __stats = {'num_samples':0}
-        for db_name in db_names:
-            samples[db_name] = []
-            __stats[db_name] = {'num_seqs': 0, 'num_samples': 0}
-            __seqs_in_db = 0
-            for kk in range(num_partitions):
-                for seq_id in self._topo_maps_data[db_name]:
-                    topo_map = self._topo_maps_data[db_name][seq_id]
-                    ert_map = topo_map.partition_by_edge_relations()
-                    erts_matched = ert_map[template]
-                    for ert in erts_matched:
-                        if ert.nodes is None:  # no nodes.
-                            _, vdist = ert.to_sample()  # sample is a number here.
-                            sample = [vdist-1]  # We make a list ourselves. -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
-                            samples[db_name].append(sample)
-                        else:
-                            sample, vdist = ert.to_sample()
-                            samples[db_name].append(sample)
-                            samples[db_name].append(list(reversed(sample)))
-                            if vdist is not None:  # If vdist is None, then this template is just a single node.
-                                samples[db_name][-1].append(vdist-1)  # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
-                                samples[db_name][-2].append(vdist-1)
-
-                    total_seqs_count += 1
-                    __stats['total_seqs'] = total_seqs_count
-                    __stats[db_name]['num_samples'] = len(samples[db_name])
-                    __stats[db_name]['num_seqs'] += 1
-                    __stats['num_samples'] += 1
+    #     else:  # seq_ids must not be None
+    #         for db_seq_id in seq_ids:
+    #             db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+    #             topo_maps[db_seq_id] = self._topo_maps_data[db_name][seq_id]
+    #             if db_name not in samples:
+    #                 samples[db_name] = []
                 
-                    if seqs_limit > 0 and total_seqs_count >= seqs_limit:
-                        if return_stats:
-                            return samples, __stats
-                        else:
-                            return samples
-        if return_stats:
-            return samples, __stats
-        else:
-            return samples
+    #     for kk in range(num_partitions):
+    #         for db_seq_id in topo_maps:
+    #             db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+    #             supergraph = topo_maps[db_seq_id]
+
+    #             for tmpl in templates:
+    #                 supergraph = supergraph.partition(tmpl)
+
+    #             for n in supergraph.nodes:
+    #                 template_sample = supergraph.nodes[n].to_catg_list()
+    #                 samples[db_name].append(template_sample)
+    #                 samples[db_name].append(list(reversed(template_sample)))
+
+    #             total_seqs_count += 1
+
+    #             if seqs_limit > 0 and total_seqs_count >= seqs_limit:
+    #                 return samples
+    #     return samples
+        
+
+
+    # def create_edge_relation_template_dataset(self, template, num_partitions=10,
+    #                                           db_names=None, seqs_limit=-1, return_stats=False,
+    #                                           balance_views=False):
+    #     """
+    #     template (AbsEdgeRelationTemplate):
+    #                a class name which is a subclass of AbsEdgeRelationTemplate
+
+    #     balance_views (bool): If true, will make sure that for each view distance value, the total
+    #                number of samples that have that value is the same.
+
+    #     Returns a dictionary from database name to a list of samples (each sample is also a list
+    #     """
+    #     template = template.to_tuple() # we only need to work with the tuple representation of the template
+    #     samples = {}
+    #     total_seqs_count = 0
+    #     if db_names is None:
+    #         db_names = self._topo_maps_data.keys()
+
+    #     __stats = {'num_samples':0}
+    #     for db_name in db_names:
+    #         samples[db_name] = []
+    #         __stats[db_name] = {'num_seqs': 0, 'num_samples': 0}
+    #         __seqs_in_db = 0
+    #         for kk in range(num_partitions):
+    #             for seq_id in self._topo_maps_data[db_name]:
+    #                 topo_map = self._topo_maps_data[db_name][seq_id]
+    #                 ert_map = topo_map.partition_by_edge_relations()
+    #                 erts_matched = ert_map[template]
+    #                 for ert in erts_matched:
+    #                     if ert.nodes is None:  # no nodes.
+    #                         _, vdist = ert.to_sample()  # sample is a number here.
+    #                         sample = [vdist-1]  # We make a list ourselves. -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
+    #                         samples[db_name].append(sample)
+    #                     else:
+    #                         sample, vdist = ert.to_sample()
+    #                         samples[db_name].append(sample)
+    #                         samples[db_name].append(list(reversed(sample)))
+    #                         if vdist is not None:  # If vdist is None, then this template is just a single node.
+    #                             samples[db_name][-1].append(vdist-1)  # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
+    #                             samples[db_name][-2].append(vdist-1)
+
+    #                 total_seqs_count += 1
+    #                 __stats['total_seqs'] = total_seqs_count
+    #                 __stats[db_name]['num_samples'] = len(samples[db_name])
+    #                 __stats[db_name]['num_seqs'] += 1
+    #                 __stats['num_samples'] += 1
+                
+    #                 if seqs_limit > 0 and total_seqs_count >= seqs_limit:
+    #                     if return_stats:
+    #                         return samples, __stats
+    #                     else:
+    #                         return samples
+    #     if return_stats:
+    #         return samples, __stats
+    #     else:
+    #         return samples
+
+
+    # def create_edge_template_dataset(self, edge_template, num_partitions=10,
+    #                                  db_names=None, seqs_limit=-1, return_stats=False):
+    #     """
+    #     DEPRECATED.
+
+    #     WARNING: IMPLEMENTATION OUT OF DATE
+    #     Returns samples used to train edge template SPNs. Each sample is also
+    #     a tuple, where the first half of elements are semantics, and
+    #     the second half of elements are view numbers.
+
+    #     Samples are stored in a dictionary. {db_name: [...samples...]}
+
+    #     Return format:
+
+    #        {K:V}, K is database name, V is -->
+    #         --> NxM list, where N is the number of data samples, and M is the number of
+    #        ELEMENTS in a edge_template sample (refer to EdgeTemplate.to_sample() for
+    #        details).
+    #     """
+    #     samples = {}
+    #     total_seqs_count = 0
+    #     if db_names is None:
+    #         db_names = self._topo_maps_data.keys()
+
+    #     __stats = {}
+            
+    #     for db_name in db_names:
+    #         samples[db_name] = []
+    #         __stats[db_name] = {'coverage':[0,0,0]}
+    #         __seqs_in_db = 0
+    #         __edges_covered, __total_edges = 0, 0
+    #         for kk in range(num_partitions):
+    #             for seq_id in self._topo_maps_data[db_name]:
+    #                 topo_map = self._topo_maps_data[db_name][seq_id]
+    #                 edge_tmpls, edge_singles = topo_map.partition_by_edge(edge_template)
+    #                 # if the given edge template is a SingleEdgeTemplate, then edge_singles
+    #                 # should be empty. So we only need to deal with edge_tmpls
+    #                 for etmpl in edge_tmpls:
+    #                     samples[db_name].extend(list(etmpl.to_sample()))
+                        
+    #                 total_seqs_count += 1
+    #                 __edges_covered += len(edge_tmpls)*edge_template.num_edges()
+    #                 __total_edges += len(topo_map.edges)
+    #                 __seqs_in_db += 1
+    #                 __stats[db_name]['coverage'][0] = __edges_covered / __seqs_in_db
+    #                 __stats[db_name]['coverage'][1] = __total_edges / __seqs_in_db
+    #                 __stats[db_name]['coverage'][2] = __edges_covered / __total_edges
+                    
+    #                 if seqs_limit > 0 and total_seqs_count >= seqs_limit:
+    #                     if return_stats:
+    #                         return samples, __stats
+    #                     else:
+    #                         return samples
+    #         if return_stats:
+    #             return samples, __stats
+    #         else:
+    #             return samples
+
 
 
     # def _balance_views(self, template, samples, divisions=8):
@@ -466,7 +628,7 @@ class TopoMapDataset:
         The first group takes `mix_ratio` percentage, used for training. The second group takes 1 - `mix_ratio`
         percentage, used for testing.
 
-        Returns two lists of sequence ids, each for one group. Note that to distinguish Freiburg sequences and
+        Returns two lists of sequoence ids, each for one group. Note that to distinguish Freiburg sequences and
         Saarbrucken sequences, each sequence id is prepended a string for its database (format "{db}-{seq_id}")
         """
         all_seqs = []

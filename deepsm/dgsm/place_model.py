@@ -179,8 +179,13 @@ class PlaceModel:
 
         self._train_likelihood = self._learning.value.values[self._root]
         self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
+                
         self._init_weights = spn.initialize_weights(self._root)
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
+
+        joint = self._learning.value.get_value(self._root, with_ivs=True)
+        marginalized = self._learning.value.get_value(self._root, with_ivs=False)
+        self._cross_entropy_loss = -tf.reduce_mean(joint - marginalized)
 
 
     def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, dropout=False):
@@ -216,7 +221,7 @@ class PlaceModel:
               and abs(prev_loss - loss)>update_threshold:
 
             start = (batch)*batch_size
-            stop = (batch+1)*batch_size
+            stop = min((batch+1)*batch_size, train_set.shape[0])
             print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev loss", prev_loss, "loss", loss)
 
             # Dropout
@@ -238,7 +243,7 @@ class PlaceModel:
                                               self._latent: train_labels[start:stop]})
 
             batch += 1
-            if batch >= num_batches:
+            if stop >= train_set.shape[0]:
                 epoch += 1
                 batch = 0
 
@@ -249,8 +254,9 @@ class PlaceModel:
                     train_set = train_set[p]
                     train_labels = train_labels[p]
                     
-                print("Computing losses...")
+                print("Computing train losses...")
                 loss_train = self.cross_entropy(train_set, train_labels)
+                print("Computing test losses...")
                 loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
                 print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
                 train_loss.append(loss_train)
@@ -373,16 +379,21 @@ class PlaceModel:
             writer.writerow(root_weights.tolist())
 
 
-    def cross_entropy(self, samples, labels):
-        
-        joint = self._learning.value.get_value(self._root, with_ivs=True)
-        marginalized = self._learning.value.get_value(self._root, with_ivs=False)
-        loss = -tf.reduce_mean(joint - marginalized)
+    def cross_entropy(self, samples, labels, batch_size=500):
+        batch = 0
+        loss_values = []
+        stop = min(batch_size, len(samples))
+        while stop < len(samples):
+            start = (batch)*batch_size
+            stop = min((batch+1)*batch_size, len(samples))
+            print("    BATCH", batch, "SAMPLES", start, stop)
 
-        loss_val = self._sess.run(loss,
-                                  feed_dict={self._ivs:samples,
-                                             self._latent:labels})
-        return loss_val
+            loss_val = self._sess.run(self._cross_entropy_loss,
+                                      feed_dict={self._ivs:samples[start:stop],
+                                                 self._latent:labels[start:stop]})
+            loss_values.append(loss_val)
+            batch += 1
+        return np.mean(loss_values)
 
 
     def _roc(self, likelihoods, root_weights, labels, room_class_num):

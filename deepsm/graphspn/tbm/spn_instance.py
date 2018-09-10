@@ -373,6 +373,12 @@ class NodeTemplateInstanceSpn(InstanceSpn):
 
             assert nodes_covered == self._topo_map.nodes.keys()
 
+            """If visualize. Save."""
+            if visualize_partitions_dirpath:
+                plt.savefig(os.path.join(visualize_partitions_dirpath, "partition-%d.png" % (_k+1)))
+                plt.clf()
+                print("Visualized partition %d" % (_k+1))
+
             p = spn.Product(*template_spn_roots)
             assert p.is_valid()
             pspns.append(p) # add spn for one partition

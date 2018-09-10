@@ -83,6 +83,8 @@ def create_parser():
                               help='Threshold of likelihood update')
     learn_params.add_argument('--batch-size', type=int, default=10,
                               help='Size of each batch for training')
+    learn_params.add_argument('--epoch-limit', type=int, default=50,
+                              help='Upperbound for epoch')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
                               ', '.join([a.name.lower()
@@ -198,6 +200,7 @@ def print_args(args):
     print("\nLearning parameters:")
     print("* Weight initialization: %s" % args.weight_init)
     print("* Learning rate: %s" % args.learning_rate)
+    print("* Epoch limit: %s" % args.epoch_limit)
     print("* Likelihood update threshold: %s" % args.update_threshold)
     print("* Batch size: %s" % args.batch_size)
     print("* Value Inference: %s"  % args.value_inference)
@@ -230,6 +233,8 @@ def make_trial_name(args):
     trial_name += "_b" + str(args.batch_size)
     trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
     trial_name += "_mpe" if args.value_inference == spn.InferenceType.MPE else "_marginal"
+    trial_name += "_E" + str(args.epoch_limit)
+    trial_name += "_k" + str(CategoryManager.NUM_CATEGORIES)
     trial_name += "_" + args.building
     return trial_name
 
@@ -298,7 +303,7 @@ def main(args=None):
     train_loss, test_loss = [], []
     epoch = 0
     try:
-        epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout)
+        epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout, epoch_limit=args.epoch_limit)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
@@ -315,7 +320,7 @@ def main(args=None):
         np.savetxt(test_loss, 'loss-test-%s.txt' % trial_name, delimiter=',', fmt='%.4f')
             
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        model.test_samples_exam(dirpath, trial_name)
+        # model.test_samples_exam(dirpath, trial_name)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

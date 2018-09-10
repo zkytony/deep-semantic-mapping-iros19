@@ -188,7 +188,7 @@ class PlaceModel:
         self._cross_entropy_loss = -tf.reduce_mean(joint - marginalized)
 
 
-    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, dropout=False):
+    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, dropout=False, epoch_limit=50):
         """
         Train the model.
         
@@ -217,7 +217,7 @@ class PlaceModel:
         epoch = 0
 
         print("Start Training...")
-        while epoch < 50 \
+        while epoch < epoch_limit \
               and abs(prev_loss - loss)>update_threshold:
 
             start = (batch)*batch_size

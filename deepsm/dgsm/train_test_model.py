@@ -119,8 +119,6 @@ def create_parser():
     other_params = parser.add_argument_group(title="other")
     other_params.add_argument('--save-masked', action='store_true',
                               help='Save masked scans')
-    other_params.add_argument('--save-loss', action='store_true',
-                              help='Save losses during training')
     other_params.add_argument('--building', type=str, default='default',
                               help='Building identifier for this run.')
     return parser
@@ -209,7 +207,6 @@ def print_args(args):
 
     print("\nOther:")
     print("* Save masked scans: %s" % args.save_masked)
-    print("* Save losses: %s" % args.save_loss)
 
 
 def create_directories(args):
@@ -301,10 +298,7 @@ def main(args=None):
     train_loss, test_loss = [], []
     epoch = 0
     try:
-        if args.save_loss:
-            epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout)
-        else:
-            epoch = model.train(args.batch_size, args.update_threshold, shuffle=shuffle, dropout=args.dropout)
+        epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
@@ -317,6 +311,9 @@ def main(args=None):
                      labels=['train loss', 'test loss'],
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
+        np.savetxt(train_loss, 'loss-train-%s.txt' % trial_name, delimiter=',', fmt='%.4f')
+        np.savetxt(test_loss, 'loss-test-%s.txt' % trial_name, delimiter=',', fmt='%.4f')
+            
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         model.test_samples_exam(dirpath, trial_name)
 

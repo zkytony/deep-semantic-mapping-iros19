@@ -83,6 +83,8 @@ def create_parser():
                               help='Threshold of likelihood update')
     learn_params.add_argument('--batch-size', type=int, default=10,
                               help='Size of each batch for training')
+    learn_params.add_argument('--epoch-limit', type=int, default=50,
+                              help='limit on epochs')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
                               ', '.join([a.name.lower()
@@ -91,8 +93,8 @@ def create_parser():
                               help='Type of inference during EM upwards pass: ' +
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
-    learn_params.add_argument('--dropout', action='store_true',
-                              help='Dropout (0.2 probability)')
+    learn_params.add_argument('--dropconnect-keep-prob', type=float, default=0.75,
+                              help='drop-connect probability parameter for gd learning')
     # GDLearning
     learn_params.add_argument('--learning-rate', type=float, default=0.001,
                               help='Learning rate for gradient descent')
@@ -119,8 +121,6 @@ def create_parser():
     other_params = parser.add_argument_group(title="other")
     other_params.add_argument('--save-masked', action='store_true',
                               help='Save masked scans')
-    other_params.add_argument('--save-loss', action='store_true',
-                              help='Save losses during training')
     other_params.add_argument('--building', type=str, default='default',
                               help='Building identifier for this run.')
     return parser
@@ -200,6 +200,8 @@ def print_args(args):
     print("\nLearning parameters:")
     print("* Weight initialization: %s" % args.weight_init)
     print("* Learning rate: %s" % args.learning_rate)
+    print("* Drop-connect keep prob: %s" % args.dropconnect_keep_prob)
+    print("* Epoch limit: %s" % args.epoch_limit)
     print("* Likelihood update threshold: %s" % args.update_threshold)
     print("* Batch size: %s" % args.batch_size)
     print("* Value Inference: %s"  % args.value_inference)
@@ -209,7 +211,6 @@ def print_args(args):
 
     print("\nOther:")
     print("* Save masked scans: %s" % args.save_masked)
-    print("* Save losses: %s" % args.save_loss)
 
 
 def create_directories(args):
@@ -226,13 +227,13 @@ def make_trial_name(args):
     else:
         trial_name = "unbalanced"
 
-    if args.dropout:
-        trial_name += "_dropout"
-
     trial_name += "_lr" + str(abs(round(math.log(args.learning_rate, 10))))
     trial_name += "_b" + str(args.batch_size)
     trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
+    trial_name += "_d" + str(args.dropconnect_keep_prob)
     trial_name += "_mpe" if args.value_inference == spn.InferenceType.MPE else "_marginal"
+    trial_name += "_k" + str(CategoryManager.NUM_CATEGORIES)
+    trial_name += "_E" + str(args.epoch_limit)
     trial_name += "_" + args.building
     return trial_name
 
@@ -297,14 +298,14 @@ def main(args=None):
                        smoothing_min=args.smoothing_min,
                        smoothing_decay=args.smoothing_decay,
                        value_inference_type=args.value_inference,
-                       optimizer=tf.train.AdamOptimizer)
+                       optimizer=tf.train.AdamOptimizer,
+                       dropconnect_keep_prob=args.dropconnect_keep_prob)
     train_loss, test_loss = [], []
     epoch = 0
     try:
-        if args.save_loss:
-            epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout)
-        else:
-            epoch = model.train(args.batch_size, args.update_threshold, shuffle=shuffle, dropout=args.dropout)
+        model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss,
+                    shuffle=shuffle, epoch_limit=args.epoch_limit)
+        epoch = len(train_loss)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
@@ -318,7 +319,7 @@ def main(args=None):
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        model.test_samples_exam(dirpath, trial_name)
+        # model.test_samples_exam(dirpath, trial_name)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

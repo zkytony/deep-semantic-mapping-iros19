@@ -33,9 +33,10 @@ class PlaceModel:
                  learning_rate,
                  init_accum_val,
                  smoothing_val, smoothing_min, smoothing_decay,
+                 dropconnect_keep_prob=0.75,
                  optimizer=tf.train.AdamOptimizer,
-                 learning_type=spn.LearningType.SUPERVISED,
-                 learning_method=spn.LearningMethod.DISCRIMINATIVE,
+                 learning_type=spn.LearningTaskType.SUPERVISED,
+                 learning_method=spn.LearningMethodType.DISCRIMINATIVE,
                  gradient_type=spn.GradientType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
@@ -64,6 +65,7 @@ class PlaceModel:
         self._learning_type = learning_type
         self._learning_method = learning_method
         self._gradient_type = gradient_type
+        self._dropconnect_keep_prob = dropconnect_keep_prob
 
         self._build_model()
         self._sess = tf.Session()
@@ -167,43 +169,52 @@ class PlaceModel:
         # Generate Ltent IVs for the root
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
 
+        self._dropconnect_placeholder = tf.placeholder(tf.float32, shape=(1,))
+
         # Learning Ops
-        self._learning = spn.GDLearning(self._root, log=True,
+        self._learning = spn.GDLearning(self._root,
                                         value_inference_type = value_inference_type,
                                         learning_rate=self._learning_rate,
-                                        learning_type=self._learning_type,
+                                        learning_task_type=self._learning_type,
                                         learning_method=self._learning_method,
-                                        gradient_type=self._gradient_type)
+                                        gradient_type=self._gradient_type,
+                                        dropconnect_keep_prob=0.75)
         # self._reset_accumulators = self._learning.reset_accumulators()
-        self._learn_spn = self._learning.learn(optimizer=self._optimizer)
+        self._learn_spn, self._loss_op = self._learning.learn(optimizer=self._optimizer)
 
-        self._train_likelihood = self._learning.value.values[self._root]
-        self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
-                
+        # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
+        self._likelihood_op = self._learning._value_gen.get_value(self._root.values[0].node)
+
         self._init_weights = spn.initialize_weights(self._root)
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
+        
+        print("Changing dropconnect settings to some nodes...")
+        self._root.set_dropconnect_keep_prob(1.0)
 
-        joint = self._learning.value.get_value(self._root, with_ivs=True)
-        marginalized = self._learning.value.get_value(self._root, with_ivs=False)
-        self._cross_entropy_loss = -tf.reduce_mean(joint - marginalized)
+        count = 0
+
+        for node in self._root.get_nodes(skip_params=True):
+            if isinstance(node, spn.SumsLayer):
+                if isinstance(node.values[0].node, spn.IVs):
+                    print(node)
+                    node.set_dropconnect_keep_prob(1.0)
+                if isinstance(node.values[0].node, spn.ProductsLayer):
+                    ch = node.values[0].node
+                    if isinstance(ch.values[0].node, spn.IVs):
+                        node.set_dropconnect_keep_prob(1.0)
+                node.set_dropconnect_keep_prob(0.75)
+                count += 1
+        print(count)
 
 
-    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, dropout=False):
+    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, epoch_limit=50):
         """
         Train the model.
         
         batch_size (int): size of each mini-batch.
         update_threshold (float): minimum update required between steps to continue.
-        save_loss (bool): if true, return two arrays, one that tracks loss on the 
-                          training dataset, and the other that tracks loss on the
-                          testing dataset. The loss is computed per 100 batches.
         """
-        def drop_it(cell):
-            if random.random() < 0.2: # 20% chance dropped
-                return -1
-            else:
-                return cell
-        
+
         train_set = self._data.training_scans
         train_labels = self._data.training_labels
 
@@ -213,35 +224,26 @@ class PlaceModel:
         prev_loss = 100
         loss = 0
         losses = []
+        batch_losses = []
         batch = 0
         epoch = 0
 
         print("Start Training...")
-        while epoch < 50 \
+        while epoch < epoch_limit \
               and abs(prev_loss - loss)>update_threshold:
 
             start = (batch)*batch_size
             stop = min((batch+1)*batch_size, train_set.shape[0])
             print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev loss", prev_loss, "loss", loss)
 
-            # Dropout
-            if dropout:
-                train_batch = np.empty_like(train_set[start:stop])
-                np.copyto(train_batch, train_set[start:stop])
-                
-                drop_func = np.vectorize(drop_it)
-                train_batch = drop_func(train_batch)
-            else:
-                train_batch = train_set[start:stop]
-            
-            # Run accumulate_updates
-            train_likelihoods_arr, avg_train_likelihood_val, _, = \
-                    self._sess.run([self._train_likelihood,
-                                    self._avg_train_likelihood,
-                                    self._learn_spn],
-                                   feed_dict={self._ivs: train_batch,
-                                              self._latent: train_labels[start:stop]})
+            _, loss_train, likelihoods = self._sess.run([self._learn_spn, self._loss_op, self._likelihood_op],
+                                           feed_dict={self._ivs: train_set[start:stop],
+                                                      self._latent: train_labels[start:stop]})
 
+            print(likelihoods[0])
+                                                      
+            batch_losses.append(loss_train)
+            
             batch += 1
             if stop >= train_set.shape[0]:
                 epoch += 1
@@ -255,29 +257,20 @@ class PlaceModel:
                     train_labels = train_labels[p]
                     
                 print("Computing train losses...")
-                loss_train = self.cross_entropy(train_set, train_labels)
+                loss_train = np.mean(batch_losses)
                 print("Computing test losses...")
-                loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
+                loss_test = self.log_loss(self._data.testing_scans, self._data.testing_labels)
                 print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
                 train_loss.append(loss_train)
                 test_loss.append(loss_test)
 
                 losses.append(loss_train)
+                batch_losses = []
 
-                if len(losses) == 5:
-                    prev_loss = loss
-                    loss = sum(losses) / len(losses)
-                    losses.pop(0)
-                    print("Avg loss over 5 EPOCHs: %s" % (loss))
-
-        return epoch
+        return losses
 
             
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
-
-        # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
-        likelihood_op = self._learning.value.values[self._root.values[0].node]
-
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
         testing_labels = self._data.testing_labels
@@ -294,10 +287,11 @@ class PlaceModel:
                 stop = (batch + 1) * batch_size
 
             # Get output from sub-SPNs as likelihoods for each class. Likelihood for class i is representing P(X|Y=i)
-            train_likelihoods_arr = self._sess.run([likelihood_op],
+            likelihoods_arr = self._sess.run([self._likelihood_op],
                                                    feed_dict={self._ivs: testing_scans[start:stop],
-                                                              self._latent: np.full((stop-start, 1), -1)})[0]
-            likelihoods = np.vstack((likelihoods, train_likelihoods_arr))
+                                                              self._latent: np.full((stop-start, 1), -1),
+                                                              self._dropconnect_placeholder: [1.0]})[0]
+            likelihoods = np.vstack((likelihoods, likelihoods_arr))
 
         # Process graph results
         
@@ -355,7 +349,7 @@ class PlaceModel:
 
     def test_samples_exam(self, dirpath, trial_name):
         """This function is created only to respond to Andrzej's request"""
-        likelihood_op = self._learning.value.values[self._root.values[0].node]
+        likelihood_op = self._learning._value_gen.values[self._root.values[0].node]
         
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
@@ -364,13 +358,13 @@ class PlaceModel:
         with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             for i in range(len(testing_scans)):
-                train_likelihoods_arr = self._sess.run([likelihood_op],
-                                                       feed_dict={self._ivs: testing_scans[i:i+1],
-                                                                  self._latent: np.full((1, 1), -1)})[0]
+                likelihoods_arr = self._sess.run([likelihood_op],
+                                                 feed_dict={self._ivs: testing_scans[i:i+1],
+                                                            self._latent: np.full((1, 1), -1)})[0]
                 writer.writerow([len(testing_scans[i])]
                                 + testing_scans[i].tolist()
                                 + [CategoryManager.NUM_CATEGORIES]
-                                + train_likelihoods_arr.reshape(-1,).tolist()
+                                + likelihoods_arr.reshape(-1,).tolist()
                                 + [CategoryManager.category_map(testing_labels[i][0], rev=True)])
 
         root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
@@ -379,7 +373,7 @@ class PlaceModel:
             writer.writerow(root_weights.tolist())
 
 
-    def cross_entropy(self, samples, labels, batch_size=500):
+    def log_loss(self, samples, labels, batch_size=500):
         batch = 0
         loss_values = []
         stop = min(batch_size, len(samples))
@@ -388,9 +382,11 @@ class PlaceModel:
             stop = min((batch+1)*batch_size, len(samples))
             print("    BATCH", batch, "SAMPLES", start, stop)
 
-            loss_val = self._sess.run(self._cross_entropy_loss,
-                                      feed_dict={self._ivs:samples[start:stop],
-                                                 self._latent:labels[start:stop]})
+            loss_val = self._sess.run([self._loss_op],
+                                      feed_dict={self._ivs: samples[start:stop],
+                                                 self._latent: labels[start:stop],
+                                                 self._dropconnect_placeholder: [1.0]})
+
             loss_values.append(loss_val)
             batch += 1
         return np.mean(loss_values)

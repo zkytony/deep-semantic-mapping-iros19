@@ -250,7 +250,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                     energy = attrs[indx]['energies'][i]
                     factors = attrs[indx]['factors'][i]
                     with open(os.path.join(visp_dirpath, "partition-%d-stats.json" % i), 'w') as f:
-                        json.dump(util.json_safe({'energy':energy,'factors':factors}), f)
+                        json.dump(util.json_safe({'energy':energy,'factors':factors}), f, indent=4)
 
                 test_kwargs['instance_spn'] = instance_spn
                 test_kwargs['graph_id'] = db_name + "_" + seq_id

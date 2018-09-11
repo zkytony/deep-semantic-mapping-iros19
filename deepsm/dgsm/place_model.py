@@ -10,6 +10,9 @@ import os, sys
 import json, yaml, csv
 import random
 from sklearn import metrics
+spn.conf.renormalize_dropconnect = True
+# spn.conf.rescale_dropconnect = True
+# spn.config_logger(spn.DEBUG1)
 
 def norm_cm(cm):
     return cm / np.sum(cm, axis=1, keepdims=True)
@@ -33,10 +36,10 @@ class PlaceModel:
                  learning_rate,
                  init_accum_val,
                  smoothing_val, smoothing_min, smoothing_decay,
-                 dropconnect_keep_prob=0.75,
+                 dropconnect_keep_prob=-1,
                  optimizer=tf.train.AdamOptimizer,
                  learning_type=spn.LearningTaskType.SUPERVISED,
-                 learning_method=spn.LearningMethodType.DISCRIMINATIVE,
+                 learning_method=spn.LearningMethodType.GENERATIVE,
                  gradient_type=spn.GradientType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
@@ -169,7 +172,32 @@ class PlaceModel:
         # Generate Ltent IVs for the root
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
 
-        self._dropconnect_placeholder = tf.placeholder(tf.float32, shape=(1,))
+        self._dropconnect_placeholder = tf.placeholder(tf.float32)
+
+        if self._dropconnect_keep_prob > 0:
+            # Change dropconnect keep prob
+            print("Changing dropconnect settings to some nodes...")
+            self._root.set_dropconnect_keep_prob(1.0)
+
+            count = 0
+            for node in self._root.get_nodes(skip_params=True):
+                # print(node.name, type(node))
+
+                if isinstance(node, spn.SumsLayer):
+                    if isinstance(node.values[0].node, spn.IVs):
+                        print("deteceted sum<-iv %s" % node)
+                        node.set_dropconnect_keep_prob(1.0)
+
+                    elif isinstance(node.values[0].node, spn.ProductsLayer) and \
+                         isinstance(node.values[0].node.values[0].node, spn.IVs):
+                        print("deteceted sum<-product<-iv %s" % node)
+                        node.set_dropconnect_keep_prob(1.0)
+                    elif len(node.values) < 200:  # Cannot use dropconnect on low layers
+                        print("changed dropconnect to a placeholder", node, len(node.values))
+                        node.set_dropconnect_keep_prob(self._dropconnect_placeholder)
+                        count += 1
+            print(count)
+
 
         # Learning Ops
         self._learning = spn.GDLearning(self._root,
@@ -178,7 +206,7 @@ class PlaceModel:
                                         learning_task_type=self._learning_type,
                                         learning_method=self._learning_method,
                                         gradient_type=self._gradient_type,
-                                        dropconnect_keep_prob=0.75)
+                                        dropconnect_keep_prob=1.0)
         # self._reset_accumulators = self._learning.reset_accumulators()
         self._learn_spn, self._loss_op = self._learning.learn(optimizer=self._optimizer)
 
@@ -188,24 +216,6 @@ class PlaceModel:
         self._init_weights = spn.initialize_weights(self._root)
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
         
-        print("Changing dropconnect settings to some nodes...")
-        self._root.set_dropconnect_keep_prob(1.0)
-
-        count = 0
-
-        for node in self._root.get_nodes(skip_params=True):
-            if isinstance(node, spn.SumsLayer):
-                if isinstance(node.values[0].node, spn.IVs):
-                    print(node)
-                    node.set_dropconnect_keep_prob(1.0)
-                if isinstance(node.values[0].node, spn.ProductsLayer):
-                    ch = node.values[0].node
-                    if isinstance(ch.values[0].node, spn.IVs):
-                        node.set_dropconnect_keep_prob(1.0)
-                node.set_dropconnect_keep_prob(0.75)
-                count += 1
-        print(count)
-
 
     def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, epoch_limit=50):
         """
@@ -237,11 +247,12 @@ class PlaceModel:
             print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev loss", prev_loss, "loss", loss)
 
             _, loss_train, likelihoods = self._sess.run([self._learn_spn, self._loss_op, self._likelihood_op],
-                                           feed_dict={self._ivs: train_set[start:stop],
-                                                      self._latent: train_labels[start:stop]})
+                                                        feed_dict={self._ivs: train_set[start:stop],
+                                                                   self._latent: train_labels[start:stop],
+                                                                   self._dropconnect_placeholder: self._dropconnect_keep_prob})
+            # print(loss_train)
+            # print(likelihoods)
 
-            print(likelihoods[0])
-                                                      
             batch_losses.append(loss_train)
             
             batch += 1
@@ -257,6 +268,7 @@ class PlaceModel:
                     train_labels = train_labels[p]
                     
                 print("Computing train losses...")
+                print(batch_losses)
                 loss_train = np.mean(batch_losses)
                 print("Computing test losses...")
                 loss_test = self.log_loss(self._data.testing_scans, self._data.testing_labels)
@@ -288,9 +300,9 @@ class PlaceModel:
 
             # Get output from sub-SPNs as likelihoods for each class. Likelihood for class i is representing P(X|Y=i)
             likelihoods_arr = self._sess.run([self._likelihood_op],
-                                                   feed_dict={self._ivs: testing_scans[start:stop],
-                                                              self._latent: np.full((stop-start, 1), -1),
-                                                              self._dropconnect_placeholder: [1.0]})[0]
+                                             feed_dict={self._ivs: testing_scans[start:stop],
+                                                        self._latent: np.full((stop-start, 1), -1),
+                                                        self._dropconnect_placeholder: 1.0})[0]
             likelihoods = np.vstack((likelihoods, likelihoods_arr))
 
         # Process graph results
@@ -349,7 +361,6 @@ class PlaceModel:
 
     def test_samples_exam(self, dirpath, trial_name):
         """This function is created only to respond to Andrzej's request"""
-        likelihood_op = self._learning._value_gen.values[self._root.values[0].node]
         
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
@@ -358,9 +369,10 @@ class PlaceModel:
         with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             for i in range(len(testing_scans)):
-                likelihoods_arr = self._sess.run([likelihood_op],
+                likelihoods_arr = self._sess.run([self._likelihood_op],
                                                  feed_dict={self._ivs: testing_scans[i:i+1],
-                                                            self._latent: np.full((1, 1), -1)})[0]
+                                                            self._latent: np.full((1, 1), -1),
+                                                            self._dropconnect_placeholder: 1.0})[0]
                 writer.writerow([len(testing_scans[i])]
                                 + testing_scans[i].tolist()
                                 + [CategoryManager.NUM_CATEGORIES]
@@ -385,7 +397,7 @@ class PlaceModel:
             loss_val = self._sess.run([self._loss_op],
                                       feed_dict={self._ivs: samples[start:stop],
                                                  self._latent: labels[start:stop],
-                                                 self._dropconnect_placeholder: [1.0]})
+                                                 self._dropconnect_placeholder: 1.0})
 
             loss_values.append(loss_val)
             batch += 1

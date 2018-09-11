@@ -93,7 +93,7 @@ def create_parser():
                               help='Type of inference during EM upwards pass: ' +
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
-    learn_params.add_argument('--dropconnect-keep-prob', type=float, default=0.75,
+    learn_params.add_argument('--dropconnect-keep-prob', type=float, default=-1,
                               help='drop-connect probability parameter for gd learning')
     # GDLearning
     learn_params.add_argument('--learning-rate', type=float, default=0.001,
@@ -220,7 +220,7 @@ def create_directories(args):
         if args.save_masked:
             os.makedirs(os.path.join(args.results_dir, 'masked_scans'), exist_ok=True)
 
-def make_trial_name(args):
+def make_trial_name(args, model):
     trial_name = ""
     if args.balance_data:
         trial_name = "balanced"
@@ -229,11 +229,15 @@ def make_trial_name(args):
 
     trial_name += "_lr" + str(abs(round(math.log(args.learning_rate, 10))))
     trial_name += "_b" + str(args.batch_size)
-    trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
+    if args.update_threshold != 0:
+        trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
+    else:
+        trial_name += "_ucZero"
     trial_name += "_d" + str(args.dropconnect_keep_prob)
     trial_name += "_mpe" if args.value_inference == spn.InferenceType.MPE else "_marginal"
     trial_name += "_k" + str(CategoryManager.NUM_CATEGORIES)
     trial_name += "_E" + str(args.epoch_limit)
+    trial_name += "_" + str(model._learning_method)
     trial_name += "_" + args.building
     return trial_name
 
@@ -300,6 +304,7 @@ def main(args=None):
                        value_inference_type=args.value_inference,
                        optimizer=tf.train.AdamOptimizer,
                        dropconnect_keep_prob=args.dropconnect_keep_prob)
+    trial_name = make_trial_name(args, model)
     train_loss, test_loss = [], []
     epoch = 0
     try:
@@ -311,15 +316,18 @@ def main(args=None):
     finally:
         dirpath = os.path.join("analysis", "dgsm")
 
-        trial_name = make_trial_name(args)
+        trial_name = make_trial_name(args, model)
 
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
         plot_to_file(train_loss, test_loss,
                      labels=['train loss', 'test loss'],
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
+        np.savetxt(os.path.join(dirpath, 'loss-train-%s.txt' % trial_name), train_loss, delimiter=',', fmt='%.4f')
+        np.savetxt(os.path.join(dirpath, 'loss-test-%s.txt' % trial_name), test_loss, delimiter=',', fmt='%.4f')
+
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        # model.test_samples_exam(dirpath, trial_name)
+        model.test_samples_exam(dirpath, trial_name)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

@@ -39,7 +39,7 @@ class PlaceModel:
                  dropconnect_keep_prob=-1,
                  optimizer=tf.train.AdamOptimizer,
                  learning_type=spn.LearningTaskType.SUPERVISED,
-                 learning_method=spn.LearningMethodType.GENERATIVE,
+                 learning_method=spn.LearningMethodType.DISCRIMINATIVE,
                  gradient_type=spn.GradientType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells

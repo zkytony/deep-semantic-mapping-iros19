@@ -6,7 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from deepsm.graphspn.tbm.topo_map import PlaceNode, TopologicalMap
-from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, EdgeRelationTemplateInstance
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, EdgeRelationTemplateInstance, NodeTemplate
 from deepsm.graphspn.tbm.algorithm import NodeTemplatePartitionSampler, EdgeRelationPartitionSampler
 from deepsm.util import CategoryManager, compute_view_number
 import os, sys
@@ -58,20 +58,24 @@ class TopoMapDataset:
         if random:
             if issubclass(template, NodeTemplate):
                 template_type = "node"
+                template_name = template.__name__
             else:
                 template_type = "view"
+                template_name = template.__name__
+                template = template.to_tuple()
             samples = self.create_template_dataset_with_sampler(template_type, db_names=db_names, seq_ids=seq_ids, seqs_limit=seqs_limit,
-                                                                num_partitions=kwargs.get('num_partitions', 5))
+                                                                num_partitions=kwargs.get('num_partitions', 5), random=random)
+
             result_samples = {}
             for db_name in db_names:
                 if db_name not in result_samples:
                     result_samples[db_name] = None
                 for seq_id in samples[db_name]:
-                    samples_for_template = np.array(samples[db_name][template], dtype=int)
+                    samples_for_template = np.array(samples[db_name][seq_id][template], dtype=int)
                     if result_samples[db_name] is None:
                         result_samples[db_name] = samples_for_template
                     else:
-                        result_samples[db_name] = np.vstack(result_samples[db_name], samples_for_template)
+                        result_samples[db_name] = np.vstack((result_samples[db_name], samples_for_template))
             return result_samples
                                                                   
         else:
@@ -96,7 +100,7 @@ class TopoMapDataset:
                     samples[db_name] = None
 
                 samples_path = os.path.join(self.db_root, db_name, seq_id, "samples",
-                                            "samples_%s-%s.csv" % (template.__name__, CategoryManager.NUM_CATEGORIES))
+                                            "samples_%s-%s.csv" % (template_name, CategoryManager.NUM_CATEGORIES))
                 loaded_samples = np.loadtxt(samples_path, dtype=int, delimiter=",")
                 if loaded_samples.ndim == 1:
                     loaded_samples = loaded_samples.reshape(-1, 1)
@@ -134,7 +138,7 @@ class TopoMapDataset:
         if db_names is None and seq_ids is None:
             db_names = self._topo_maps_data.keys()
 
-            samples = {}
+        samples = {}
         topo_maps = {}  # map from "{db}_{seq_id}" to topo map
         if db_names is not None:
             for db_name in db_names:
@@ -170,7 +174,7 @@ class TopoMapDataset:
                     partition_sets, _, best_index = sampler.sample_partition_sets(num_rounds,
                                                                                   num_partitions,
                                                                                   pick_best=True)
-                chosen_pset = partition_sets[best_index]
+                    chosen_pset = partition_sets[best_index]
                 for p in chosen_pset:
                     if template_type.lower() == "three":
                         for template in p:

@@ -227,38 +227,40 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                     sampler = NodeTemplatePartitionSampler(topo_map, templates=[s.template for s in sorted(spns, key=lambda x:x.template.num_nodes(), reverse=True)])
                     sampler.set_params(**train_kwargs['factor_coeffs'])
                     if train_kwargs['partition_sampling_method'].upper() == "RANDOM":
-                        pset = sampler.sample_partitions(test_kwargs['num_partitions'])
+                        pset, attrs = sampler.sample_partitions(test_kwargs['num_partitions'])
                     else:
                         psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
                                                                            pick_best=True)
                         pset = psets[indx]
+                        attrs = attrs[indx]
                     instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                            num_partitions=test_kwargs['num_partitions'],
                                                            seq_id=seq_id,
                                                            divisions=8,
                                                            visualize_partitions_dirpath=visp_dirpath,
                                                            db_name=db_name,
-                                                           partitions=psets[indx])
+                                                           partitions=pset)
                 elif exp._template_mode == EdgeRelationTemplate.code():
                     sampler = EdgeRelationPartitionSampler(topo_map)
                     sampler.set_params(**train_kwargs['factor_coeffs'])
                     if train_kwargs['partition_sampling_method'].upper() == "RANDOM":
-                        pset = sampler.sample_partitions(test_kwargs['num_partitions'])
+                        pset, attrs = sampler.sample_partitions(test_kwargs['num_partitions'])
                     else:
                         psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
                                                                            pick_best=True)
                         pset = psets[indx]
+                        attrs = attrs[indx]
                     instance_spn = EdgeRelationTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                                    num_partitions=test_kwargs['num_partitions'],
                                                                    seq_id=seq_id,
                                                                    divisions=8,
                                                                    visualize_partitions_dirpath=visp_dirpath,
                                                                    db_name=db_name,
-                                                                   partitions=psets[indx])
+                                                                   partitions=pset)
                 # Save the attributes from partitioning
                 for i in range(test_kwargs['num_partitions']):
-                    energy = attrs[indx]['energies'][i]
-                    factors = attrs[indx]['factors'][i]
+                    energy = attrs['energies'][i]
+                    factors = attrs['factors'][i]
                     with open(os.path.join(visp_dirpath, "partition-%d-stats.json" % i), 'w') as f:
                         json.dump(util.json_safe({'energy':energy,'factors':factors}), f, indent=4)
 

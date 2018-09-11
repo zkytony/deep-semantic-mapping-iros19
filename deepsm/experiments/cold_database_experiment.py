@@ -308,7 +308,7 @@ def same_building():
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
     parser.add_argument("--random-sampling", action="store_true", help='Sample partitions randomly (but with higher complexity first). Not using a sampler.')
     parser.add_argument("--similarity-coeff", type=float, default=-3.0)
-    parser.add_argument("--complexity-coeff", type=float, default=7.0
+    parser.add_argument("--complexity-coeff", type=float, default=7.0)
     parser.add_argument("--straight-template-coeff", type=float, default=8.0)
     parser.add_argument("--dom-coeff", type=float, default=4.85)
     parser.add_argument("--separable-coeff", type=float, default=2.15)
@@ -344,14 +344,14 @@ def same_building():
         
         # spn learning
         'learning_algorithm': spn.EMLearning,
-        'additive_smoothing': 30
+        'additive_smoothing': 30,
 
         'factor_coeffs': {
             'similarity_coeff': args.similarity_coeff,
             'complexity_coeff': args.complexity_coeff,
-            'straight_template_coeff': args.staright_template_coeff,
+            'straight_template_coeff': args.straight_template_coeff,
             'dom_coeff': args.dom_coeff,
-            'separable_coeff': args.separable.coeff
+            'separable_coeff': args.separable_coeff
         }
     }
     test_kwargs = {

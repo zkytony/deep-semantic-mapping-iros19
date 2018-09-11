@@ -289,7 +289,6 @@ class TbmExperiment(Experiment):
                 get_data_params['random'] = False
 
             samples_dict = self._dataset.load_template_dataset(model.template,
-                                                               random=True,
                                                                **get_data_params)
             # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
             #                                                (D,2*n) if Edgetemplate

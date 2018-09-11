@@ -119,10 +119,6 @@ class PartitionSampler:
         if len(partitions) > 0:
             factors['similarity'] = self._similarity(partition, partitions)
             score *= np.exp(-self._similarity_coeff * factors['similarity'])
-
-            print(score)
-            print(np.exp(-self._similarity_coeff*factors['similarity']))
-
         if debug:
             print("   complexity: %.4f" % np.log(factors['complexity']))
             print("     straight: %.4f" % np.log(factors['straight']))

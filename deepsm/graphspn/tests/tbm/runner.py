@@ -249,6 +249,7 @@ class TbmExperiment(Experiment):
            save_training_info (bool): If set true, save a formatted file of the configuration and training
                                       data count. The file is located at:
                                            {root_dir}/{name}/models/training_info_{timestamp}
+           partition_sampling_method (str): either "RANDOM" or "ENERGY"
         """
         save = kwargs.get("save", False)
         load_if_exists = kwargs.get("load_if_exists", False)
@@ -258,6 +259,7 @@ class TbmExperiment(Experiment):
         likelihood_thres = kwargs.get("likelihood_thres", 0.05)
         timestamp = kwargs.get("timestamp", None)
         save_training_info = kwargs.get("save_training_info", False)
+        partition_sampling_method = kwargs.get("partition_sampling_method", "RANDOM")
 
         likelihoods = {}
 
@@ -276,12 +278,19 @@ class TbmExperiment(Experiment):
 
             # Load training samples
             if self._train_seqs:
-                source = {'seq_ids': self._train_seqs}
+                get_data_params = {'seq_ids': self._train_seqs}
             else:
-                source = {'db_names': self._train_db}
+                get_data_params = {'db_names': self._train_db}
+
+            if partition_sampling_method.upper() == "RANDOM":
+                get_data_params['random'] = True
+                get_data_params['num_partitions'] = num_partitions
+            else:
+                get_data_params['random'] = False
 
             samples_dict = self._dataset.load_template_dataset(model.template,
-                                                               **source)
+                                                               random=True,
+                                                               **get_data_params)
             # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
             #                                                (D,2*n) if Edgetemplate
             samples = None

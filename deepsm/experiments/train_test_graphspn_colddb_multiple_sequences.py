@@ -28,8 +28,19 @@ def experiment_proc(what,
                     test_floor=None,
                     train_floors_str=None,
                     skip_placeholders=True,
-                    category_type="SIMPLE"):
-    skip_placeholder_arg = ['--skip-placeholders'] if skip_placeholders else []
+                    random_sampling=False,
+                    category_type="SIMPLE",
+                    similarity_coeff=-3.0,
+                    complexity_coeff=7.0,
+                    straight_template_coeff=8.0,
+                    dom_coeff=4.85,
+                    separable_coeff=args.2.15)):
+    store_true_args = []
+    if skip_placeholders:
+        store_true_args.append(['--skip-placeholders'])
+    if random_sampling:
+        store_true_args.append(['--random-sampling']).
+
     if what == "DGSM_SAME_BUILDING":
         proc = subprocess.Popen(['./train_test_graphspn.py',
                                  "samebuilding",
@@ -87,8 +98,9 @@ def same_buliding(args):
                 proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
                                        args.seed, args.exp_name, args.test_name, args.trial,
                                        args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
-                                       test_floor=test_floor, train_floors_str=train_floors_str,
-                                       category_type=args.category_type)
+                                       test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
+                                       category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
+                                       dom_coeff=args.dom_coeff, separable_coeff=args.seprable_coeff, straight_template_coeff=args.straight_template_coeff)
                 proc.wait()
                 num_seqs_tested += 1
                 if args.num_test_seqs >= 0 and num_seqs_tested >= args.num_test_seqs:
@@ -102,8 +114,9 @@ def same_buliding(args):
         proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
                                args.seed, args.exp_name, args.test_name, args.trial,
                                args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
-                               test_floor=test_floor, train_floors_str=train_floors_str,
-                               category_type=args.category_type)
+                               test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
+                               category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
+                               dom_coeff=args.dom_coeff, separable_coeff=args.seprable_coeff, straight_template_coeff=args.straight_template_coeff)
         proc.wait()
 
 
@@ -143,6 +156,12 @@ def main():
     parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
+    parser.add_argument("--random-sampling", action="store_true", help='Sample partitions randomly (but with higher complexity first). Not using a sampler.')
+    parser.add_argument("--similarity-coeff", type=float, default=-3.0)
+    parser.add_argument("--complexity-coeff", type=float, default=7.0
+    parser.add_argument("--straight-template-coeff", type=float, default=8.0)
+    parser.add_argument("--dom-coeff", type=float, default=4.85)
+    parser.add_argument("--separable-coeff", type=float, default=2.15)
     args = parser.parse_args()
 
     util.CategoryManager.TYPE = args.category_type

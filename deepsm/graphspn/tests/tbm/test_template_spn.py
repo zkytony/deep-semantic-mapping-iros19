@@ -244,7 +244,7 @@ class TemplateSpnExperiment(TbmExperiment):
             """
             print("Running test case %s" % self.__class__.__name__)
             
-            num_partitions = kwargs.get("num_partitions", 10)
+            num_partitions = kwargs.get("num_partitions", 10)  # deprecated. useless.
             high_likelihood_correct = kwargs.get("high_likelihood_correct")
             low_likelihood_correct = kwargs.get("low_likelihood_correct")
             high_likelihood_incorrect = kwargs.get("high_likelihood_incorrect")
@@ -256,10 +256,9 @@ class TemplateSpnExperiment(TbmExperiment):
             
             ## NodeTemplate
             if self._experiment.template_mode == 0:
-                test_samples = self._experiment.dataset.create_template_dataset(model.template,
-                                                                                db_names=self._experiment.test_db,
-                                                                                seqs_limit=limit,
-                                                                                num_partitions=num_partitions)
+                test_samples = self._experiment.dataset.load_template_dataset(model.template,
+                                                                              db_names=self._experiment.test_db,
+                                                                              seqs_limit=limit)
             ## EdgeTemplate
             # else:
             #     test_samples = self._experiment.dataset.create_edge_template_dataset(model.template,

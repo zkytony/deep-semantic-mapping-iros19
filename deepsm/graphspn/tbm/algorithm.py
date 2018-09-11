@@ -81,7 +81,8 @@ class PartitionSampler:
                           accept_threshold=float('inf'),
                           debug=False):
         """Sample `amount` number of  partitions. Take into account `current_partitions`
-        (if not None) when computing similarity. """
+        (if not None) when computing similarity. If accept_threshold is infinity,
+        this function essentially randomly samples `amount` number of partitions"""
         def sample_one(current_partitions=[], debug=False):
             p = self.random_partition()
             e, f = self.energy(p, partitions=current_partitions, debug=debug)
@@ -115,10 +116,12 @@ class PartitionSampler:
                 * np.exp(-self._straight_template_coeff*factors['straight']) \
                 * np.exp(-self._dom_coeff*factors['dom']) \
                 * np.exp(-self._separable_coeff*factors['separable'])
-
         if len(partitions) > 0:
             factors['similarity'] = self._similarity(partition, partitions)
             score *= np.exp(-self._similarity_coeff * factors['similarity'])
+
+            print(score)
+            print(np.exp(-self._similarity_coeff*factors['similarity']))
 
         if debug:
             print("   complexity: %.4f" % np.log(factors['complexity']))

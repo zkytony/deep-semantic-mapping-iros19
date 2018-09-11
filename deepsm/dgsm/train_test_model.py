@@ -319,8 +319,8 @@ def main(args=None):
                      labels=['train loss', 'test loss'],
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
-        np.savetxt(train_loss, 'loss-train-%s.txt' % trial_name, delimiter=',', fmt='%.4f')
-        np.savetxt(test_loss, 'loss-test-%s.txt' % trial_name, delimiter=',', fmt='%.4f')
+        np.savetxt('loss-train-%s.txt' % trial_name, train_loss, delimiter=',', fmt='%.4f')
+        np.savetxt('loss-test-%s.txt' % trial_name, test_loss, delimiter=',', fmt='%.4f')
             
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         # model.test_samples_exam(dirpath, trial_name)

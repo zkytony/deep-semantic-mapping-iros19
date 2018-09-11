@@ -752,7 +752,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         **kwargs:
            seed (int): seed for the random generator. Set before generating
                        the structure.
-        """
+        """ 
         super().__init__(template, *args, **kwargs)
 
         template_tuple = template.to_tuple()
@@ -964,7 +964,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             sample_lh = np.array([args[1].flatten()], dtype=float32)
             feed_dict[self._likelihood_inputs] = sample_lh
             likelihood_val = sess.run(self._train_likelihood, feed_dict=feed_dict)
-        return likelihood_val        
+        return likelihood_val
         
     def marginal_inference(self, sess, query, query_lh=None, masked_only=False):
         """

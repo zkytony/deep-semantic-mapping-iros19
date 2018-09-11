@@ -54,6 +54,16 @@ class NodeTemplate(Template):
     def code(cls):
         return 0
 
+    @classmethod
+    def size_to_class(num_nodes):
+        m = {
+            SingletonTemplate.num_nodes: SingletonTemplate,
+            PairTemplate.num_nodes: PairTemplate,
+            ThreeNodeTemplate.num_nodes: ThreeNodeTemplate,
+            StarTemplate.num_nodes: StarTemplate
+        }
+        return m[num_nodes]
+
 
 class SingletonTemplate(NodeTemplate):
     """

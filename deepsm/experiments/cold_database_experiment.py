@@ -225,8 +225,13 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 os.makedirs(visp_dirpath, exist_ok=True)
                 if exp._template_mode == NodeTemplate.code():
                     sampler = NodeTemplatePartitionSampler(topo_map, templates=[s.template for s in sorted(spns, key=lambda x:x.template.num_nodes(), reverse=True)])
-                    psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
-                                                                       pick_best=True)
+                    sampler.set_params(**train_kwargs['factor_coeffs'])
+                    if train_kwargs['partition_sampling_method'].upper() == "RANDOM":
+                        pset = sampler.sample_partitions(test_kwargs['num_partitions'])
+                    else:
+                        psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
+                                                                           pick_best=True)
+                        pset = psets[indx]
                     instance_spn = NodeTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                            num_partitions=test_kwargs['num_partitions'],
                                                            seq_id=seq_id,
@@ -236,8 +241,13 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                                                            partitions=psets[indx])
                 elif exp._template_mode == EdgeRelationTemplate.code():
                     sampler = EdgeRelationPartitionSampler(topo_map)
-                    psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
-                                                                       pick_best=True)
+                    sampler.set_params(**train_kwargs['factor_coeffs'])
+                    if train_kwargs['partition_sampling_method'].upper() == "RANDOM":
+                        pset = sampler.sample_partitions(test_kwargs['num_partitions'])
+                    else:
+                        psets, attrs, indx = sampler.sample_partition_sets(test_kwargs['num_rounds'], test_kwargs['num_partitions'],
+                                                                           pick_best=True)
+                        pset = psets[indx]
                     instance_spn = EdgeRelationTemplateInstanceSpn(topo_map, sess, *spns_tmpls,
                                                                    num_partitions=test_kwargs['num_partitions'],
                                                                    seq_id=seq_id,
@@ -296,6 +306,12 @@ def same_building():
     parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
+    parser.add_argument("--random-sampling", action="store_true", help='Sample partitions randomly (but with higher complexity first). Not using a sampler.')
+    parser.add_argument("--similarity-coeff", type=float, default=-3.0)
+    parser.add_argument("--complexity-coeff", type=float, default=7.0
+    parser.add_argument("--straight-template-coeff", type=float, default=8.0)
+    parser.add_argument("--dom-coeff", type=float, default=4.85)
+    parser.add_argument("--separable-coeff", type=float, default=2.15)
     args = parser.parse_args(sys.argv[2:])
 
     util.CategoryManager.TYPE = args.category_type
@@ -318,6 +334,7 @@ def same_building():
         "save": True,
         'save_training_info': True,
         'timestamp': timestamp,
+        'partition_sampling_method': "RANDOM" if args.random_sampling else "ENERGY",
 
         # spn structure
         "num_decomps": 1,
@@ -328,6 +345,14 @@ def same_building():
         # spn learning
         'learning_algorithm': spn.EMLearning,
         'additive_smoothing': 30
+
+        'factor_coeffs': {
+            'similarity_coeff': args.similarity_coeff,
+            'complexity_coeff': args.complexity_coeff,
+            'straight_template_coeff': args.staright_template_coeff,
+            'dom_coeff': args.dom_coeff,
+            'separable_coeff': args.separable.coeff
+        }
     }
     test_kwargs = {
         'test_name': args.test_name,

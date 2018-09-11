@@ -209,11 +209,11 @@ def create_topo_map_samples(num_rounds, num_partitions, template, single_compone
         dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
         dataset.load(db_name, skip_unknown=True, skip_placeholders=True, single_component=single_component)
 
-        dataset.create_template_dataset(template.lower(),
-                                        num_rounds=num_rounds,
-                                        num_partitions=num_partitions,
-                                        save=True,
-                                        db_names=[db_name])
+        dataset.create_template_dataset_with_sampler(template.lower(),
+                                                     num_rounds=num_rounds,
+                                                     num_partitions=num_partitions,
+                                                     save=True,
+                                                     db_names=[db_name])
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Make data for experiments")

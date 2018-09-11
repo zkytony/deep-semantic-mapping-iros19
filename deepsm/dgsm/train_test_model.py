@@ -231,7 +231,10 @@ def make_trial_name(args):
 
     trial_name += "_lr" + str(abs(round(math.log(args.learning_rate, 10))))
     trial_name += "_b" + str(args.batch_size)
-    trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
+    if args.update_threshold != 0:
+        trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
+    else:
+        trial_name += "_ucZero"
     trial_name += "_mpe" if args.value_inference == spn.InferenceType.MPE else "_marginal"
     trial_name += "_E" + str(args.epoch_limit)
     trial_name += "_k" + str(CategoryManager.NUM_CATEGORIES)
@@ -279,6 +282,8 @@ def main(args=None):
         sys.stdout.write("OK\n")
 
     print_args(args)
+    trial_name = make_trial_name(args)
+    print("--------------- Trial name: %s -----------------" % trial_name)
 
     # Model
     model = PlaceModel(data=data,
@@ -308,8 +313,6 @@ def main(args=None):
         print("Stop training...")
     finally:
         dirpath = os.path.join("analysis", "dgsm")
-
-        trial_name = make_trial_name(args)
 
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
         plot_to_file(train_loss, test_loss,

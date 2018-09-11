@@ -57,7 +57,7 @@ class TopoMapDataset:
         """
         if random:
             if issubclass(template, NodeTemplate):
-                template_type = "node"
+                template_type = "three"
                 template_name = template.__name__
             else:
                 template_type = "view"
@@ -100,7 +100,7 @@ class TopoMapDataset:
                     samples[db_name] = None
 
                 samples_path = os.path.join(self.db_root, db_name, seq_id, "samples",
-                                            "samples_%s-%s.csv" % (template_name, CategoryManager.NUM_CATEGORIES))
+                                            "samples_%s-%s.csv" % (template.__name__, CategoryManager.NUM_CATEGORIES))
                 loaded_samples = np.loadtxt(samples_path, dtype=int, delimiter=",")
                 if loaded_samples.ndim == 1:
                     loaded_samples = loaded_samples.reshape(-1, 1)

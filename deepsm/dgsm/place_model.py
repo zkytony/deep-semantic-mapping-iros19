@@ -10,6 +10,9 @@ import os, sys
 import json, yaml, csv
 import random
 from sklearn import metrics
+spn.conf.renormalize_dropconnect = True
+spn.conf.rescale_dropconnect = True
+# spn.config_logger(spn.DEBUG1)
 
 def norm_cm(cm):
     return cm / np.sum(cm, axis=1, keepdims=True)
@@ -33,9 +36,11 @@ class PlaceModel:
                  learning_rate,
                  init_accum_val,
                  smoothing_val, smoothing_min, smoothing_decay,
+                 dropconnect_keep_prob=-1,
+                 learning_algorithm=spn.GDLearning,
                  optimizer=tf.train.AdamOptimizer,
-                 learning_type=spn.LearningType.SUPERVISED,
-                 learning_method=spn.LearningMethod.DISCRIMINATIVE,
+                 learning_type=spn.LearningTaskType.SUPERVISED,
+                 learning_method=spn.LearningMethodType.DISCRIMINATIVE,
                  gradient_type=spn.GradientType.SOFT):
         self._data = data
         self._num_radius_cells = data.num_radius_cells
@@ -61,9 +66,11 @@ class PlaceModel:
         self._smoothing_min = smoothing_min
         self._smoothing_decay = smoothing_decay
         self._init_accum = init_accum_val
+        self._learning_algorithm = learning_algorithm
         self._learning_type = learning_type
         self._learning_method = learning_method
         self._gradient_type = gradient_type
+        self._dropconnect_keep_prob = dropconnect_keep_prob
 
         self._build_model()
         self._sess = tf.Session()
@@ -167,43 +174,82 @@ class PlaceModel:
         # Generate Ltent IVs for the root
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
 
-        # Learning Ops
-        self._learning = spn.GDLearning(self._root, log=True,
-                                        value_inference_type = value_inference_type,
-                                        learning_rate=self._learning_rate,
-                                        learning_type=self._learning_type,
-                                        learning_method=self._learning_method,
-                                        gradient_type=self._gradient_type)
-        # self._reset_accumulators = self._learning.reset_accumulators()
-        self._learn_spn = self._learning.learn(optimizer=self._optimizer)
+        self._dropconnect_placeholder = tf.placeholder(tf.float32, shape=())
 
-        self._train_likelihood = self._learning.value.values[self._root]
-        self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
-                
-        self._init_weights = spn.initialize_weights(self._root)
-        self._init_weights = [self._init_weights, tf.global_variables_initializer()]
+        if self._dropconnect_keep_prob > 0:
+            # Change dropconnect keep prob
+            print("Changing dropconnect settings to some nodes...")
+            self._root.set_dropconnect_keep_prob(1.0)
 
-        joint = self._learning.value.get_value(self._root, with_ivs=True)
-        marginalized = self._learning.value.get_value(self._root, with_ivs=False)
-        self._cross_entropy_loss = -tf.reduce_mean(joint - marginalized)
+            count = 0
+            for node in self._root.get_nodes(skip_params=True):
+                # print(node.name, type(node))
+
+                if isinstance(node, spn.SumsLayer):
+                    if isinstance(node.values[0].node, spn.IVs):
+                        print("deteceted sum<-iv %s" % node)
+                        node.set_dropconnect_keep_prob(1.0)
+                    elif any(isinstance(c.node, spn.ProductsLayer) and
+                             any(isinstance(cc.node, spn.IVs) for cc in c.node.values)
+                             for c in node.values):
+                        print("deteceted sum<-product<-iv %s" % node)
+                    elif len(node.values) < 200:  # Cannot use dropconnect on low layers
+                        print("changed dropconnect to a placeholder", node, len(node.values))
+                        node.set_dropconnect_keep_prob(self._dropconnect_placeholder)
+                        count += 1
+            print(count)
 
 
-    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, dropout=False, epoch_limit=50):
+        if self._learning_algorithm == spn.GDLearning:
+
+            # Learning Ops
+            self._gd_learning = spn.GDLearning(
+                self._root,
+                value_inference_type = value_inference_type,
+                learning_rate=self._learning_rate,
+                learning_task_type=self._learning_type,
+                learning_method=self._learning_method,
+                gradient_type=self._gradient_type,
+                dropconnect_keep_prob=1.0)
+            # self._reset_accumulators = self._learning.reset_accumulators()
+            self._learn_spn, self._loss_op = self._gd_learning.learn(optimizer=self._optimizer)
+
+            # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
+            self._likelihood_op = self._gd_learning._value_gen.get_value(self._root.values[0].node)
+
+            self._init_weights = spn.initialize_weights(self._root)
+            self._init_weights = [self._init_weights, tf.global_variables_initializer()]
+
+        else:
+            self._additive_smoothing_var = tf.Variable(0.0,
+                                                       dtype=spn.conf.dtype)
+            self._em_learning = spn.EMLearning(
+                self._root, log=True,
+                value_inference_type=self._value_inference_type,
+                additive_smoothing=self._additive_smoothing_var,
+                add_random=None,
+                initial_accum_value=20,
+                use_unweighted=True)
+
+            self._init_weights = spn.initialize_weights(self._root)
+            self._reset_accumulators = self._em_learning.reset_accumulators()
+            self._accumulate_updates = self._em_learning.accumulate_updates()
+            self._update_spn = self._em_learning.update_spn()
+            self._train_likelihood = self._em_learning.value.values[self._root]
+            self._avg_train_likelihood = tf.reduce_mean(self._train_likelihood)
+            print("Done!")
+        
+
+    def train(self, batch_size, update_threshold,
+              train_loss=[], test_loss=[], train_perf=[], test_perf=[],
+              shuffle=True, epoch_limit=50):
         """
         Train the model.
         
         batch_size (int): size of each mini-batch.
         update_threshold (float): minimum update required between steps to continue.
-        save_loss (bool): if true, return two arrays, one that tracks loss on the 
-                          training dataset, and the other that tracks loss on the
-                          testing dataset. The loss is computed per 100 batches.
         """
-        def drop_it(cell):
-            if random.random() < 0.2: # 20% chance dropped
-                return -1
-            else:
-                return cell
-        
+
         train_set = self._data.training_scans
         train_labels = self._data.training_labels
 
@@ -213,35 +259,49 @@ class PlaceModel:
         prev_loss = 100
         loss = 0
         losses = []
+        batch_losses = []
         batch = 0
         epoch = 0
 
-        print("Start Training...")
-        while epoch < epoch_limit \
-              and abs(prev_loss - loss)>update_threshold:
+        print("Start Training.tr..")
+        while (self._learning_algorithm == spn.GDLearning \
+               and epoch < epoch_limit and abs(prev_loss - loss)>update_threshold) \
+               or (self._learning_algorithm == spn.EMLearning \
+                   and (abs(prev_loss - loss)>update_threshold)):
 
             start = (batch)*batch_size
             stop = min((batch+1)*batch_size, train_set.shape[0])
             print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev loss", prev_loss, "loss", loss)
 
-            # Dropout
-            if dropout:
-                train_batch = np.empty_like(train_set[start:stop])
-                np.copyto(train_batch, train_set[start:stop])
-                
-                drop_func = np.vectorize(drop_it)
-                train_batch = drop_func(train_batch)
-            else:
-                train_batch = train_set[start:stop]
-            
-            # Run accumulate_updates
-            train_likelihoods_arr, avg_train_likelihood_val, _, = \
+            if self._learning_algorithm == spn.EMLearning:
+                # Adjust smoothing
+                ads = max(np.exp(-epoch * additive_smoothing_decay) *
+                          self._additive_smoothing_value,
+                          additive_smoothing_min)
+                self._sess.run(self._additive_smoothing_var.assign(ads))
+                print("  Smoothing: ", self._sess.run(self._additive_smoothing_var))
+                # Run accumulate_updates
+                train_likelihoods_arr, loss_train, _, = \
                     self._sess.run([self._train_likelihood,
                                     self._avg_train_likelihood,
-                                    self._learn_spn],
-                                   feed_dict={self._ivs: train_batch,
-                                              self._latent: train_labels[start:stop]})
+                                    self._accumulate_updates],
+                                   feed_dict={self._ivs: train_set[start:stop],
+                                              self._latent: train_labels[start:stop],
+                                              self._dropconnect_placeholder: self._dropconnect_keep_prob})
+                # Print avg likelihood of this batch data on previous batch weights
+                print("  Avg likelihood (this batch data on previous weights): %s" %
+                      (loss_train))
+                # Update weights
+                self._sess.run(self._update_spn)
 
+            else:
+                _, loss_train, likelihoods = self._sess.run([self._learn_spn, self._loss_op, self._likelihood_op],
+                                                            feed_dict={self._ivs: train_set[start:stop],
+                                                                       self._latent: train_labels[start:stop],
+                                                                       self._dropconnect_placeholder: self._dropconnect_keep_prob})
+
+            batch_losses.append(loss_train)
+            
             batch += 1
             if stop >= train_set.shape[0]:
                 epoch += 1
@@ -254,30 +314,33 @@ class PlaceModel:
                     train_set = train_set[p]
                     train_labels = train_labels[p]
                     
-                print("Computing train losses...")
-                loss_train = self.cross_entropy(train_set, train_labels)
-                print("Computing test losses...")
-                loss_test = self.cross_entropy(self._data.testing_scans, self._data.testing_labels)
-                print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
+                print("Computing train, (test) losses...")
+                loss_train = np.mean(batch_losses)
                 train_loss.append(loss_train)
-                test_loss.append(loss_test)
+                print("Train Loss: %.3f  " % loss_train)
+                if self._learning_algorithm == spn.GDLearning:
+                    loss_test = self.log_loss(self._data.testing_scans, self._data.testing_labels)
+                    test_loss.append(loss_test)
+                    print("Test Loss: %.3f  " % loss_test)
+
+                print("Computing train performance...")
+                perf_train = self.performance(train_set, train_labels, batch_size=500)
+                print("Computing test performance...")
+                perf_test = self.performance(self._data.testing_scans, self._data.testing_labels, batch_size=100)
+                
+                for k in range(CategoryManager.NUM_CATEGORIES):
+                    train_perf[k].append(perf_train[k])
+                    test_perf[k].append(perf_test[k])
 
                 losses.append(loss_train)
+                prev_loss = loss
+                loss = loss_train
+                batch_losses = []
 
-                if len(losses) == 5:
-                    prev_loss = loss
-                    loss = sum(losses) / len(losses)
-                    losses.pop(0)
-                    print("Avg loss over 5 EPOCHs: %s" % (loss))
-
-        return epoch
+        return losses
 
             
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
-
-        # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
-        likelihood_op = self._learning.value.values[self._root.values[0].node]
-
         # Make numpy array of test samples
         testing_scans = self._data.testing_scans
         testing_labels = self._data.testing_labels
@@ -294,10 +357,11 @@ class PlaceModel:
                 stop = (batch + 1) * batch_size
 
             # Get output from sub-SPNs as likelihoods for each class. Likelihood for class i is representing P(X|Y=i)
-            train_likelihoods_arr = self._sess.run([likelihood_op],
-                                                   feed_dict={self._ivs: testing_scans[start:stop],
-                                                              self._latent: np.full((stop-start, 1), -1)})[0]
-            likelihoods = np.vstack((likelihoods, train_likelihoods_arr))
+            likelihoods_arr = self._sess.run([self._likelihood_op],
+                                             feed_dict={self._ivs: testing_scans[start:stop],
+                                                        self._latent: np.full((stop-start, 1), -1),
+                                                        self._dropconnect_placeholder: 1.0})[0]
+            likelihoods = np.vstack((likelihoods, likelihoods_arr))
 
         # Process graph results
         
@@ -351,27 +415,72 @@ class PlaceModel:
         
             return cm_weighted, norm_cm(cm_weighted) * 100.0, stats, roc_results
 
+
+    def performance(self, scans, labels, batch_size=100):
+        correct = np.array([0 for i in range(CategoryManager.NUM_CATEGORIES)])
+        total = np.array([0 for i in range(CategoryManager.NUM_CATEGORIES)])
+        batch = 0
+        stop = min(batch_size, len(scans))
+        while stop < len(scans):
+            start = (batch)*batch_size
+            stop = min((batch+1)*batch_size, len(scans))
+            print("    BATCH", batch, "SAMPLES", start, stop)
+
+            likelihoods_arr = self._sess.run([self._likelihood_op],
+                                             feed_dict={self._ivs: scans[start:stop],
+                                                        self._latent: np.full((stop-start, 1), -1),
+                                                        self._dropconnect_placeholder: 1.0})[0]
+            batch += 1
+
+            for i in range(len(likelihoods_arr)):
+                pred = np.argmax(likelihoods_arr[i])
+                gt = labels[start+i][0]
+                if pred == gt:
+                    correct[gt] += 1
+                total[gt] += 1
+
+        print(correct / total)
+
+        return correct / total
     
 
-    def test_samples_exam(self, dirpath, trial_name):
+    def train_test_samples_exam(self, dirpath, trial_name):
         """This function is created only to respond to Andrzej's request"""
-        likelihood_op = self._learning.value.values[self._root.values[0].node]
-        
-        # Make numpy array of test samples
+
+        def samples_exam(scans, labels, writer, batch_size=100):
+            batch = 0
+            stop = min(batch_size, len(scans))
+            while stop < len(scans):
+                start = (batch)*batch_size
+                stop = min((batch+1)*batch_size, len(scans))
+                print("    BATCH", batch, "SAMPLES", start, stop)
+
+                likelihoods_arr = self._sess.run([self._likelihood_op],
+                                                 feed_dict={self._ivs: scans[start:stop],
+                                                            self._latent: np.full((stop-start, 1), -1),
+                                                            self._dropconnect_placeholder: 1.0})[0]
+                for i in range(len(likelihoods_arr)):
+                    writer.writerow([len(scans[start+i])]
+                                    + scans[start+i].tolist()
+                                    + [CategoryManager.NUM_CATEGORIES]
+                                    + likelihoods_arr[i].reshape(-1,).tolist()
+                                    + [CategoryManager.category_map(labels[start+i][0], rev=True)])
+                batch += 1
+
         testing_scans = self._data.testing_scans
         testing_labels = self._data.testing_labels
+        training_scans = self._data.training_scans
+        training_labels = self._data.training_labels
 
+        print("Writing test samples exam file...")
         with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
-            for i in range(len(testing_scans)):
-                train_likelihoods_arr = self._sess.run([likelihood_op],
-                                                       feed_dict={self._ivs: testing_scans[i:i+1],
-                                                                  self._latent: np.full((1, 1), -1)})[0]
-                writer.writerow([len(testing_scans[i])]
-                                + testing_scans[i].tolist()
-                                + [CategoryManager.NUM_CATEGORIES]
-                                + train_likelihoods_arr.reshape(-1,).tolist()
-                                + [CategoryManager.category_map(testing_labels[i][0], rev=True)])
+            samples_exam(testing_scans, testing_labels,writer)
+
+        print("Writing train samples exam file...")
+        with open(os.path.join(dirpath, "train_samples_exam-%s.csv" % trial_name), 'w') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+            samples_exam(testing_scans, testing_labels,writer, batch_size=200)
 
         root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
         with open(os.path.join(dirpath, "dgsm_root_weights-%s.csv" % trial_name), 'w') as f:
@@ -379,7 +488,7 @@ class PlaceModel:
             writer.writerow(root_weights.tolist())
 
 
-    def cross_entropy(self, samples, labels, batch_size=500):
+    def log_loss(self, samples, labels, batch_size=100):
         batch = 0
         loss_values = []
         stop = min(batch_size, len(samples))
@@ -388,9 +497,11 @@ class PlaceModel:
             stop = min((batch+1)*batch_size, len(samples))
             print("    BATCH", batch, "SAMPLES", start, stop)
 
-            loss_val = self._sess.run(self._cross_entropy_loss,
-                                      feed_dict={self._ivs:samples[start:stop],
-                                                 self._latent:labels[start:stop]})
+            loss_val = self._sess.run([self._loss_op],
+                                      feed_dict={self._ivs: samples[start:stop],
+                                                 self._latent: labels[start:stop],
+                                                 self._dropconnect_placeholder: 1.0})
+
             loss_values.append(loss_val)
             batch += 1
         return np.mean(loss_values)

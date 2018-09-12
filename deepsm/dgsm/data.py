@@ -104,10 +104,8 @@ class Data:
         self._radiuses = np.array(self._radiuses)
         self._num_radius_cells = len(self._radiuses) - 1
 
-    def load(self, data_dir):
+    def load(self, set_defs_path, data_path):
         try:
-            data_path = os.path.join(data_dir, "real_data")
-            set_defs_path = os.path.join(data_dir, "set_defs")
             with open(data_path, 'rb') as f:
                 self._data = pickle.load(f)
             with open(set_defs_path, 'rb') as f:

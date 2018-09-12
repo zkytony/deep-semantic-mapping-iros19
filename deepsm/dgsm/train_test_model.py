@@ -24,8 +24,10 @@ def create_parser():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Required arguments
-    parser.add_argument('data_dir', type=str,
-                        help='Directory where the data is stored')
+    parser.add_argument('set_defs_path', type=str,
+                        help='Path where the set defs is stored')
+    parser.add_argument('real_data_path', type=str,
+                        help='Path where the real_data is stored')
     parser.add_argument('results_dir', type=str,
                         help='Directory where results are saved')
     parser.add_argument('subset', type=int,
@@ -79,12 +81,14 @@ def create_parser():
 
     # Learning params
     learn_params = parser.add_argument_group(title="learning parameters")
+    learn_params.add_argument('--learning-algorithm', type=str, default="GD",
+                              help='GD or EM')
     learn_params.add_argument('--update-threshold', type=float, default=0.00001,
                               help='Threshold of likelihood update')
     learn_params.add_argument('--batch-size', type=int, default=10,
                               help='Size of each batch for training')
     learn_params.add_argument('--epoch-limit', type=int, default=50,
-                              help='Upperbound for epoch')
+                              help='limit on epochs')
     learn_params.add_argument('--weight-init', type=str, default='random',
                               help='Weight init value: ' +
                               ', '.join([a.name.lower()
@@ -93,8 +97,8 @@ def create_parser():
                               help='Type of inference during EM upwards pass: ' +
                               ', '.join([a.name.lower()
                                         for a in spn.InferenceType]))
-    learn_params.add_argument('--dropout', action='store_true',
-                              help='Dropout (0.2 probability)')
+    learn_params.add_argument('--dropconnect-keep-prob', type=float, default=-1,
+                              help='drop-connect probability parameter for gd learning')
     # GDLearning
     learn_params.add_argument('--learning-rate', type=float, default=0.001,
                               help='Learning rate for gradient descent')
@@ -170,7 +174,7 @@ def print_args(args):
     print("---------")
     print("Arguments")
     print("---------")
-    print("* Data dir: %s" % args.data_dir)
+    print("* set_paths path: %s" % args.set_defs_path)
     print("* Results dir: %s" % args.results_dir)
     print("* Classes: %s" % str(CategoryManager.known_categories()))
     print("* Subset: %s" % args.subset)
@@ -198,8 +202,11 @@ def print_args(args):
     print("* Place input mixtures: %s" % args.place_input_mixtures)
 
     print("\nLearning parameters:")
+    print("* Learning algorithm: %s" % args.learning_algorithm)
     print("* Weight initialization: %s" % args.weight_init)
-    print("* Learning rate: %s" % args.learning_rate)
+    if args.learning_algorithm == "GD":
+        print("* Learning rate: %s" % args.learning_rate)
+        print("* Drop-connect keep prob: %s" % args.dropconnect_keep_prob)
     print("* Epoch limit: %s" % args.epoch_limit)
     print("* Likelihood update threshold: %s" % args.update_threshold)
     print("* Batch size: %s" % args.batch_size)
@@ -219,15 +226,12 @@ def create_directories(args):
         if args.save_masked:
             os.makedirs(os.path.join(args.results_dir, 'masked_scans'), exist_ok=True)
 
-def make_trial_name(args):
+def make_trial_name(args, model):
     trial_name = ""
     if args.balance_data:
         trial_name = "balanced"
     else:
         trial_name = "unbalanced"
-
-    if args.dropout:
-        trial_name += "_dropout"
 
     trial_name += "_lr" + str(abs(round(math.log(args.learning_rate, 10))))
     trial_name += "_b" + str(args.batch_size)
@@ -235,9 +239,13 @@ def make_trial_name(args):
         trial_name += "_uc" + str(abs(round(math.log(args.update_threshold, 10))))
     else:
         trial_name += "_ucZero"
+    trial_name += "_d" + str(args.dropconnect_keep_prob)
     trial_name += "_mpe" if args.value_inference == spn.InferenceType.MPE else "_marginal"
-    trial_name += "_E" + str(args.epoch_limit)
     trial_name += "_k" + str(CategoryManager.NUM_CATEGORIES)
+    trial_name += "_E" + str(args.epoch_limit)
+    trial_name += "_" + str(args.learning_algorithm)
+    if args.learning_algorithm == "GD":
+        trial_name += "_" + str(model._learning_method)
     trial_name += "_" + args.building
     return trial_name
 
@@ -250,7 +258,7 @@ def main(args=None):
 
     data = Data(args.angle_cells, args.radius_min,
                 args.radius_max, args.radius_factor)
-    data.load(args.data_dir)
+    data.load(args.set_defs_path, args.real_data_path)
     data.process(args.subset, args.occupancy_vals)
     data.print_info()
     if not args.graph_test:
@@ -285,6 +293,11 @@ def main(args=None):
     trial_name = make_trial_name(args)
     print("--------------- Trial name: %s -----------------" % trial_name)
 
+    if args.learning_algorithm == "EM":
+        learning_alg = spn.EMLearning
+    else:
+        learning_alg = spn.GDLearning
+
     # Model
     model = PlaceModel(data=data,
                        view_input_dist=args.view_input_dist,
@@ -303,33 +316,43 @@ def main(args=None):
                        smoothing_val=args.smoothing_val,
                        smoothing_min=args.smoothing_min,
                        smoothing_decay=args.smoothing_decay,
+                       learning_algorithm=learning_alg,
                        value_inference_type=args.value_inference,
-                       optimizer=tf.train.AdamOptimizer)
-    train_loss, test_loss = [], []
+                       optimizer=tf.train.AdamOptimizer,
+                       dropconnect_keep_prob=args.dropconnect_keep_prob)
+    trial_name = make_trial_name(args, model)
+    train_loss, test_loss, train_perf, test_perf = [], [], [[] for _ in range(CategoryManager.NUM_CATEGORIES)], [[] for _ in range(CategoryManager.NUM_CATEGORIES)]
     epoch = 0
     try:
-        epoch = model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss, shuffle=shuffle, dropout=args.dropout, epoch_limit=args.epoch_limit)
+        model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss,
+                    train_perf=train_perf, test_perf=test_perf,
+                    shuffle=shuffle, epoch_limit=args.epoch_limit)
+        epoch = len(train_loss)
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
         dirpath = os.path.join("analysis", "dgsm")
 
+        trial_name = make_trial_name(args, model)
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
-        plot_to_file(train_loss, test_loss,
-                     labels=['train loss', 'test loss'],
+        plot_to_file(train_loss, test_loss, *train_perf, *test_perf,
+                     labels=['train loss', 'test loss',
+                             *['train accuracy %s' % k for k in CategoryManager.known_categories()],
+                             *['test accuracy %s' % k for k in CategoryManager.known_categories()]],
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
         np.savetxt(os.path.join(dirpath, 'loss-train-%s.txt' % trial_name), train_loss, delimiter=',', fmt='%.4f')
         np.savetxt(os.path.join(dirpath, 'loss-test-%s.txt' % trial_name), test_loss, delimiter=',', fmt='%.4f')
-            
+        
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        # model.test_samples_exam(dirpath, trial_name)
+        model.train_test_samples_exam(dirpath, trial_name)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:
             pprint(cm_weighted, stream=f)
             pprint(cm_weighted_norm, stream=f)
             pprint(stats, stream=f)
+            pprint(np.unique(data.training_labels, return_counts=True))
 
         # Plot roc
         roc_plot_path = os.path.join(dirpath, 'roc-%s.png' % trial_name)

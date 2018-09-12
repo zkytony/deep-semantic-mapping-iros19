@@ -34,12 +34,15 @@ def experiment_proc(what,
                     complexity_coeff=7.0,
                     straight_template_coeff=8.0,
                     dom_coeff=4.85,
-                    separable_coeff=2.15):
+                    separable_coeff=2.15,
+                    train_with_likelihoods=False):
     store_true_args = []
     if skip_placeholders:
         store_true_args.append('--skip-placeholders')
     if random_sampling:
         store_true_args.append('--random-sampling')
+    if train_with_likelihoods:
+        store_true_args.append('--train-with-likelihoods')
 
     if what == "DGSM_SAME_BUILDING":
         coeffs = ['--similarity-coeff', similarity_coeff,
@@ -105,7 +108,8 @@ def same_buliding(args):
                                        args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
                                        test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
                                        category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
-                                       dom_coeff=args.dom_coeff, separable_coeff=args.separable_coeff, straight_template_coeff=args.straight_template_coeff)
+                                       dom_coeff=args.dom_coeff, separable_coeff=args.separable_coeff, straight_template_coeff=args.straight_template_coeff,
+                                       train_with_likelihoods=args.train_with_likelihoods)
                 proc.wait()
                 num_seqs_tested += 1
                 if args.num_test_seqs >= 0 and num_seqs_tested >= args.num_test_seqs:
@@ -121,7 +125,8 @@ def same_buliding(args):
                                args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
                                test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
                                category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
-                               dom_coeff=args.dom_coeff, separable_coeff=args.seprable_coeff, straight_template_coeff=args.straight_template_coeff)
+                               dom_coeff=args.dom_coeff, separable_coeff=args.seprable_coeff, straight_template_coeff=args.straight_template_coeff,
+                               train_with_likelihoods=args.train_with_likelihoods)
         proc.wait()
 
 
@@ -167,6 +172,7 @@ def main():
     parser.add_argument("--straight-template-coeff", type=float, default=8.0)
     parser.add_argument("--dom-coeff", type=float, default=4.85)
     parser.add_argument("--separable-coeff", type=float, default=2.15)
+    parser.add_argument("--train-with-likelihoods", action="store_true")
     args = parser.parse_args()
 
     util.CategoryManager.TYPE = args.category_type

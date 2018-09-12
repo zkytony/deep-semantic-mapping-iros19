@@ -149,6 +149,15 @@ class ColdDatabaseExperiment(TbmExperiment):
             return report
 
 
+def get_cases(db_name):
+    if db_name == "Stockholm":
+        floors = {4,5,6,7}
+    elif db_name == "Freiburg":
+        floors = {1, 2, 3}
+    elif db_name == "Saarbrucken":
+        floors = {1, 2, 3, 4}
+    return {"".join(floors-{f}) + "-" + str(f) for floor in sorted(floors)}
+
 def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                    amount=1, seq_id=None, skip_placeholders=False):
     """Run experiment
@@ -186,6 +195,8 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     try:
         with tf.Session() as sess:
             # Train models
+            if train_kwargs['train_with_likelihoods']:
+                exp.load_dgsm_likelihoods(train_kwargs['db_names'])
             train_info = exp.train_models(sess, **train_kwargs)
 
             # Relax priors for simple template SPNs:
@@ -314,6 +325,7 @@ def same_building():
     parser.add_argument("--straight-template-coeff", type=float, default=8.0)
     parser.add_argument("--dom-coeff", type=float, default=4.85)
     parser.add_argument("--separable-coeff", type=float, default=2.15)
+    parser.add_argument("--train-with-likelihoods", action="store_true")
     args = parser.parse_args(sys.argv[2:])
 
     util.CategoryManager.TYPE = args.category_type
@@ -336,6 +348,7 @@ def same_building():
         "save": True,
         'save_training_info': True,
         'timestamp': timestamp,
+        'train_with_likelihoods': args.train_with_likelihoods,
         'partition_sampling_method': "RANDOM" if args.random_sampling else "ENERGY",
 
         # spn structure

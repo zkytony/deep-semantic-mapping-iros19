@@ -156,7 +156,7 @@ class TemplateSpn(SpnModel):
             self._expanded = True
 
 
-    def _start_training(self, samples, num_batches, likelihood_thres, sess, func_feed_samples, num_epochs=None):
+    def _start_training(self, samples, num_batches, likelihood_thres, sess, func_feed_samples, num_epochs=None, dgsm_lh=None):
         """
         Helper for train() in subclasses. Weights should have been initialized.
 
@@ -164,6 +164,7 @@ class TemplateSpn(SpnModel):
         `func_feed_samples` (function; start, stop) function that feeds samples into the network.
                             It runs the train_likelihood, avg_train_likelihood, and accumulate_updates
                             Ops.
+        `lh` (numpy.ndarray) dgsm likelihoods
         """
         print("Resetting accumulators...")
         sess.run(self._reset_accumulators)
@@ -192,7 +193,7 @@ class TemplateSpn(SpnModel):
                     print("Smoothing: ", sess.run(self._additive_smoothing_var))
                 
                 train_likelihoods_arr, avg_train_likelihood_val, _, = \
-                    func_feed_samples(self, samples, start, stop)
+                    func_feed_samples(self, samples, start, stop, dgsm_lh=dgsm_lh)
 
                 # Print avg likelihood of this batch data on previous batch weights
                 print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
@@ -362,10 +363,16 @@ class NodeTemplateSpn(TemplateSpn):
           likelihood_thres (float): threshold of likelihood difference between
                                     interations to stop training. Default: 0.05
         """
-        def feed_samples(self, samples, start, stop):
-            return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                             self._learn_spn],
-                            feed_dict={self._catg_inputs: samples[start:stop]})
+        def feed_samples(self, samples, start, stop, dgsm_lh=None):
+            if dgsm_lh is None:
+                return sess.run([self._train_likelihood, self._avg_train_likelihood,
+                                 self._learn_spn],
+                                feed_dict={self._catg_inputs: samples[start:stop]})
+            else:
+                return sess.run([self._train_likelihood, self._avg_train_likelihood,
+                                 self._learn_spn],
+                                feed_dict={self._semantic_inputs: np.full((stop-start, self._num_nodes),-1),
+                                           self._likelihood_inputs: dgsm_lh[start:stop]})
 
         
         samples = args[0]
@@ -378,12 +385,16 @@ class NodeTemplateSpn(TemplateSpn):
         num_batches = kwargs.get('num_batches', 1)
         num_epochs = kwargs.get('num_epochs', None)
         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
+        dgsm_lh = kwargs.get('dgsm_lh', None)
 
         if shuffle:
-            np.random.shuffle(samples)
+            p = np.random.permutation(len(samples))
+            smaples = samples[p]
+            if dgsm_lh is not None:
+                dgsm_lh = dgsm_lh[p]
 
         # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs)
+        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
         
     
     def evaluate(self, sess, *args, **kwargs):
@@ -510,232 +521,234 @@ class NodeTemplateSpn(TemplateSpn):
 
 
 
-class EdgeTemplateSpn(TemplateSpn):
+# class EdgeTemplateSpn(TemplateSpn):
 
-    """
-    Spn on top of an edge template. (The connectivity is not considered; it is
-    implicit in the training data)
-    """
+#     """
+#     Spn on top of an edge template. (The connectivity is not considered; it is
+#     implicit in the training data)
+#     """
 
-    def __init__(self, template, divisions=8, *args, **kwargs):
-        """
-        Initialize an EdgeTemplateSPN.
+#     def __init__(self, template, divisions=8, *args, **kwargs):
+#         """
+#         Initialize an EdgeTemplateSPN.
 
-        template (EdgeTemplate): a class of the modeled edge template.
-        divisions (int): number of views per place.
+#         template (EdgeTemplate): a class of the modeled edge template.
+#         divisions (int): number of views per place.
 
-        **kwargs:
-           seed (int): seed for the random generator. Set before generating
-                       the structure.
-        """
-        super().__init__(template, *args, **kwargs)
+#         **kwargs:
+#            seed (int): seed for the random generator. Set before generating
+#                        the structure.
+#         """
+#         super().__init__(template, *args, **kwargs)
 
-        self._divisions = divisions
-        self._template = template
-        self._num_nodes = self._template.num_edges() * 2  # number of nodes where variables are derived.
+#         self._divisions = divisions
+#         self._template = template
+#         self._num_nodes = self._template.num_edges() * 2  # number of nodes where variables are derived.
 
-        self._init_struct(rnd=self._rnd, seed=self._seed)
+#         self._init_struct(rnd=self._rnd, seed=self._seed)
 
 
-    @property
-    def template(self):
-        return self._template
+#     @property
+#     def template(self):
+#         return self._template
 
-    @property
-    def divisions(self):
-        return self._divisions
+#     @property
+#     def divisions(self):
+#         return self._divisions
 
-    @property
-    def root(self):
-        return self._root
+#     @property
+#     def root(self):
+#         return self._root
 
-    @property
-    def vn(self):
-        return {
-            'CATG_IVS':"Catg_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
-            'VIEW_IVS':"View_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
-            'CONC': "Conc_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
-            'SEMAN_IVS': "Exp_Catg_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
-            'LH_CONT': "Exp_Lh_%s_%d" % (self.__class__.__name__, self._template.num_edges())
-        }
+#     @property
+#     def vn(self):
+#         return {
+#             'CATG_IVS':"Catg_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
+#             'VIEW_IVS':"View_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
+#             'CONC': "Conc_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
+#             'SEMAN_IVS': "Exp_Catg_%s_%d" % (self.__class__.__name__, self._template.num_edges()),
+#             'LH_CONT': "Exp_Lh_%s_%d" % (self.__class__.__name__, self._template.num_edges())
+#         }
 
-    def _init_struct(self, rnd=None, seed=None):
-        """
-        Initialize the structure for training.  (private method)
+#     def _init_struct(self, rnd=None, seed=None):
+#         """
+#         Initialize the structure for training.  (private method)
 
-        rnd (Random): instance of a random number generator used for
-                      dense generator. 
-        """
-        # An input to spn goes through a concat node before reaching the network. This makes
-        # it convenient to expand the network downwards, by swapping the inputs to the concat
-        # nodes. 
+#         rnd (Random): instance of a random number generator used for
+#                       dense generator. 
+#         """
+#         # An input to spn goes through a concat node before reaching the network. This makes
+#         # it convenient to expand the network downwards, by swapping the inputs to the concat
+#         # nodes. 
 
-        # Inputs to the spn. `catg_inputs` are inputs for semantic categories; `view_inputs`
-        # are inputs for view numbers.
-        self._catg_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = CategoryManager.NUM_CATEGORIES,
-                                    name = self.vn['CATG_IVS'])
-        self._view_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = self._divisions,
-                                    name = self.vn['VIEW_IVS'])
+#         # Inputs to the spn. `catg_inputs` are inputs for semantic categories; `view_inputs`
+#         # are inputs for view numbers.
+#         self._catg_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = CategoryManager.NUM_CATEGORIES,
+#                                     name = self.vn['CATG_IVS'])
+#         self._view_inputs = spn.IVs(num_vars = self._num_nodes, num_vals = self._divisions,
+#                                     name = self.vn['VIEW_IVS'])
 
-        # Concat nodes, used to connect the category inputs to the spn. 
-        self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs),
-                                       name = self.vn['CONC'])
+#         # Concat nodes, used to connect the category inputs to the spn. 
+#         self._conc_inputs = spn.Concat(spn.Input.as_input(self._catg_inputs),
+#                                        name = self.vn['CONC'])
 
-        # Generate structure, weights, and generate learning operations.
-        print("Generating SPN structure...")
-        if seed is not None:
-            print("[Using seed %d]" % seed)
-            rnd = random.Random(seed)
-        self._root = self._dense_gen.generate(self._conc_inputs, self._view_inputs, rnd=rnd)
+#         # Generate structure, weights, and generate learning operations.
+#         print("Generating SPN structure...")
+#         if seed is not None:
+#             print("[Using seed %d]" % seed)
+#             rnd = random.Random(seed)
+#         self._root = self._dense_gen.generate(self._conc_inputs, self._view_inputs, rnd=rnd)
     
 
-    def train(self, sess, *args, **kwargs):
-        """
-        Train the SPN. Weights should have been initialized.
+#     def train(self, sess, *args, **kwargs):
+#         """
+#         Train the SPN. Weights should have been initialized.
 
-        sess (tf.Session): Tensorflow session object
-        *args:
-          samples (numpy.ndarray): A numpy array of size (D,2,n) where D is the
-                                   number of data samples, and n is the number
-                                   of semantic variables in template modeled by
-                                   this spn. (e.g. in EdgePairTemplate, n = 4)
-                                   (note: n = self.num_nodes)
+#         sess (tf.Session): Tensorflow session object
+#         *args:
+#           samples (numpy.ndarray): A numpy array of size (D,2,n) where D is the
+#                                    number of data samples, and n is the number
+#                                    of semantic variables in template modeled by
+#                                    this spn. (e.g. in EdgePairTemplate, n = 4)
+#                                    (note: n = self.num_nodes)
 
-        **kwargs:
-          shuffle (bool): shuffles `samples` before training. Default: False.
-          num_batches (int): number of batches to split the training data into.
-                             Default: 1
-          likelihood_thres (float): threshold of likelihood difference between
-                                    interations to stop training. Default: 0.05
-        """
+#         **kwargs:
+#           shuffle (bool): shuffles `samples` before training. Default: False.
+#           num_batches (int): number of batches to split the training data into.
+#                              Default: 1
+#           likelihood_thres (float): threshold of likelihood difference between
+#                                     interations to stop training. Default: 0.05
+#         """
 
-        def feed_samples(self, samples, start, stop):
-            return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                             self._learn_spn],
-                            feed_dict={self._catg_inputs: samples[start:stop, 0],
-                                       self._view_inputs: samples[start:stop, 1]})
+#         def feed_samples(self, samples, start, stop):
+#             return sess.run([self._train_likelihood, self._avg_train_likelihood,
+#                              self._learn_spn],
+#                             feed_dict={self._catg_inputs: samples[start:stop, 0],
+#                                        self._view_inputs: samples[start:stop, 1]})
         
-        samples = args[0]
-        D, m, n = samples.shape
-        if n != self._num_nodes or m != 2:
-            raise ValueError("Invalid shape for `samples`." \
-                             "Expected (?, %d, %d), got %s)" % (2, self._num_nodes, samples.shape))
+#         samples = args[0]
+#         D, m, n = samples.shape
+#         if n != self._num_nodes or m != 2:
+#             raise ValueError("Invalid shape for `samples`." \
+#                              "Expected (?, %d, %d), got %s)" % (2, self._num_nodes, samples.shape))
             
-        shuffle = kwargs.get('shuffle', False)
-        num_batches = kwargs.get('num_batches', 1)
-        likelihood_thres = kwargs.get('likelihood_thres', 0.05)
+#         shuffle = kwargs.get('shuffle', False)
+#         num_batches = kwargs.get('num_batches', 1)
+#         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
+
+#         if shuffle:
+#             p = np.random.permutation(len(samples))
+#             smaples = samples[p]
+#             if lh is not None:
+#                 lh = lh[p]
+
+#         # Starts training
+#         return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, lh=lh)
 
 
-        if shuffle:
-            np.random.shuffle(samples)
+#     def evaluate(self, sess, *args, **kwargs):
+#         """
+#         Feeds inputs into the network and return the output of the network. Returns the
+#         output of the network
 
-        # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples)
+#         sess (tf.Session): a session.
 
+#         *args:
+#           sample (numpy.ndarray): an (2*n,) numpy array as a sample. n = self.num_nodes
 
-    def evaluate(self, sess, *args, **kwargs):
-        """
-        Feeds inputs into the network and return the output of the network. Returns the
-        output of the network
+#           <if expanded>
+#           sample_lh ()numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
+#                                       so [?,c] is a likelihood for class c (float).
+#         """
 
-        sess (tf.Session): a session.
-
-        *args:
-          sample (numpy.ndarray): an (2*n,) numpy array as a sample. n = self.num_nodes
-
-          <if expanded>
-          sample_lh ()numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
-                                      so [?,c] is a likelihood for class c (float).
-        """
-
-        if not self._expanded:
-            sample = args[0].reshape(2,-1)
-            likelihood_val = sess.run(self._train_likelihood, feed_dict={self._catg_inputs: np.array([sample[0,]], dtype=int),
-                                                                         self._view_inputs: np.array([sample[1,]], dtype=int)})
-        else:
-            sample = args[0].reshape(2,-1)
-            sample_lh = np.array([args[1].flatten()], dtype=float32)
-            likelihood_val = sess.run(self._train_likelihood, feed_dict={self._semantic_inputs: np.array([sample[0,]], dtype=int),
-                                                                         self._likelihood_inputs: sample_lh,
-                                                                         self._view_inputs: np.array([sample[1,]], dtype=int)})
+#         if not self._expanded:
+#             sample = args[0].reshape(2,-1)
+#             likelihood_val = sess.run(self._train_likelihood, feed_dict={self._catg_inputs: np.array([sample[0,]], dtype=int),
+#                                                                          self._view_inputs: np.array([sample[1,]], dtype=int)})
+#         else:
+#             sample = args[0].reshape(2,-1)
+#             sample_lh = np.array([args[1].flatten()], dtype=float32)
+#             likelihood_val = sess.run(self._train_likelihood, feed_dict={self._semantic_inputs: np.array([sample[0,]], dtype=int),
+#                                                                          self._likelihood_inputs: sample_lh,
+#                                                                          self._view_inputs: np.array([sample[1,]], dtype=int)})
             
-        return likelihood_val  # TODO: likelihood_val is now a numpy array. Should be a float.
+#         return likelihood_val  # TODO: likelihood_val is now a numpy array. Should be a float.
 
 
-    def init_mpe_states(self):
-        """
-        Initialize Ops for MPE inference.
-        """
-        mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
-        if not self._expanded:
-            self._mpe_state = mpe_state_gen.get_state(self._root, self._catg_inputs, self._view_inputs)
-        else:
-            self._mpe_state = mpe_state_gen.get_state(self._root, self._semantic_inputs, self._view_inputs)
+#     def init_mpe_states(self):
+#         """
+#         Initialize Ops for MPE inference.
+#         """
+#         mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
+#         if not self._expanded:
+#             self._mpe_state = mpe_state_gen.get_state(self._root, self._catg_inputs, self._view_inputs)
+#         else:
+#             self._mpe_state = mpe_state_gen.get_state(self._root, self._semantic_inputs, self._view_inputs)
 
             
-    def marginal_inference(self, sess, *args, **kwargs):
-        """
-        Performs marginal inference.
-        """
-        raise NotImplementedError
+#     def marginal_inference(self, sess, *args, **kwargs):
+#         """
+#         Performs marginal inference.
+#         """
+#         raise NotImplementedError
 
 
-    def mpe_inference(self, sess, *args, **kwargs):
-        """
-        Feeds inputs with some '-1' and infer their values. Returns the inferred mpe value
-        for the query state.
+#     def mpe_inference(self, sess, *args, **kwargs):
+#         """
+#         Feeds inputs with some '-1' and infer their values. Returns the inferred mpe value
+#         for the query state.
 
-        sess (tf.Session): a session.
+#         sess (tf.Session): a session.
 
-        *args:
-          query (numpy.ndarray): an (2*n,) numpy array as a query. n = self.num_nodes
+#         *args:
+#           query (numpy.ndarray): an (2*n,) numpy array as a query. n = self.num_nodes
 
-          <if expanded>
-          query_lh ()numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
-                                     so [?,c] is a likelihood for class c (float).
-        """
-        if not self._expanded:
-            query = args[0].reshape(2,-1)
-            mpe_state_val = sess.run(self._mpe_state, feed_dict={self._catg_inputs: np.array([query[0,]], dtype=int),
-                                                                 self._view_inputs: np.array([query[1,]], dtype=int)})
-        else:
-            query = args[0].reshape(2,-1)
-            query_lh = np.array([args[1].flatten()], dtype=float32)
-            mpe_state_val = sess.run(self._mpe_state, feed_dict={self._semantic_inputs: np.array([query[0,]], dtype=int),
-                                                                 self._likelihood_inputs: query_lh,
-                                                                 self._view_inputs: np.array([query[1,]], dtype=int)})
-        return mpe_state_val
+#           <if expanded>
+#           query_lh ()numpy.ndarray): an (n,m) numpy array, where m is the number of categories,
+#                                      so [?,c] is a likelihood for class c (float).
+#         """
+#         if not self._expanded:
+#             query = args[0].reshape(2,-1)
+#             mpe_state_val = sess.run(self._mpe_state, feed_dict={self._catg_inputs: np.array([query[0,]], dtype=int),
+#                                                                  self._view_inputs: np.array([query[1,]], dtype=int)})
+#         else:
+#             query = args[0].reshape(2,-1)
+#             query_lh = np.array([args[1].flatten()], dtype=float32)
+#             mpe_state_val = sess.run(self._mpe_state, feed_dict={self._semantic_inputs: np.array([query[0,]], dtype=int),
+#                                                                  self._likelihood_inputs: query_lh,
+#                                                                  self._view_inputs: np.array([query[1,]], dtype=int)})
+#         return mpe_state_val
 
 
-    def save(self, path, sess, pretty=True):
-        """
-        Saves the SPN structure and parameters.
+#     def save(self, path, sess, pretty=True):
+#         """
+#         Saves the SPN structure and parameters.
 
-        path (str): save path.
-        sess (tf.Session): session object, required to save parameters.
-        """
-        spn.JSONSaver(path, pretty=pretty).save(self._root, save_param_vals=True, sess = sess)
+#         path (str): save path.
+#         sess (tf.Session): session object, required to save parameters.
+#         """
+#         spn.JSONSaver(path, pretty=pretty).save(self._root, save_param_vals=True, sess = sess)
 
     
-    def load(self, path, sess):
-        """
-        Loads the SPN structure and parameters. Replaces the existing structure
-        of this SPN.
+#     def load(self, path, sess):
+#         """
+#         Loads the SPN structure and parameters. Replaces the existing structure
+#         of this SPN.
 
-        path(str): path to load spn.
-        sess (tf.Session): session object, required to load parameters into current session.
-        """
-        loader = spn.JSONLoader(path)
-        self._root = loader.load(load_param_vals=True, sess=sess)
+#         path(str): path to load spn.
+#         sess (tf.Session): session object, required to load parameters into current session.
+#         """
+#         loader = spn.JSONLoader(path)
+#         self._root = loader.load(load_param_vals=True, sess=sess)
 
-        self._catg_inputs = loader.find_node(self.vn['CATG_IVS'])
-        self._view_inputs = loader.find_node(self.vn['VIEW_IVS'])
-        self._conc_inputs = loader.find_node(self.vn['CONC'])
+#         self._catg_inputs = loader.find_node(self.vn['CATG_IVS'])
+#         self._view_inputs = loader.find_node(self.vn['VIEW_IVS'])
+#         self._conc_inputs = loader.find_node(self.vn['CONC'])
         
-        if self._expanded:
-            self._likelihood_inputs = loader.find_node(self.vn['LH_CONT'])
-            self._semantic_inputs = loader.find_node(self.vn['SEMAN_IVS'])
-# -- END EdgeTemplateSpn -- #
+#         if self._expanded:
+#             self._likelihood_inputs = loader.find_node(self.vn['LH_CONT'])
+#             self._semantic_inputs = loader.find_node(self.vn['SEMAN_IVS'])
+# # -- END EdgeTemplateSpn -- #
 
 
 
@@ -852,7 +865,7 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         return self._root
 
 
-    def _get_feed_dict(self, samples, start=0, stop=None):
+    def _get_feed_dict(self, samples, start=0, stop=None, dgsm_lh=None):
         """
         samples (numpy.ndarray): If this template has both nodes and edges, then samples should
                                    be of shape (D, n+1) where D is the number of data samples, n
@@ -864,15 +877,25 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             stop = samples.shape[0]
 
         feed_dict = {}
+        
         catg_inputs = self._catg_inputs
         if self._expanded:
             catg_inputs = self._semantic_inputs
         
         if self._num_nodes != 0 and self._num_edge_pair != 0:
-            feed_dict={catg_inputs: samples[start:stop, :self._num_nodes],
-                       self._view_dist_input: samples[start:stop, self.num_nodes:]}
+            if dgsm_lh is None:
+                feed_dict={catg_inputs: samples[start:stop, :self._num_nodes],
+                           self._view_dist_input: samples[start:stop, self.num_nodes:]}
+            else:
+                feed_dict={catg_inputs: np.full((stop-start, self._num_nodes),-1),#samples[start:stop, :self._num_nodes],
+                           self._view_dist_input: samples[start:stop, self.num_nodes:],
+                           self._likelihood_inputs: dgsm_lh[start:stop]}
         elif self._num_nodes != 0:
-            feed_dict={catg_inputs: samples[start:stop]}
+            if dgsm_lh is None:
+                feed_dict={catg_inputs: samples[start:stop]}
+            else:
+                feed_dict={catg_inputs: np.full((stop-start, self._num_nodes),-1),#samples[start:stop, :self._num_nodes],
+                           self._likelihood_inputs: dgsm_lh[start:stop]}
         else:
             feed_dict={self._view_dist_input: samples[start:stop]}
         return feed_dict
@@ -895,8 +918,8 @@ class EdgeRelationTemplateSpn(TemplateSpn):
           likelihood_thres (float): threshold of likelihood difference between
                                     interations to stop training. Default: 0.05
         """
-        def feed_samples(self, samples, start, stop):
-            feed_dict = self._get_feed_dict(samples, start=start, stop=stop)
+        def feed_samples(self, samples, start, stop, dgsm_lh=None):
+            feed_dict = self._get_feed_dict(samples, start=start, stop=stop, dgsm_lh=dgsm_lh)
             return sess.run([self._train_likelihood, self._avg_train_likelihood,
                              self._learn_spn],
                             feed_dict = feed_dict)
@@ -920,12 +943,16 @@ class EdgeRelationTemplateSpn(TemplateSpn):
         num_batches = kwargs.get('num_batches', 1)
         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
         num_epochs = kwargs.get('num_epochs', None)
+        dgsm_lh = kwargs.get('dgsm_lh', None)
 
         if shuffle:
-            np.random.shuffle(samples)
+            p = np.random.permutation(len(samples))
+            smaples = samples[p]
+            if dgsm_lh is not None:
+                dgsm_lh = dgsm_lh[p]
 
         # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs)
+        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
 
 
     def init_mpe_states(self):

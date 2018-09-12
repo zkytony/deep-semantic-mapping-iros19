@@ -6,7 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 from deepsm.graphspn.tbm.topo_map import PlaceNode, TopologicalMap
-from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, EdgeRelationTemplateInstance, NodeTemplate
+from deepsm.graphspn.tbm.template import Template, SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, EdgeRelationTemplateInstance, NodeTemplate
 from deepsm.graphspn.tbm.algorithm import NodeTemplatePartitionSampler, EdgeRelationPartitionSampler
 from deepsm.util import CategoryManager, compute_view_number
 import os, sys
@@ -28,55 +28,99 @@ class TopoMapDataset:
         self._topo_maps_data = {}  # {db_name: {seq_id: topo_map}}
         self._using_tiny_graphs = {}
 
+    def _load_dgsm_likelihoods(self, db_names, **kwargs):
+        """Load all dgsm_likelihoods for the databases provided in db_names.
 
-    def load_template_dataset(self, template, db_names=None, seq_ids=None, seqs_limit=-1, random=True, **kwargs):
+        Each element in db_names should be of format Building_{FloorsTrain-FloorTest
+        
+        db_info: a dictionary that maps from db_name to a list of tuples
+                 (train_floors, test_floor)
+
+        Note: This function is only planned to be used for DGSM_SAME_BUILDING experiments.
         """
-        If random = True, use the old algorithm (that is partition graph randomly, yet using more
-        complex template first.
+        result = {}
+        trial_number = kwargs.get("trial_number", 0)
+        for db_nam in db_names:
+            building, case = db_name.split("_")
+            train_floors = case.split("-")[0]
+            test_floor = case.split("-")[1]
+            path_to_results = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
+                                                                      db_name,
+                                                                      "graphs",
+                                                                      train_floors,
+                                                                      test_floor)
+            for fname in os.listdir(path_to_resutls):
+                if fname.endswith("_likelihoods.json"):
+                    with open(fname) as f:
+                        lh = json.load(f)
+                        graph_id = fname[:fname.find("_likelihoods.json")]
+                        result[graph_id] = {nid:lh[nid][2] for nid in lh}
+        return result
 
-        If random = False, load the data from saved files which were created by sampling partitions
-        based on an energy function. See algorithm.py. The following comment is for the second case:
 
-        Loads samples of node template from file. The file is in path 
+
+    def load_template_dataset(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1, random=True, **kwargs):
+        """
+        loads all samples for template_type. `template_type` can either be 'three' or 'view'.
+        
+        If `use_dgsm_likelihoods` is set to True, the returned also contains likelihoods.
+
+        Both samples and likelihoods are of format:
+            db_name -> template.
+        
+        If random is False, loads samples of node template from file. The file is in path 
         
           TOPO_DB_PATH/
               building/
                   seq_id/
                       samples/
                           samples_{template}-{num_classes}.csv
+                          likelihoods_{template}-{num_classes}.csv
 
         If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
         will treat `seq_ids` as None. `seq_ids` should be a list of "{db}-{seq_id}" strings.
 
-        `template` can be either one of these classes:
-
-            ThreeNodeTemplate, PairTemplate, SingletonTemplate,
-            ThreeRelTemplate, SingleRelTemplate, SingleTemplate, RelTemplate
-
-        Returns a dictionary from db_name to samples in it.
         """
+        get_likelihoods = kwargs.get("use_dgsm_likelihoods", False)  # For now, this only works for random partitioning
+
+        templates = Template.templates_for(template_type)
+        
         if random:
-            if issubclass(template, NodeTemplate):
-                template_type = "three"
-                template_name = template.__name__
+            rs = self.create_template_dataset_with_sampler(template_type, db_names=db_names, seq_ids=seq_ids, seqs_limit=seqs_limit,
+                                                           num_partitions=kwargs.get('num_partitions', 5), random=random, get_likelihoods=get_likelihoods)
+
+            likelihoods = None
+            if get_likelihoods:
+                samples, likelihoods = rs
             else:
-                template_type = "view"
-                template_name = template.__name__
-                template = template.to_tuple()
-            samples = self.create_template_dataset_with_sampler(template_type, db_names=db_names, seq_ids=seq_ids, seqs_limit=seqs_limit,
-                                                                num_partitions=kwargs.get('num_partitions', 5), random=random)
+                samples = rs
 
             result_samples = {}
-            for db_name in db_names:
-                if db_name not in result_samples:
-                    result_samples[db_name] = None
+            for db_name in samples:
+                result_samples[db_name] = {}
                 for seq_id in samples[db_name]:
-                    samples_for_template = np.array(samples[db_name][seq_id][template], dtype=int)
-                    if result_samples[db_name] is None:
-                        result_samples[db_name] = samples_for_template
-                    else:
-                        result_samples[db_name] = np.vstack((result_samples[db_name], samples_for_template))
-            return result_samples
+                    for template in samples[db_name][seq_id]:
+                        if template not in result_samples[db_name]:
+                            result_samples[db_name][template] = samples[db_name][seq_id][template]
+                        else:
+                            result_samples[db_name][template] = np.vstack((result_samples[db_name][template],
+                                                                           samples[db_name][seq_id][template]))
+
+            if likelihoods is not None:
+                for db_name in likelihoods:
+                    result_likelihoods[db_name] = {}
+                    for seq_id in likelihoods[db_name][seq_id]:
+                        for template in likelihoods[db_name]:
+                            if template not in result_likelihoods[db_name]:
+                                result_likelihoods[db_name][template] = likelihoods[db_name][seq_id][template]
+                            else:
+                                result_likelihoods[db_name][template] = np.vstack((result_likelihoods[db_name][template],
+                                                                               likelihoods[db_name][seq_id][template]))
+
+            if get_likelihoods:             
+                return result_samples, result_likelihoods
+            else:
+                return result_samples
                                                                   
         else:
             if db_names is None and seq_ids is None:
@@ -99,22 +143,26 @@ class TopoMapDataset:
                 if db_name not in samples:
                     samples[db_name] = None
 
-                samples_path = os.path.join(self.db_root, db_name, seq_id, "samples",
-                                            "samples_%s-%s.csv" % (template.__name__, CategoryManager.NUM_CATEGORIES))
-                loaded_samples = np.loadtxt(samples_path, dtype=int, delimiter=",")
-                if loaded_samples.ndim == 1:
-                    loaded_samples = loaded_samples.reshape(-1, 1)
+                for template in tepmlates:
+                    if template not in samples[db_name][templates]:
+                        samples[db_name][template] = None
+                        
+                    samples_path = os.path.join(self.db_root, db_name, seq_id, "samples",
+                                                "samples_%s-%s.csv" % (template.__name__, CategoryManager.NUM_CATEGORIES))
+                    loaded_samples = np.loadtxt(samples_path, dtype=int, delimiter=",")
+                    if loaded_samples.ndim == 1:
+                        loaded_samples = loaded_samples.reshape(-1, 1)
 
-                if samples[db_name] is None:
-                    samples[db_name] = loaded_samples
-                else:
-                    samples[db_name] = np.vstack((samples[db_name], loaded_samples))
+                    if samples[db_name][template] is None:
+                        samples[db_name][template] = loaded_samples
+                    else:
+                        samples[db_name][template] = np.vstack((samples[db_name][template], loaded_samples))
 
             return samples
 
 
     def create_template_dataset_with_sampler(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1,
-                                             num_partitions=5, num_rounds=100, repeat=1, save=True, random=False):
+                                             num_partitions=5, num_rounds=100, repeat=1, save=True, random=False, get_likelihoods=False):
         """
         Return a dataset of samples that can be used to train template SPNs. This
         dataset contains symmetrical data, i.e. for every pair of semantics, its
@@ -131,6 +179,8 @@ class TopoMapDataset:
         If `random` is True, simply sample 5 random partitions. `num_rounds` is overridden,
         and save is set to False.
         """
+        def get_lh(lh, *nids):
+            return np.array([lh[nid] for nid in nids])
 
         if random is True:
             save = False
@@ -138,21 +188,24 @@ class TopoMapDataset:
         if db_names is None and seq_ids is None:
             db_names = self._topo_maps_data.keys()
 
-        samples = {}
+        if get_likelihoods:
+            dgsm_likelihoods = self._load_dgsm_likelihoods(db_names)
+
+        samples, likelihoods = {}, {}
         topo_maps = {}  # map from "{db}_{seq_id}" to topo map
         if db_names is not None:
             for db_name in db_names:
-                samples[db_name] = {}
+                samples[db_name], likelihoods[db_name] = {}, {}
                 for seq_id in self._topo_maps_data[db_name]:
                     topo_maps[db_name+"-"+seq_id] = self._topo_maps_data[db_name][seq_id]
-                    samples[db_name][seq_id] = {}
+                    samples[db_name][seq_id], likelihoods[db_name][seq_id] = {}, {}
         else:  # seq_ids must not be None
             for db_seq_id in seq_ids:
                 db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
                 topo_maps[db_seq_id] = self._topo_maps_data[db_name][seq_id]
                 if db_name not in samples:
-                    samples[db_name] = {}
-                samples[db_name][seq_id] = {}
+                    samples[db_name], likelihoods[db_name] = {}, {}
+                samples[db_name][seq_id], likelihoods[db_name][seq_id] = {}, {}
 
         while repeat >= 1:
             repeat -= 1
@@ -180,11 +233,20 @@ class TopoMapDataset:
                         for template in p:
                             if template not in samples[db_name][seq_id]:
                                 samples[db_name][seq_id][template] = []
+                                likelihoods[db_name][seq_id][template] = []
                             supergraph = p[template]
                             for snid in supergraph.nodes:
                                 samples[db_name][seq_id][template].append(supergraph.nodes[snid].to_catg_list())
                                 if template.num_nodes() >= 2:
                                     samples[db_name][seq_id][template].append(list(reversed(supergraph.nodes[snid].to_catg_list())))
+
+                                # If we want likelihoods
+                                if get_likelihoods:
+                                    template_lh = get_lh(dgsm_likelihoods, *(n.id for n in supergraph.nodes[snid].nodes))
+                                    likelihoods[db_name][seq_id][template].append(template_lh)
+                                    if template.num_nodes() >= 2:
+                                        reversed_template_lh = get_lh(dgsm_likelihoods, *(n.id for n in reversed(supergraph.nodes[snid].nodes)))
+                                        likelihoods[db_name][seq_id][template].append(reversed_template_lh)
 
                     elif template_type.lower() == "view":
                         for template in p:  # template here is a tuple (num_nodes, num_edge_pair)
@@ -195,10 +257,15 @@ class TopoMapDataset:
                                 if catg_list is not None:
                                     if vdist is None:
                                         samples[db_name][seq_id][template].append(catg_list)
+                                        if get_likelihoods:
+                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods, *(n.id for n in i.nodes)))
                                     else:
                                         vdist -= 1 # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
                                         samples[db_name][seq_id][template].append(catg_list + [vdist])
                                         samples[db_name][seq_id][template].append(list(reversed(catg_list)) + [vdist])
+                                        if get_likelihoods:
+                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods, *(n.id for n in i.nodes)))
+                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods, *(n.id for n in reversed(i.nodes))))
                                 else:
                                     vdist -= 1 # same reason as above
                                     samples[db_name][seq_id][template].append([vdist])
@@ -214,20 +281,33 @@ class TopoMapDataset:
                         save_dirpath = os.path.join(self.db_root, db_name, seq_id, "samples")
                         os.makedirs(save_dirpath, exist_ok=True)
                         samples_for_template = np.array(samples[db_name][seq_id][template], dtype=int)
+                        likelihoods_for_template = np.array(likelihoods[db_name][seq_id][template], dtype=int)
                         
                         if template_type.lower() == "three":
                             np.savetxt(os.path.join(save_dirpath, 'samples_%s-%s.csv' % (template.__name__, CategoryManager.NUM_CATEGORIES)),
                                        samples_for_template, delimiter=",", fmt='%i')
+                            if get_likelihoods:
+                                np.savetxt(os.path.join(save_dirpath, 'likelihoods_%s-%s.csv' % (template.__name__, CategoryManager.NUM_CATEGORIES)),
+                                           likelihoods_for_template, delimiter=",", fmt='%i')
                         elif template_type.lower() == "view":
                             np.savetxt(os.path.join(save_dirpath, 'samples_%s-%s.csv' % (EdgeRelationTemplateInstance.get_class(template).__name__,
-                                                              CategoryManager.NUM_CATEGORIES)),
+                                                                                         CategoryManager.NUM_CATEGORIES)),
                                        samples_for_template, delimiter=",", fmt='%i')
+                            if get_likelihoods:
+                                np.savetxt(os.path.join(save_dirpath, 'likelihoods_%s-%s.csv' % (EdgeRelationTemplateInstance.get_class(template).__name__,
+                                                                                                 CategoryManager.NUM_CATEGORIES)),
+                                           likelihoods_for_template, delimiter=",", fmt='%i')                            
                         else:
                             raise ValueError("Unrecognized template type %s" % template_type)
                         
                         print("Saved samples for %s %s %s" % (db_name, seq_id, template))
+                        if get_likelihoods:
+                            print("Saved likelihoods for %s %s %s" % (db_name, seq_id, template))
         print("Done!")
-        return samples
+        if get_likelihoods:
+            return samples, likelihoods
+        else:
+            return samples
             
         
 

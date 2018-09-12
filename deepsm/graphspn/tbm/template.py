@@ -29,6 +29,26 @@ class Template(ABC):
         """
         pass
 
+    @classmethod
+    def templates_for(cls, symbol):
+        if symbol.upper() == "THREE":
+            return [ThreeNodeTemplate, PairTemplate, SingletonTemplate]
+        elif symbol.upper() == "VIEW":
+            return [ThreeRelTemplate, SingleRelTemplate, SingleTemplate, RelTemplate]
+        else:
+            raise Exception("Unrecognized symbol for templates: %s" % symbol)
+
+    @classmethod
+    def get_type(cls, template):
+        if template == ThreeNodeTemplate:
+            return "three"
+        elif template == StarTemplate:
+            return "star"
+        elif template == ThreeRelTemplate:
+            return "view"
+        else:
+            raise Exception("Unrecoginzed template to get type: %s" % template.__name__)
+
 ########################################
 # NodeTemplate
 ########################################

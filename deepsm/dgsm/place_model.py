@@ -232,6 +232,7 @@ class PlaceModel:
                 use_unweighted=True)
 
             self._init_weights = spn.initialize_weights(self._root)
+            self._init_weights = [self._init_weights, tf.global_variables_initializer()]
             self._reset_accumulators = self._em_learning.reset_accumulators()
             self._accumulate_updates = self._em_learning.accumulate_updates()
             self._update_spn = self._em_learning.update_spn()

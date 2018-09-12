@@ -37,23 +37,10 @@ if __name__ == "__main__":
         "training_params: (str) e.g. '#batch-size 10 #learning-rate 0.01'
              note: all `#` will be replaced as `--`
         """
-        
-        # Create symbolic links to the data files in a temporary directory
-        tmp_data_dir = ".tmp_experiment_dgsm"
-        os.makedirs(tmp_data_dir, exist_ok=True)
-
         original_real_data_path = os.path.join(paths.path_to_dgsm_dataset_same_building(CategoryManager.NUM_CATEGORIES, args.db_name),
                                                'real_data')
         original_set_defs_path = os.path.join(os.path.dirname(original_real_data_path),
                                               config['test_case'], "set_defs")
-        symlink_real_data_path = os.path.join(tmp_data_dir, "real_data")
-        symlink_set_defs_path = os.path.join(tmp_data_dir, "set_defs")
-        if os.path.exists(symlink_real_data_path):
-            os.remove(symlink_real_data_path)
-        if os.path.exists(symlink_set_defs_path):
-            os.remove(symlink_set_defs_path)
-        os.symlink(original_real_data_path, symlink_real_data_path)
-        os.symlink(original_set_defs_path, symlink_set_defs_path)
 
         save_loss_option = ['--save-loss'] if args.save_loss else []
 
@@ -74,8 +61,6 @@ if __name__ == "__main__":
             print("Original real_data_path: %s" % original_real_data_path)
             print("Original set_defs_path: %s" % original_set_defs_path)
             print("")
-            print("Symlink real_data_path: %s" % symlink_real_data_path)
-            print("Symlink set_defs_path: %s" % symlink_set_defs_path)
             print("")
             print("Configs:")
             pprint(config)
@@ -86,7 +71,8 @@ if __name__ == "__main__":
 
             dgsm_args_parser = dgsm_runner.create_parser()
             dsgm_args = dgsm_runner.parse_args(parser=dgsm_args_parser,
-                                               args_list=[tmp_data_dir,
+                                               args_list=[original_set_defs_path,
+                                                          original_real_data_path,
                                                           results_dir,
                                                           '1',
                                                           '--graph-test',

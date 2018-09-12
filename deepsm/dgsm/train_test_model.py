@@ -24,8 +24,10 @@ def create_parser():
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Required arguments
-    parser.add_argument('data_dir', type=str,
-                        help='Directory where the data is stored')
+    parser.add_argument('set_defs_path', type=str,
+                        help='Path where the set defs is stored')
+    parser.add_argument('real_data_path', type=str,
+                        help='Path where the real_data is stored')
     parser.add_argument('results_dir', type=str,
                         help='Directory where results are saved')
     parser.add_argument('subset', type=int,
@@ -172,7 +174,7 @@ def print_args(args):
     print("---------")
     print("Arguments")
     print("---------")
-    print("* Data dir: %s" % args.data_dir)
+    print("* set_paths path: %s" % args.set_defs_path)
     print("* Results dir: %s" % args.results_dir)
     print("* Classes: %s" % str(CategoryManager.known_categories()))
     print("* Subset: %s" % args.subset)
@@ -256,7 +258,7 @@ def main(args=None):
 
     data = Data(args.angle_cells, args.radius_min,
                 args.radius_max, args.radius_factor)
-    data.load(args.data_dir)
+    data.load(args.set_defs_path, args.real_data_path)
     data.process(args.subset, args.occupancy_vals)
     data.print_info()
     if not args.graph_test:

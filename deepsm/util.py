@@ -1,5 +1,6 @@
 import os
 import math
+import yaml
 import re
 import random
 import numpy as np
@@ -8,6 +9,8 @@ import matplotlib.image as mpimg
 import matplotlib.lines as lines
 import matplotlib.patheffects as path_effects
 import sklearn.metrics
+
+ABS_DIR = os.path.dirname(os.path.realpath(__file__))
 
 ##########Convenient##########
 def sure_add(dictionary, key, value):
@@ -286,150 +289,15 @@ class CategoryManager:
     TYPE = None
     
     # Category mappings
+    def load_mapping(name):
+        MAPPING_DIR= os.path.join(ABS_DIR, "experiments/dataset/categories")
+        with open(os.path.join(MAPPING_DIR, "%s.yaml" % name.lower())) as f:
+            return yaml.load(f)
+            
     CAT_MAP_ALL = {
-        'BINARY': {
-            'FW': {
-                'OC': -1,
-                '1PO': 0,
-                '2PO': 1,
-                'UN': 2
-            },
-            'BW': {
-                -1: 'OC',
-                 0: '1PO',
-                 1: '2PO',
-                 2: 'UN'
-            },
-            'CL': {
-                -1: '#000000',
-                0: '#0000FF', # blue
-                1: '#00FF00', # green
-                2: '#FFFFFF'
-            }
-        },
-        'SIMPLE': {
-            'FW': {
-                # DW = 0; CR = 1; 1PO = 2; 2PO = 3; UN = 4
-                'OC': -1,  # occluded
-                'DW': 0,
-                'CR': 1,
-                # 'PT' : 1,
-                '1PO': 2,
-                '2PO': 3,
-                'MPO': 3,
-                'PRO': 3,
-                'UN': 4
-            },
-            'BW': {
-                -1: 'OC',
-                0: 'DW',
-                1: 'CR',
-                2: '1PO',
-                3: '2PO',
-                4: 'UN'
-            },
-            'CL': {
-                -1: '#000000',
-                0: '#00FFFF', # cyan
-                1: '#FF0000',
-                2: '#0000FF',
-                3: '#00FF00',
-                4: '#FFFFFF',
-            }
-        },
-        'SIX': {
-            'FW': {
-                # DW = 0; CR = 1; 1PO = 2; 2PO = 3; UN = 4
-                'OC': -1,  # occluded
-                'DW': 0,
-                'CR': 1,
-                # 'PT' : 1,
-                '1PO': 2,
-                '2PO': 3,
-                'MPO': 3,
-                'PRO': 3,
-                'BA': 4,   # bathroom      (BA)
-                'KT': 5,
-                'UN': 6
-            },
-            'BW': {
-                -1: 'OC',
-                0: 'DW',
-                1: 'CR',
-                2: '1PO',
-                3: '2PO',
-                4: 'BA',
-                5: 'KT',
-                6: 'UN'
-            },
-            'CL': {
-                -1: '#000000',
-                0: '#00FFFF', # cyan
-                1: '#FF0000',
-                2: '#0000FF',
-                3: '#00FF00',
-                4: '#cf22ef',
-                5: '#d99188',
-                6: '#FFFFFF',
-            }
-        },
-        'FULL': {
-            'FW': {
-                'OC': -1,
-                'DW': 0,   #               (DW)
-                'CR': 1,   # corridor      (CR)
-                'AT': 1,   # anteroom      (CR)
-                'ST': 1,   # stairs        (CR)
-                'EV': 1,   # elevator      (CR)
-                '1PO': 2,  #               (1PO)
-                '2PO': 3,  #               (2PO)
-                'PRO': 3,  #               (2PO)
-                'MPO': 4,  #               (LO)
-                'LO': 4,   # large office  (LO)
-                'LAB': 5,  # --lab---LAB-------
-                'RL': 5,   # robot lab     (LAB)
-                'LR': 5,   # living room   (LAB)
-                'TR': 5,   # terminal room (LAB)
-                'BA': 6,   # bathroom      (BA)
-                'KT': 7,   # kitchen       (KT)
-                'MR': 8,   # meeting room  (MR)
-                'LMR': 8,  # lg meeting rm (MR)
-                'CF': 8,   # conference rm (MR)
-                'UT': 9,   # --utility-UT-----
-                'WS': 9,   # workshop      (UT)
-                'PT': 9,   # printer room  (UT)
-                'PA': 9,   # -same as PT-  (UT)
-                'UN': 10
-            },
-            'BW': {
-                -1: 'OC',
-                0: 'DW',
-                1: 'CR',
-                2: '1PO',
-                3: '2PO',
-                4: 'LO',
-                5: 'LAB',
-                6: 'BA',
-                7: 'KT',
-                8: 'MR',
-                9: 'UT',  # utility
-                10: 'UN'
-            },
-            'CL': {
-                -1: '#000000', # OC
-                0: '#f6f23d',
-                1: '#f08055',
-                2: '#40d9ff',
-                3: '#48ff80',
-                4: '#59be3c',
-                5: '#f2b6c6', 
-                6: '#7bcf99',
-                7: '#d99188',
-                8: '#f2e1ea',
-                9: '#cf22ef',
-                10: '#FFFFFF' # UN
-            }
-        }
+        'BINARY': load_mapping("binary"),
+        'SIMPLE': load_mapping("simple"),
+        'FULL': load_mapping("full")
     }
 
     CAT_MAP = None

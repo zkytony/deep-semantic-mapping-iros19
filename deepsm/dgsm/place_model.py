@@ -11,7 +11,7 @@ import json, yaml, csv
 import random
 from sklearn import metrics
 spn.conf.renormalize_dropconnect = True
-# spn.conf.rescale_dropconnect = True
+spn.conf.rescale_dropconnect = True
 # spn.config_logger(spn.DEBUG1)
 
 def norm_cm(cm):
@@ -172,7 +172,7 @@ class PlaceModel:
         # Generate Ltent IVs for the root
         self._latent = self._root.generate_ivs(name="root_Catg_IVs")
 
-        self._dropconnect_placeholder = tf.placeholder(tf.float32)
+        self._dropconnect_placeholder = tf.placeholder(tf.float32, shape=())
 
         if self._dropconnect_keep_prob > 0:
             # Change dropconnect keep prob
@@ -187,11 +187,10 @@ class PlaceModel:
                     if isinstance(node.values[0].node, spn.IVs):
                         print("deteceted sum<-iv %s" % node)
                         node.set_dropconnect_keep_prob(1.0)
-
-                    elif isinstance(node.values[0].node, spn.ProductsLayer) and \
-                         isinstance(node.values[0].node.values[0].node, spn.IVs):
+                    elif any(isinstance(c.node, spn.ProductsLayer) and
+                             any(isinstance(cc.node, spn.IVs) for cc in c.node.values)
+                             for c in node.values):
                         print("deteceted sum<-product<-iv %s" % node)
-                        node.set_dropconnect_keep_prob(1.0)
                     elif len(node.values) < 200:  # Cannot use dropconnect on low layers
                         print("changed dropconnect to a placeholder", node, len(node.values))
                         node.set_dropconnect_keep_prob(self._dropconnect_placeholder)
@@ -217,7 +216,9 @@ class PlaceModel:
         self._init_weights = [self._init_weights, tf.global_variables_initializer()]
         
 
-    def train(self, batch_size, update_threshold, train_loss=[], test_loss=[], shuffle=True, epoch_limit=50):
+    def train(self, batch_size, update_threshold,
+              train_loss=[], test_loss=[], train_perf=[], test_perf=[],
+              shuffle=True, epoch_limit=50):
         """
         Train the model.
         
@@ -275,6 +276,14 @@ class PlaceModel:
                 print("Train Loss: %.3f    Test Loss: %.3f" % (loss_train, loss_test))
                 train_loss.append(loss_train)
                 test_loss.append(loss_test)
+
+                print("Computing train performance...")
+                perf_train = self.performance(train_set, train_labels, batch_size=500)
+                print("Computing test performance...")
+                perf_test = self.performance(self._data.testing_scans, self._data.testing_labels, batch_size=100)
+                print("Train Performance: %.3f    Test Performance: %.3f" % (perf_train, perf_test))
+                train_perf.append(perf_train)
+                test_perf.append(perf_test)
 
                 losses.append(loss_train)
                 batch_losses = []
@@ -357,27 +366,69 @@ class PlaceModel:
         
             return cm_weighted, norm_cm(cm_weighted) * 100.0, stats, roc_results
 
+
+    def performance(self, scans, labels, batch_size=100):
+        correct = np.array([0 for i in range(CategoryManager.NUM_CATEGORIES)])
+        total = np.array([0 for i in range(CategoryManager.NUM_CATEGORIES)])
+        batch = 0
+        stop = min(batch_size, len(scans))
+        while stop < len(scans):
+            start = (batch)*batch_size
+            stop = min((batch+1)*batch_size, len(scans))
+            print("    BATCH", batch, "SAMPLES", start, stop)
+
+            likelihoods_arr = self._sess.run([self._likelihood_op],
+                                             feed_dict={self._ivs: scans[start:stop],
+                                                        self._latent: np.full((stop-start, 1), -1),
+                                                        self._dropconnect_placeholder: 1.0})[0]
+            batch += 1
+
+            for k in range(CategoryManager.NUM_CATEGORIES):
+                lh_k = likelihoods_arr[np.argwhere(labels[start:stop]==k).flatten()]
+                correct[k] += len(lh_k[np.argmin(lh_k, axis=1) == k])
+                total[k] += len(lh_k)
+            
+        
+        return np.mean(correct / total)
     
 
-    def test_samples_exam(self, dirpath, trial_name):
+    def train_test_samples_exam(self, dirpath, trial_name):
         """This function is created only to respond to Andrzej's request"""
-        
-        # Make numpy array of test samples
+
+        def samples_exam(scans, labels, writer, batch_size=100):
+            batch = 0
+            stop = min(batch_size, len(scans))
+            while stop < len(scans):
+                start = (batch)*batch_size
+                stop = min((batch+1)*batch_size, len(scans))
+                print("    BATCH", batch, "SAMPLES", start, stop)
+
+                likelihoods_arr = self._sess.run([self._likelihood_op],
+                                                 feed_dict={self._ivs: scans[start:stop],
+                                                            self._latent: np.full((stop-start, 1), -1),
+                                                            self._dropconnect_placeholder: 1.0})[0]
+                for i in range(len(likelihoods_arr)):
+                    writer.writerow([len(scans[start+i])]
+                                    + scans[start+i].tolist()
+                                    + [CategoryManager.NUM_CATEGORIES]
+                                    + likelihoods_arr[i].reshape(-1,).tolist()
+                                    + [CategoryManager.category_map(labels[start+i][0], rev=True)])
+                batch += 1
+
         testing_scans = self._data.testing_scans
         testing_labels = self._data.testing_labels
+        training_scans = self._data.training_scans
+        training_labels = self._data.training_labels
 
+        print("Writing test samples exam file...")
         with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
-            for i in range(len(testing_scans)):
-                likelihoods_arr = self._sess.run([self._likelihood_op],
-                                                 feed_dict={self._ivs: testing_scans[i:i+1],
-                                                            self._latent: np.full((1, 1), -1),
-                                                            self._dropconnect_placeholder: 1.0})[0]
-                writer.writerow([len(testing_scans[i])]
-                                + testing_scans[i].tolist()
-                                + [CategoryManager.NUM_CATEGORIES]
-                                + likelihoods_arr.reshape(-1,).tolist()
-                                + [CategoryManager.category_map(testing_labels[i][0], rev=True)])
+            samples_exam(testing_scans, testing_labels,writer)
+
+        print("Writing train samples exam file...")
+        with open(os.path.join(dirpath, "train_samples_exam-%s.csv" % trial_name), 'w') as f:
+            writer = csv.writer(f, delimiter=',', quotechar='"')
+            samples_exam(testing_scans, testing_labels,writer, batch_size=200)
 
         root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
         with open(os.path.join(dirpath, "dgsm_root_weights-%s.csv" % trial_name), 'w') as f:
@@ -385,7 +436,7 @@ class PlaceModel:
             writer.writerow(root_weights.tolist())
 
 
-    def log_loss(self, samples, labels, batch_size=500):
+    def log_loss(self, samples, labels, batch_size=100):
         batch = 0
         loss_values = []
         stop = min(batch_size, len(samples))

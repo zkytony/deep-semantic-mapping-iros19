@@ -305,10 +305,11 @@ def main(args=None):
                        optimizer=tf.train.AdamOptimizer,
                        dropconnect_keep_prob=args.dropconnect_keep_prob)
     trial_name = make_trial_name(args, model)
-    train_loss, test_loss = [], []
+    train_loss, test_loss, train_perf, test_perf = [], [], [], []
     epoch = 0
     try:
         model.train(args.batch_size, args.update_threshold, train_loss=train_loss, test_loss=test_loss,
+                    train_perf=train_perf, test_perf=test_perf,
                     shuffle=shuffle, epoch_limit=args.epoch_limit)
         epoch = len(train_loss)
     except KeyboardInterrupt:
@@ -319,15 +320,15 @@ def main(args=None):
         trial_name = make_trial_name(args, model)
 
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
-        plot_to_file(train_loss, test_loss,
-                     labels=['train loss', 'test loss'],
+        plot_to_file(train_loss, test_loss, train_perf, test_perf,
+                     labels=['train loss', 'test loss', 'train accuracy', 'test accuracy'],
                      xlabel='epochs',
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
         np.savetxt(os.path.join(dirpath, 'loss-train-%s.txt' % trial_name), train_loss, delimiter=',', fmt='%.4f')
         np.savetxt(os.path.join(dirpath, 'loss-test-%s.txt' % trial_name), test_loss, delimiter=',', fmt='%.4f')
 
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        model.test_samples_exam(dirpath, trial_name)
+        model.train_test_samples_exam(dirpath, trial_name)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

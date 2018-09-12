@@ -385,10 +385,8 @@ class PlaceModel:
 
             for k in range(CategoryManager.NUM_CATEGORIES):
                 lh_k = likelihoods_arr[np.argwhere(labels[start:stop]==k).flatten()]
-                correct[k] += len(lh_k[np.argmin(lh_k, axis=1) == k])
+                correct[k] += len(lh_k[np.argmax(lh_k, axis=1) == k])
                 total[k] += len(lh_k)
-            
-        
         return np.mean(correct / total)
     
 

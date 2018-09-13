@@ -9,12 +9,14 @@ from deepsm.graphspn.tbm.topo_map import PlaceNode, TopologicalMap
 from deepsm.graphspn.tbm.template import Template, SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, EdgeRelationTemplateInstance, NodeTemplate
 from deepsm.graphspn.tbm.algorithm import NodeTemplatePartitionSampler, EdgeRelationPartitionSampler
 from deepsm.util import CategoryManager, compute_view_number
-import os, sys
+import deepsm.experiments.paths as paths
+import os, sys, re
 import numpy as np
 import csv
 import math
 import random
 from collections import deque
+import json
 
 
 class TopoMapDataset:
@@ -28,6 +30,23 @@ class TopoMapDataset:
         self._topo_maps_data = {}  # {db_name: {seq_id: topo_map}}
         self._using_tiny_graphs = {}
 
+
+    # TODO: This shouldn't really be here.  It's a more general function for the experiments.
+    def get_dbname_info(self, db_train_name):
+        building = re.search("(stockholm|freiburg|saarbrucken)", db_train_name, re.IGNORECASE).group().capitalize()
+        train_floors = db_train_name[len(building):]
+
+        if building == "Stockholm":
+            floors = {4, 5, 6, 7}
+        elif building == "Freiburg":
+            floors = {1, 2, 3}
+        elif building == "Saarbrucken":
+            floors = {1, 2, 3, 4}
+        for f in train_floors:
+            floors = floors - {f}
+        test_floor = list(floors)[0]
+        return building, train_floors, test_floor
+
     def _load_dgsm_likelihoods(self, db_names, **kwargs):
         """Load all dgsm_likelihoods for the databases provided in db_names.
 
@@ -38,23 +57,26 @@ class TopoMapDataset:
 
         Note: This function is only planned to be used for DGSM_SAME_BUILDING experiments.
         """
+
+        
         result = {}
         trial_number = kwargs.get("trial_number", 0)
-        for db_nam in db_names:
-            building, case = db_name.split("_")
-            train_floors = case.split("-")[0]
-            test_floor = case.split("-")[1]
+        for db_name in db_names:
+            building, train_floors, test_floor = self.get_dbname_info(db_name)
+            
             path_to_results = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
-                                                                      db_name,
+                                                                      building,
                                                                       "graphs",
+                                                                      trial_number,
                                                                       train_floors,
                                                                       test_floor)
-            for fname in os.listdir(path_to_resutls):
+            for fname in os.listdir(path_to_results):
                 if fname.endswith("_likelihoods.json"):
-                    with open(fname) as f:
+                    with open(os.path.join(path_to_results, fname)) as f:
                         lh = json.load(f)
                         graph_id = fname[:fname.find("_likelihoods.json")]
-                        result[graph_id] = {nid:lh[nid][2] for nid in lh}
+                        result[graph_id] = {int(nid): np.array(lh[nid][2], dtype=float)
+                                            for nid in lh}
         return result
 
 
@@ -180,6 +202,7 @@ class TopoMapDataset:
         and save is set to False.
         """
         def get_lh(lh, *nids):
+            import pdb; pdb.set_trace()
             return np.array([lh[nid] for nid in nids])
 
         if random is True:
@@ -211,6 +234,8 @@ class TopoMapDataset:
             repeat -= 1
             for db_seq_id in topo_maps:
                 db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+                building, train_floors, test_floor = self.get_dbname_info(db_name)
+                graph_id = building.lower() + str(test_floor) + "_" + seq_id
                 topo_map = topo_maps[db_seq_id]
                 print("Partitioning topo map %s" % (db_seq_id))
 
@@ -242,10 +267,11 @@ class TopoMapDataset:
 
                                 # If we want likelihoods
                                 if get_likelihoods:
-                                    template_lh = get_lh(dgsm_likelihoods, *(n.id for n in supergraph.nodes[snid].nodes))
+                                    import pdb; pdb.set_trace()
+                                    template_lh = get_lh(dgsm_likelihoods[graph_id], *(n.id for n in supergraph.nodes[snid].nodes))
                                     likelihoods[db_name][seq_id][template].append(template_lh)
                                     if template.num_nodes() >= 2:
-                                        reversed_template_lh = get_lh(dgsm_likelihoods, *(n.id for n in reversed(supergraph.nodes[snid].nodes)))
+                                        reversed_template_lh = get_lh(dgsm_likelihoods[graph_id], *(n.id for n in reversed(supergraph.nodes[snid].nodes)))
                                         likelihoods[db_name][seq_id][template].append(reversed_template_lh)
 
                     elif template_type.lower() == "view":
@@ -258,14 +284,14 @@ class TopoMapDataset:
                                     if vdist is None:
                                         samples[db_name][seq_id][template].append(catg_list)
                                         if get_likelihoods:
-                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods, *(n.id for n in i.nodes)))
+                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in i.nodes)))
                                     else:
                                         vdist -= 1 # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
                                         samples[db_name][seq_id][template].append(catg_list + [vdist])
                                         samples[db_name][seq_id][template].append(list(reversed(catg_list)) + [vdist])
                                         if get_likelihoods:
-                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods, *(n.id for n in i.nodes)))
-                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods, *(n.id for n in reversed(i.nodes))))
+                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in i.nodes)))
+                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in reversed(i.nodes))))
                                 else:
                                     vdist -= 1 # same reason as above
                                     samples[db_name][seq_id][template].append([vdist])
@@ -636,7 +662,8 @@ class TopoMapDataset:
             self._topo_maps_data[db_name] = tiny_graphs[db_name]
 
 
-    def load(self, db_name, skip_unknown=False, skip_placeholders=False, limit=None, segment=False, single_component=True):
+    def load(self, db_name, skip_unknown=False, skip_placeholders=False,
+             limit=None, segment=False, single_component=True, room_remap={'7-2PO-1': '7-1PO-3'}):
         """
         loads data. The loaded data is stored in self.topo_maps_data, a dictionary
         where keys are database names and values are data.
@@ -670,6 +697,14 @@ class TopoMapDataset:
             if limit is not None and len(topo_maps) >= limit:
                 break
 
+            node_room_mapping = {}
+            with open(os.path.join(db_path, seq_id, "rooms.dat")) as f:
+                rows = csv.reader(f, delimiter=' ')
+                for row in rows:
+                    nid = int(row[0])
+                    room_id = row[1]
+                    node_room_mapping[nid] = room_id
+
             # not over limit. Keep loading.
             with open(os.path.join(db_path, seq_id, "nodes.dat")) as f:
                 nodes_data_raw = csv.reader(f, delimiter=' ')
@@ -702,6 +737,12 @@ class TopoMapDataset:
                         'vscan_timestamp': float(row[9])
                     }
 
+                    # Room mapping
+                    room = node_room_mapping[nid]
+                    if room_id in room_remap:
+                        room = room_remap[room_id]
+                    node['room'] = room
+
                     # Skip it?
                     if skip_unknown and node['id'] in skipped:
                         continue
@@ -728,7 +769,7 @@ class TopoMapDataset:
 
                     # No, we don't skip this.
                     pnode = PlaceNode(
-                        node['id'], node['placeholder'], node['pose'], node['anchor_pose'], node['label']
+                        node['id'], node['placeholder'], node['pose'], node['anchor_pose'], node['label'], node['room']
                     )
                     nodes[pnode.id] = pnode
                     conn[pnode.id] = edges
@@ -740,7 +781,7 @@ class TopoMapDataset:
                 if single_component:
                     components = topo_map.connected_components()
                     if len(components) > 1:
-                        print("%s is broken into %d components" % (seq_id, len(components)))
+                        print("-- %s is broken into %d components" % (seq_id, len(components)))
                     topo_maps[seq_id] = max(components, key=lambda c:len(c.nodes))
                 else:
                     topo_maps[seq_id] = topo_map

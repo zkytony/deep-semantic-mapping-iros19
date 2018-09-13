@@ -46,7 +46,7 @@ class DGSMDataset:
         db_name = db_name.lower()
         return os.path.join(self.datapaths[db_name], seq_id + "_scans.pkl")
 
-    def load_sequences(self, db_names, max_seqs_per_floor=-1):
+    def load_sequences(self, db_names, topo_dataset, max_seqs_per_floor=-1):
         """
         Returns a single list that combines scans of all sequences in each db_name
         """
@@ -56,6 +56,7 @@ class DGSMDataset:
             seqs_per_floor = {}
             for s in sorted(os.listdir(self.datapaths[db_name])):
                 floor = re.search("(seq|floor)[1-9]+", s).group()
+                seq_id = "_".join(os.path.splitext(s)[0].split("_")[:-1])
                 if floor not in seqs_per_floor:
                     seqs_per_floor[floor] = 0
                 if max_seqs_per_floor > 0 and seqs_per_floor[floor] >= max_seqs_per_floor:
@@ -63,7 +64,18 @@ class DGSMDataset:
                 fname = os.path.join(self.datapaths[db_name], s)
                 with open(fname, 'rb') as f:
                     d = pickle.load(f)
+                    # Insert sequence id into the room_id for each scan
+                    for scan in d:
+                        scan[0] = scan[0] + "#" + seq_id
                     seq_data.extend(d)
+                    
+                    # Get the topological map node id
+                    graph_scans = self.polar_scans_from_graph(db_name.capitalize(), seq_id, d,
+                                                              topo_dataset.get(db_name.capitalize(), seq_id),
+                                                              use_original_room_id=True)
+                    # Mix them into seq_data
+                    seq_data.extend(graph_scans)
+
                     seqs_per_floor[floor] += 1
         return seq_data
 
@@ -74,7 +86,7 @@ class DGSMDataset:
         return seq_data
 
     
-    def polar_scans_from_graph(self, db_name, seq_id, seq_data, topo_map):
+    def polar_scans_from_graph(self, db_name, seq_id, seq_data, topo_map, use_original_room_id=False):
         """
         Create a sequence of polar scans where each corresponds to a node in the
         topological map graph. NOTE: Placeholders do not have matched scans.
@@ -97,12 +109,17 @@ class DGSMDataset:
                 node_class = topo_map.nodes[nid].label
                 if node_class not in seq_data_grouped:
                     raise ValueError("%s is not an expected class in %s! Expected classes %s" % (node_class, seq_id, list(seq_data_grouped.keys())))
+                
                 closest_scan = min(seq_data_grouped[node_class], key=lambda s: (s[3][0]-x)**2 + (s[3][1]-y)**2)
                 # To comply with the DGSM framework, which groups polar scans by rooms, because we
                 # want to test the whole graph together, we should name all scans in the graph using
                 # the same room. We will just use the {db_name}_{seq_id} as the room name. Additionally, we
                 # add node id {nid} at the end of the scan for later result analysis.
-                graph_scan = ["%s_%s" % (db_name, seq_id)] + closest_scan[1:] + [nid]
+                if use_original_room_id:
+                    graph_scan = closest_scan + ['graph_node'] + [nid]
+                else:
+                    graph_scan = ["%s_%s" % (db_name, seq_id)] + closest_scan[1:] + ['graph_node'] + [nid]
+
                 assert graph_scan[1] == node_class, "Room class does not match! %s != %s" % (graph_scan[1], room_class)
                 graph_scans.append(graph_scan)
         return graph_scans

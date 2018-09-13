@@ -163,6 +163,7 @@ class Data:
 
         training_scans = np.vstack(training_scans)
         training_labels = np.vstack(training_labels)
+        training_labels_graph = np.vstack(training_labels_graph)
         testing_scans = np.vstack(testing_scans)
         testing_labels = np.vstack(testing_labels)
         all_scans = np.vstack([i[2] for i in self._data])

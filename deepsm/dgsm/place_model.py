@@ -445,48 +445,53 @@ class PlaceModel:
         return correct / total
     
 
-    def train_test_samples_exam(self, dirpath, trial_name):
-        """This function is created only to respond to Andrzej's request"""
+    def samples_exam(self, scans, labels, writer, write_row_func, batch_size=100):
+        batch = 0
+        stop = min(batch_size, len(scans))
+        while stop < len(scans):
+            start = (batch)*batch_size
+            stop = min((batch+1)*batch_size, len(scans))
+            print("    BATCH", batch, "SAMPLES", start, stop)
 
-        def samples_exam(scans, labels, writer, batch_size=100):
-            batch = 0
-            stop = min(batch_size, len(scans))
-            while stop < len(scans):
-                start = (batch)*batch_size
-                stop = min((batch+1)*batch_size, len(scans))
-                print("    BATCH", batch, "SAMPLES", start, stop)
+            likelihoods_arr = self._sess.run([self._likelihood_op],
+                                             feed_dict={self._ivs: scans[start:stop],
+                                                        self._latent: np.full((stop-start, 1), -1),
+                                                        self._dropconnect_placeholder: 1.0})[0]
+            for i in range(len(likelihoods_arr)):
+                write_row_func(writer, i, start, scans, likelihoods_arr, labels)
 
-                likelihoods_arr = self._sess.run([self._likelihood_op],
-                                                 feed_dict={self._ivs: scans[start:stop],
-                                                            self._latent: np.full((stop-start, 1), -1),
-                                                            self._dropconnect_placeholder: 1.0})[0]
-                for i in range(len(likelihoods_arr)):
-                    writer.writerow([len(scans[start+i])]
-                                    + scans[start+i].tolist()
-                                    + [CategoryManager.NUM_CATEGORIES]
-                                    + likelihoods_arr[i].reshape(-1,).tolist()
-                                    + [CategoryManager.category_map(labels[start+i][0], rev=True)])
-                batch += 1
-
-        testing_scans = self._data.testing_scans
-        testing_labels = self._data.testing_labels
-        training_scans = self._data.training_scans
-        training_labels = self._data.training_labels
-
-        print("Writing test samples exam file...")
-        with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
-            writer = csv.writer(f, delimiter=',', quotechar='"')
-            samples_exam(testing_scans, testing_labels,writer)
+            batch += 1
+            
+    def train_samples_exam(self, dirpath, trial_name):
+        def write_row_func(writer, i, start, scans, likelihoods_arr, labels):
+            writer.writerow([self._data._training_footprint_graph[start+i][0]]  # graph_id
+                            + [CategoryManager.category_map(labels[start+i][0], rev=True)]
+                            + likelihoods_arr[i].reshape(-1,).tolist() 
+                            + [self._data._training_footprint_graph[start+i][-1]]  # node id
+                            + scans[start+i].tolist())
 
         print("Writing train samples exam file...")
         with open(os.path.join(dirpath, "train_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
-            samples_exam(testing_scans, testing_labels,writer, batch_size=200)
+            self.samples_exam(self._data._training_scans_graph,
+                              self._data._training_labels_graph, writer, write_row_func,
+                              batch_size=200)
+            
 
-        root_weights = np.log(self._sess.run(self._root.weights.node.get_value()))                  
-        with open(os.path.join(dirpath, "dgsm_root_weights-%s.csv" % trial_name), 'w') as f:
+    
+    def test_samples_exam(self, dirpath, trial_name):
+        def write_row_func(writer, i, start, scans, likelihoods_arr, labels):
+            writer.writerow([len(scans[start+i])]
+                            + scans[start+i].tolist()
+                            + [CategoryManager.NUM_CATEGORIES]
+                            + likelihoods_arr[i].reshape(-1,).tolist()
+                            + [CategoryManager.category_map(labels[start+i][0], rev=True)])
+        
+        print("Writing test samples exam file...")
+        with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
-            writer.writerow(root_weights.tolist())
+            self.samples_exam(self._data._testing_scans, self._data._testing_labels, writer,
+                              write_row_func)
 
 
     def log_loss(self, samples, labels, batch_size=100):

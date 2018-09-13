@@ -261,12 +261,9 @@ def main(args=None):
     data.load(args.set_defs_path, args.real_data_path)
     data.process(args.subset, args.occupancy_vals)
     data.print_info()
-    if not args.graph_test:
-        data.generate_masked_scans(args.mask_seed)
-        data.save_masked_scans(args.results_dir)
-        if args.save_masked:
-            data.visualize_masked_scans(
-                os.path.join(args.results_dir, 'masked_scans'))
+
+    # Contains (some) tests to verify the data's integrity.
+    data.verify_integrity()
 
     rnd = random.Random()
     rnd.seed(567)
@@ -290,8 +287,6 @@ def main(args=None):
         sys.stdout.write("OK\n")
 
     print_args(args)
-    trial_name = make_trial_name(args)
-    print("--------------- Trial name: %s -----------------" % trial_name)
 
     if args.learning_algorithm == "EM":
         learning_alg = spn.EMLearning
@@ -333,7 +328,6 @@ def main(args=None):
     finally:
         dirpath = os.path.join("analysis", "dgsm")
 
-        trial_name = make_trial_name(args, model)
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
         plot_to_file(train_loss, test_loss, *train_perf, *test_perf,
                      labels=['train loss', 'test loss',
@@ -345,7 +339,8 @@ def main(args=None):
         np.savetxt(os.path.join(dirpath, 'loss-test-%s.txt' % trial_name), test_loss, delimiter=',', fmt='%.4f')
         
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        model.train_test_samples_exam(dirpath, trial_name)
+        model.train_samples_exam(dirpath, trial_name)
+        model.test_samples_exam(dirpath, trial_name)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

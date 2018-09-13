@@ -109,7 +109,7 @@ class DGSMDataset:
                 node_class = topo_map.nodes[nid].label
                 if node_class not in seq_data_grouped:
                     raise ValueError("%s is not an expected class in %s! Expected classes %s" % (node_class, seq_id, list(seq_data_grouped.keys())))
-                
+
                 closest_scan = min(seq_data_grouped[node_class], key=lambda s: (s[3][0]-x)**2 + (s[3][1]-y)**2)
                 # To comply with the DGSM framework, which groups polar scans by rooms, because we
                 # want to test the whole graph together, we should name all scans in the graph using
@@ -259,7 +259,7 @@ class DGSMDataset:
                 prev_scan = cur_scan
                 continue
             scans_dist = np.linalg.norm(np.array(prev_scan[3])-np.array(cur_scan[3]))
-            if scans_dist > distance:
+            if scans_dist >= distance:
                 final_scans.append(cur_scan)
                 prev_scan = cur_scan
             i += 1

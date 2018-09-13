@@ -57,28 +57,24 @@ class TopoMapDataset:
 
         Note: This function is only planned to be used for DGSM_SAME_BUILDING experiments.
         """
-
-        
         result = {}
         trial_number = kwargs.get("trial_number", 0)
         for db_name in db_names:
             building, train_floors, test_floor = self.get_dbname_info(db_name)
-            
             path_to_results = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
                                                                       building,
                                                                       "graphs",
                                                                       trial_number,
                                                                       train_floors,
                                                                       test_floor)
-            for fname in os.listdir(path_to_results):
-                if fname.endswith("_likelihoods.json"):
-                    with open(os.path.join(path_to_results, fname)) as f:
-                        lh = json.load(f)
-                        graph_id = fname[:fname.find("_likelihoods.json")]
-                        result[graph_id] = {int(nid): np.array(lh[nid][2], dtype=float)
-                                            for nid in lh}
+            with open(os.path.join(path_to_results, "%s_likelihoods_training.json" % db_name.lower())) as f:
+                d = json.load(f)
+                for graph_id in d:
+                    if graph_id not in result:
+                        result[graph_id] = {}
+                    for nid_str in d[graph_id]:
+                        result[graph_id][int(nid_str)] = d[graph_id][nid_str]
         return result
-
 
 
     def load_template_dataset(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1, random=True, **kwargs):
@@ -202,8 +198,13 @@ class TopoMapDataset:
         and save is set to False.
         """
         def get_lh(lh, *nids):
-            import pdb; pdb.set_trace()
-            return np.array([lh[nid] for nid in nids])
+            try:
+                for nid in nids:
+                    if nid not in lh:
+                        import pdb; pdb.set_trace()
+                return np.array([lh[nid] for nid in nids])
+            except KeyboardInterrupt:
+                import pdb; pdb.set_trace()
 
         if random is True:
             save = False
@@ -233,9 +234,11 @@ class TopoMapDataset:
         while repeat >= 1:
             repeat -= 1
             for db_seq_id in topo_maps:
+                print(db_seq_id)
+                
                 db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
                 building, train_floors, test_floor = self.get_dbname_info(db_name)
-                graph_id = building.lower() + str(test_floor) + "_" + seq_id
+                graph_id = building.lower() + "_" + seq_id
                 topo_map = topo_maps[db_seq_id]
                 print("Partitioning topo map %s" % (db_seq_id))
 
@@ -267,7 +270,6 @@ class TopoMapDataset:
 
                                 # If we want likelihoods
                                 if get_likelihoods:
-                                    import pdb; pdb.set_trace()
                                     template_lh = get_lh(dgsm_likelihoods[graph_id], *(n.id for n in supergraph.nodes[snid].nodes))
                                     likelihoods[db_name][seq_id][template].append(template_lh)
                                     if template.num_nodes() >= 2:
@@ -663,7 +665,9 @@ class TopoMapDataset:
 
 
     def load(self, db_name, skip_unknown=False, skip_placeholders=False,
-             limit=None, segment=False, single_component=True, room_remap={'7-2PO-1': '7-1PO-3'}):
+             limit=None, segment=False, single_component=True, room_remap={'7-2PO-1': '7-1PO-3'},
+             skipped_seq_pattern={"floor6_base*"},
+             skipped_rooms={'Stockholm':{'4-1PO-1'}}):
         """
         loads data. The loaded data is stored in self.topo_maps_data, a dictionary
         where keys are database names and values are data.
@@ -687,11 +691,21 @@ class TopoMapDataset:
             match_pose[1](float), match_pose[2](float), node_anchor_pose[0](float), node_anchor_pose[1](float),
             match_label(string), match_vscan_time(timestamp), ... 8 views (see comments below) ...
         "
-
         """
         topo_maps = {}
         db_path = os.path.join(self.db_root, db_name)
         for seq_id in sorted(os.listdir(db_path)):
+
+            # Previously the sequence skipping does not explicitly exist. GraphSPN relied on the fact
+            # that there is no polar scans for floor6_base sequences so no DGSM results for them in order
+            # to skip the floor6_base sequences. Now we can make this explicit through the skipped_seq_pattern.
+            skip_seq = False
+            for pattern in skipped_seq_pattern:
+                if re.search(pattern, seq_id) is not None:
+                    print("Skipping %s (matched pattern %s)" % (seq_id, pattern))
+                    skip_seq = True
+            if skip_seq:
+                continue
 
             # check if over limit
             if limit is not None and len(topo_maps) >= limit:
@@ -725,6 +739,12 @@ class TopoMapDataset:
                     if skip_placeholders:
                         if placeholder:
                             skipped.add(nid)
+
+                    # Also, skip nodes in rooms that we want to skip
+                    if node_room_mapping[nid] in skipped_rooms[self.get_dbname_info(db_name)[0]]:
+                        print("Skipping node %d in room %s" % (nid, node_room_mapping[nid]))
+                        skipped.add(nid)
+
                 f.seek(0)
 
                 for row in nodes_data_raw:
@@ -738,11 +758,13 @@ class TopoMapDataset:
                     }
 
                     # Room mapping
-                    room = node_room_mapping[nid]
+                    room_id = node_room_mapping[node['id']]
                     if room_id in room_remap:
-                        room = room_remap[room_id]
-                    node['room'] = room
-
+                        room_using = room_remap[room_id]
+                        node['label'] = room_using.split("-")[1]  # since we change the room, label should also change
+                        # print("Remap node %d from room %s to room %s" % (node['id'], room_id, room_using))
+                    node['room'] = room_id
+                    
                     # Skip it?
                     if skip_unknown and node['id'] in skipped:
                         continue

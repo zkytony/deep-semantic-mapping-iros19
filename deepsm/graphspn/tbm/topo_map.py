@@ -137,6 +137,9 @@ class TopologicalMap:
     def connected_components(self):
         """
         Returns the connected components in this graph, each as a separate TopologicalMap instance.
+
+        Note: The union of the sets of node ids in the returned connected components equals
+        to the original topo map's set of node ids. (i.e. node ids are kept the same in components)
         """
         # Uses BFS to find connected components
         copy_map = self.copy()
@@ -639,7 +642,7 @@ class Node:
 
 class PlaceNode(Node):
 
-    def __init__(self, id, placeholder, pose, anchor_pose, label):
+    def __init__(self, id, placeholder, pose, anchor_pose, label, room):
         """
         Args:
         
@@ -655,6 +658,7 @@ class PlaceNode(Node):
         self.pose = pose
         self.anchor_pose = anchor_pose
         self.label = label
+        self.room = room
 
     @property
     def label_num(self):

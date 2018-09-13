@@ -7,6 +7,8 @@ import sys
 import pprint
 from enum import Enum
 from deepsm.util import CategoryManager
+from deepsm.graphspn.tbm.dataset import TopoMapDataset
+from deepsm.experiments.common import TOPO_MAP_DB_ROOT
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -129,6 +131,9 @@ class Data:
         self._novel_classes = self._set_defs['novel_categories']
         training_scans = []
         training_labels = []
+        training_scans_graph = []  # used to produce likelihoods matching with graph nodes
+        training_labels_graph = []
+        training_footprint_graph = []
         testing_scans = []
         testing_labels = []
         testing_footprint = []
@@ -137,14 +142,24 @@ class Data:
             rcat = i[1]
             rnum = CategoryManager.category_map(rcat, checking=True)
             scan = i[2]
+            if "#" in rid:
+                room_id, seq_id = rid.split("#")[0], rid.split("#")[1]
             
-            if rid in self._train_rooms and rnum != CategoryManager.CAT_MAP['UN']:
-                training_scans.append(scan)
-                training_labels.append(rnum)
-            if rid in self._test_rooms and rnum != CategoryManager.CAT_MAP['UN']:
-                testing_scans.append(scan)
-                testing_labels.append(rnum)
-                testing_footprint.append([rid, rcat, i[-1]])
+                if room_id in self._train_rooms and rnum != CategoryManager.CAT_MAP['UN']:
+                    if type(i[-2]) == str and i[-2] == "graph_node":
+                        training_scans_graph.append(scan)
+                        training_labels_graph.append(rnum)
+                        db_name = room_id.split("_")[0]
+                        graph_id = db_name + "_" + seq_id # according to conevntion specified in experiments/paths.py
+                        training_footprint_graph.append([graph_id, rcat, i[-1]])
+                    else:
+                        training_scans.append(scan)
+                        training_labels.append(rnum)
+            else:
+                if rid in self._test_rooms and rnum != CategoryManager.CAT_MAP['UN']:
+                    testing_scans.append(scan)
+                    testing_labels.append(rnum)
+                    testing_footprint.append([rid, rcat, i[-1]])
 
         training_scans = np.vstack(training_scans)
         training_labels = np.vstack(training_labels)
@@ -153,6 +168,8 @@ class Data:
         all_scans = np.vstack([i[2] for i in self._data])
 
         self._training_labels = training_labels
+        self._training_labels_graph = training_labels_graph
+        self._training_footprint_graph = training_footprint_graph
         self._testing_labels = testing_labels
         self._testing_footprint = testing_footprint
 
@@ -162,6 +179,10 @@ class Data:
             self._training_scans[training_scans == -1] = 0
             self._training_scans[training_scans == 0] = 1
             self._training_scans[training_scans == 1] = 2
+            self._training_scans_graph = np.copy(training_scans_graph)
+            self._training_scans_graph[training_scans_graph == -1] = 0
+            self._training_scans_graph[training_scans_graph == 0] = 1
+            self._training_scans_graph[training_scans_graph == 1] = 2
             self._testing_scans = np.copy(testing_scans)
             self._testing_scans[testing_scans == -1] = 0
             self._testing_scans[testing_scans == 0] = 1
@@ -282,3 +303,50 @@ class Data:
                 self._masked_scans)
         print("Done!")
 
+
+    def verify_integrity(self):
+        print("\nVerifying data integrity...")
+        self._verify_training_footprint()
+        print("Done!")
+
+
+    def _verify_training_footprint(self):
+        """Verify that what's in training_footprint covers each topological map
+        fully. Each element in `training_footprint` has the format:
+
+        graph_id, groundtruth_class_str, nid
+
+        graph_id = {building#}_{seq_id} (see experiments/paths.py)
+        """
+        maps_counts = {}   # map from graph_id to a set of tuples (nid, groundtruth_class)
+
+        topo_dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
+        training_footprint = self._training_footprint_graph
+
+        for d in training_footprint:
+            graph_id = d[0]
+            groundtruth_class = d[1]
+            nid = d[2]
+            if graph_id not in maps_counts:
+                maps_counts[graph_id] = set()
+            maps_counts[graph_id].add((nid, groundtruth_class))
+
+        db_loaded = set()
+        for graph_id in maps_counts:
+            db = graph_id.split("_")[0].capitalize()
+            seq_id = "_".join(graph_id.split("_")[1:])
+            if db not in db_loaded:
+                topo_dataset.load(db, skip_unknown=True, skip_placeholders=False, single_component=False)
+                db_loaded.add(db)
+            topo_map = topo_dataset.get(db, seq_id)
+            for nid, groundtruth_class in maps_counts[graph_id]:
+                if nid not in topo_map.nodes:
+                    raise Exception("Something wrong.\n"
+                                    + "graph_id: %s\n" % graph_id
+                                    + "Node %s does not exist in the topo map" % str(nid))
+                if topo_map.nodes[nid].label != groundtruth_class:
+                    raise Exception("Something wrong.\n"
+                                    + "graph_id: %s\n" % graph_id
+                                    + "Expected: node %d class %s" % (nid, groundtruth_class)
+                                    + "  Actual: node %d class %s" % (nid, topo_map.nodes[nid].label))
+        print("-  Verified training footprint.")

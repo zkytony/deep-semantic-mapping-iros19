@@ -101,7 +101,7 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     # the same scan whether or not we run GraphSPN over graphs with single component.
     topo_dataset.load(db_name, skip_unknown=True, skip_placeholders=False, single_component=False)
     dgsm_dataset.add_datapath(paths.path_to_polar_scans(db_name, dim=dim), db_name)
-    scans = dgsm_dataset.load_sequences([db_name], topo_dataset, max_seqs_per_floor=2) # list of scans
+    scans = dgsm_dataset.load_sequences([db_name], topo_dataset, max_seqs_per_floor=-1) # list of scans
     # print("Filtering scans by distance...")
     scans = DGSMDataset.filter_scans_by_distance(scans, distance=0.0)
 
@@ -129,7 +129,7 @@ def create_datasets_same_building(db_name, db_info, dim="56x21"):
     print("Done!")
 
 
-def create_datasets_across_buildings(db_info, dim="56x21"):
+def create_datasets_across_buildings(db_info, dim="56x21", seqs_per_floor=-1):
     """
     Given a list of DB names, produce
 
@@ -170,9 +170,11 @@ def create_datasets_across_buildings(db_info, dim="56x21"):
                                                                      seq_scans,
                                                                      topo_map)
                 scans.extend(topo_map_scans)
-                if count < 2:
+                if seqs_per_floor > 0 and count < seqs_per_floor:
                     seqs_testing.append(test_seq_id)
                     count += 1
+                else:
+                    break
 
         # set_defs.
         train_buildings = sorted(list(db_names - {test_building}))        

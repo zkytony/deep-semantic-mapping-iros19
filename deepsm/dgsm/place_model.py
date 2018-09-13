@@ -445,7 +445,8 @@ class PlaceModel:
         return correct / total
     
 
-    def samples_exam(self, scans, labels, writer, write_row_func, batch_size=100):
+    def samples_exam(self, scans, labels, writer, write_row_func, batch_size=100,
+                     per_lh_func=None, per_lh_func_kwargs={}):
         batch = 0
         stop = min(batch_size, len(scans))
         while stop < len(scans):
@@ -459,6 +460,8 @@ class PlaceModel:
                                                         self._dropconnect_placeholder: 1.0})[0]
             for i in range(len(likelihoods_arr)):
                 write_row_func(writer, i, start, scans, likelihoods_arr, labels)
+                if per_lh_func is not None:
+                    per_lh_func(start, i, likelihoods_arr, **per_lh_func_kwargs)
 
             batch += 1
             
@@ -470,12 +473,22 @@ class PlaceModel:
                             + [self._data._training_footprint_graph[start+i][-1]]  # node id
                             + scans[start+i].tolist())
 
+        def per_lh_func(start, i, likelihoods_arr, lh_map={}):
+            nid = self._data._training_footprint_graph[start+i][-1]
+            likelihoods = likelihoods_arr[i].tolist()
+            graph_id = self._data._training_footprint_graph[start+i][0]
+            if graph_id not in lh_map:
+                lh_map[graph_id] = {}
+            lh_map[graph_id][nid] = likelihoods
+
         print("Writing train samples exam file...")
+        train_graph_likelihoods = {}  # graph_id to nid to likelihoods array
         with open(os.path.join(dirpath, "train_samples_exam-%s.csv" % trial_name), 'w') as f:
             writer = csv.writer(f, delimiter=',', quotechar='"')
             self.samples_exam(self._data._training_scans_graph,
                               self._data._training_labels_graph, writer, write_row_func,
-                              batch_size=200)
+                              batch_size=200, per_lh_func=per_lh_func, per_lh_func_kwargs={'lh_map':train_graph_likelihoods})
+        return train_graph_likelihoods
             
 
     

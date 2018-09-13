@@ -13,11 +13,11 @@ import tensorflow as tf
 import numpy as np
 from deepsm.dgsm.place_model import PlaceModel
 from deepsm.dgsm.data import Data
-from deepsm.util import CategoryManager, plot_to_file, plot_roc
+from deepsm.util import CategoryManager, plot_to_file, plot_roc, json_safe
 import deepsm.experiments.common as common
 from pprint import pprint
 import math
-import csv
+import csv, json
 
 def create_parser():
     parser = argparse.ArgumentParser(description='Train and test an SPN place model.',
@@ -339,8 +339,13 @@ def main(args=None):
         np.savetxt(os.path.join(dirpath, 'loss-test-%s.txt' % trial_name), test_loss, delimiter=',', fmt='%.4f')
         
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
-        model.train_samples_exam(dirpath, trial_name)
+        train_graph_lh = model.train_samples_exam(dirpath, trial_name)
         model.test_samples_exam(dirpath, trial_name)
+
+        # Save train_graph_lh
+        db_name = args.building.split("_")[0].lower() + args.building.split("_")[1].split("-")[0]
+        with open(os.path.join(args.results_dir, "%s_likelihoods_training.json" % db_name), 'w') as f:
+            json.dump(train_graph_lh, f, indent=4)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

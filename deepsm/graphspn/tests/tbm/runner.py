@@ -328,24 +328,24 @@ class TbmExperiment(Experiment):
 
             dgsm_lh = None
             if use_dgsm_likelihoods:
+                model.expand()  # expand model
+                
                 for db in self._train_dgsm_lh_dict:
                     if dgsm_lh is None:
                         dgsm_lh = self._train_dgsm_lh_dict[db][model.template]
                     else:
                         dgsm_lh = np.vstack(dgsm_lh, self._train_dgsm_lh_dict[db][model.template])
+                dgsm_lh = dgsm_lh.reshape(-1, model.template.num_nodes() * CategoryManager.NUM_CATEGORIES)
 
             self._data_count['train_%s' % model.template.__name__] = {"counts_by_db": {db:len(self._train_samples_dict[db]) for db in self._train_samples_dict},
                                                                       "counts_by_sample": self._get_sample_frequencies(samples, model)}
             
-            # initialize model with random weights
+            # initialize model with random weights            
             model.generate_random_weights()
             model.init_weights_ops()
             model.init_learning_ops()
             model.initialize_weights(sess)
             sess.run(tf.global_variables_initializer())
-
-            if use_dgsm_likelihoods:
-                model.expand()
             
             train_likelihoods = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
             likelihoods[model.template.__name__] = train_likelihoods

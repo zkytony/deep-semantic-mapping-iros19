@@ -140,6 +140,8 @@ class TemplateSpn(SpnModel):
         Do nothing if already expanded.
         """
         if not self._expanded:
+            print("Expanding...")
+            
             self._likelihood_inputs = spn.RawInput(num_vars=self._num_nodes * CategoryManager.NUM_CATEGORIES,
                                                    name=self.vn['LH_CONT'])
             self._semantic_inputs = spn.IVs(num_vars=self._num_nodes, num_vals=CategoryManager.NUM_CATEGORIES,

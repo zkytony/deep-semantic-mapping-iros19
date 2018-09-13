@@ -126,15 +126,16 @@ class TopoMapDataset:
                                                                            samples[db_name][seq_id][template]))
 
             if likelihoods is not None:
+                result_likelihoods = {}
                 for db_name in likelihoods:
                     result_likelihoods[db_name] = {}
-                    for seq_id in likelihoods[db_name][seq_id]:
-                        for template in likelihoods[db_name]:
+                    for seq_id in likelihoods[db_name]:
+                        for template in likelihoods[db_name][seq_id]:
                             if template not in result_likelihoods[db_name]:
                                 result_likelihoods[db_name][template] = likelihoods[db_name][seq_id][template]
                             else:
                                 result_likelihoods[db_name][template] = np.vstack((result_likelihoods[db_name][template],
-                                                                               likelihoods[db_name][seq_id][template]))
+                                                                                   likelihoods[db_name][seq_id][template]))
 
             if get_likelihoods:             
                 return result_samples, result_likelihoods

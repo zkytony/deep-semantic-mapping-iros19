@@ -18,6 +18,7 @@ import random
 from collections import deque
 import json
 
+DEBUG = False
 
 class TopoMapDataset:
 
@@ -198,13 +199,7 @@ class TopoMapDataset:
         and save is set to False.
         """
         def get_lh(lh, *nids):
-            try:
-                for nid in nids:
-                    if nid not in lh:
-                        import pdb; pdb.set_trace()
-                return np.array([lh[nid] for nid in nids])
-            except KeyboardInterrupt:
-                import pdb; pdb.set_trace()
+            return np.array([lh[nid] for nid in nids])
 
         if random is True:
             save = False
@@ -702,7 +697,8 @@ class TopoMapDataset:
             skip_seq = False
             for pattern in skipped_seq_pattern:
                 if re.search(pattern, seq_id) is not None:
-                    print("Skipping %s (matched pattern %s)" % (seq_id, pattern))
+                    if DEBUG:
+                        print("Skipping %s (matched pattern %s)" % (seq_id, pattern))
                     skip_seq = True
             if skip_seq:
                 continue
@@ -742,7 +738,8 @@ class TopoMapDataset:
 
                     # Also, skip nodes in rooms that we want to skip
                     if node_room_mapping[nid] in skipped_rooms[self.get_dbname_info(db_name)[0]]:
-                        print("Skipping node %d in room %s" % (nid, node_room_mapping[nid]))
+                        if DEBUG:
+                            print("Skipping node %d in room %s" % (nid, node_room_mapping[nid]))
                         skipped.add(nid)
 
                 f.seek(0)
@@ -803,7 +800,8 @@ class TopoMapDataset:
                 if single_component:
                     components = topo_map.connected_components()
                     if len(components) > 1:
-                        print("-- %s is broken into %d components" % (seq_id, len(components)))
+                        if DEBUG:
+                            print("-- %s is broken into %d components" % (seq_id, len(components)))
                     topo_maps[seq_id] = max(components, key=lambda c:len(c.nodes))
                 else:
                     topo_maps[seq_id] = topo_map

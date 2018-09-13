@@ -231,14 +231,22 @@ class DGSMDataset:
 
         # WARNING: change 7-2PO-1 to 7-1PO-3, and change groundtruth of relevant scans.
         # Reason: appearance of 7-2PO-1 is more similar to a small office
+
+        final_scans = []
         for vscan in scans:
             room_id = vscan[0]
+
+            if "4-1PO-1" in room_id:
+                continue
+            
             orig_room_class = vscan[1]
             if "7-2PO-1" in room_id:
                 vscan[0] = vscan[0].replace('7-2PO-1', '7-1PO-3')
                 vscan[1] = '1PO'
                 print("    ** Changed 7-2PO-1 to 7-1PO-3. Was of class %s" % orig_room_class)
-        return scans
+
+            final_scans.append(vscan)
+        return final_scans
 
     @staticmethod
     def filter_scans_by_distance(scans, distance=0.5):

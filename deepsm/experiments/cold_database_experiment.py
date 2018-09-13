@@ -189,14 +189,14 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     util.print_banner("Start", ch='v')
     
     # Load training data
-    exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True, skip_placeholders=False)  # We don't need to skip placeholders in training, because we know their groundtruth values.
+    # We don't need to skip placeholders in training, because we know their groundtruth values.
+    exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True, skip_placeholders=False,
+                           use_dgsm_likelihoods=train_kwargs['use_dgsm_likelihoods'])
     spn_paths = {model.template.__name__:exp.model_save_path(model) for model in spns}
 
     try:
         with tf.Session() as sess:
             # Train models
-            if train_kwargs['train_with_likelihoods']:
-                exp.load_dgsm_likelihoods(train_kwargs['db_names'])
             train_info = exp.train_models(sess, **train_kwargs)
 
             # Relax priors for simple template SPNs:
@@ -348,7 +348,7 @@ def same_building():
         "save": True,
         'save_training_info': True,
         'timestamp': timestamp,
-        'train_with_likelihoods': args.train_with_likelihoods,
+        'use_dgsm_likelihoods': args.train_with_likelihoods,
         'partition_sampling_method': "RANDOM" if args.random_sampling else "ENERGY",
 
         # spn structure

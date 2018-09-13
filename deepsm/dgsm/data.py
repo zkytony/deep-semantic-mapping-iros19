@@ -129,6 +129,8 @@ class Data:
         self._train_rooms = self._set_defs['train_rooms_' + str(self._subset)]
         self._test_rooms = self._set_defs['test_rooms_' + str(self._subset)]
         self._novel_classes = self._set_defs['novel_categories']
+
+        graph_ids = set()
         training_scans = []
         training_labels = []
         training_scans_graph = []  # used to produce likelihoods matching with graph nodes
@@ -151,6 +153,7 @@ class Data:
                         training_labels_graph.append(rnum)
                         db_name = room_id.split("_")[0]
                         graph_id = db_name + "_" + seq_id # according to conevntion specified in experiments/paths.py
+                        graph_ids.add(graph_id)
                         training_footprint_graph.append([graph_id, rcat, i[-1]])
                     else:
                         training_scans.append(scan)
@@ -161,7 +164,10 @@ class Data:
                     testing_labels.append(rnum)
                     testing_footprint.append([rid, rcat, i[-1]])
 
+        pprint.pprint(graph_ids)
+
         training_scans = np.vstack(training_scans)
+        training_scans_graph = np.vstack(training_scans_graph)
         training_labels = np.vstack(training_labels)
         training_labels_graph = np.vstack(training_labels_graph)
         testing_scans = np.vstack(testing_scans)
@@ -333,11 +339,11 @@ class Data:
             maps_counts[graph_id].add((nid, groundtruth_class))
 
         db_loaded = set()
-        for graph_id in maps_counts:
+        for graph_id in sorted(maps_counts):
             db = graph_id.split("_")[0].capitalize()
             seq_id = "_".join(graph_id.split("_")[1:])
             if db not in db_loaded:
-                topo_dataset.load(db, skip_unknown=True, skip_placeholders=False, single_component=False)
+                topo_dataset.load(db, skip_unknown=True, skip_placeholders=True, single_component=False)
                 db_loaded.add(db)
             topo_map = topo_dataset.get(db, seq_id)
             for nid, groundtruth_class in maps_counts[graph_id]:
@@ -350,4 +356,9 @@ class Data:
                                     + "graph_id: %s\n" % graph_id
                                     + "Expected: node %d class %s" % (nid, groundtruth_class)
                                     + "  Actual: node %d class %s" % (nid, topo_map.nodes[nid].label))
+            if len(maps_counts[graph_id]) != len(topo_map.nodes):
+                raise Exception("Incorrect number of nodes with likelihoods."
+                                + "graph_id: %s\n" % graph_id
+                                + "Expected: %s" % (len(topo_map.nodes))
+                                + "  Actual: %s" % (len(maps_counts[graph_id])))
         print("-  Verified training footprint.")

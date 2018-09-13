@@ -345,7 +345,7 @@ def main(args=None):
         # Save train_graph_lh
         db_name = args.building.split("_")[0].lower() + args.building.split("_")[1].split("-")[0]
         with open(os.path.join(args.results_dir, "%s_likelihoods_training.json" % db_name), 'w') as f:
-            json.dump(train_graph_lh, f, indent=4)
+            json.dump(train_graph_lh, f, indent=4, sort_keys=True)
 
         # Report cm
         with open(os.path.join(dirpath, 'cm-%s.txt' % trial_name), 'w') as f:

@@ -13,12 +13,13 @@ from pprint import pprint
 import json
 
 from deepsm.graphspn.tests.runner import Experiment, TestCase
-from deepsm.graphspn.tbm.template import EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
-from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn, EdgeRelationTemplateSpn
+from deepsm.graphspn.tbm.template import Template, EdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, NodeTemplate, ThreeRelTemplate, StarTemplate, EdgeRelationTemplate
+from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.util import CategoryManager, ColdDatabaseManager, json_safe
 from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
+import deepsm.experiments.paths as paths
 
 
 class TbmExperiment(Experiment):
@@ -71,15 +72,19 @@ class TbmExperiment(Experiment):
         # sort spns by template size.
         self._spns = sorted(spns, key=lambda x: x.template.size(), reverse=True)
         # template mode: 0 means node template, 1 means edge template.
-        self._template_mode = self._spns[0].template.code()
+        self._template_mode = self._spns[0].template.code()  # Should be removed
+        self._template_type = Template.get_type(self._spns[0].template)
         
         self._dataset = TopoMapDataset(db_root)
         self._train_db = []
         self._test_db = []
         self._train_seqs = None  # *_seqs are used only when we mix the sequences from different buildings.
         self._test_seqs = None
+        self._train_dgsm_lh_dict = None
+        self._train_likelihoods = None
         self._root_path = os.path.join(root_dir, name)
         self._completed = {}  # dictionary from 'subname' to a set of test cases completed under that subname.
+        self._dgsm_lh_training = None
 
         # Map from db_name to number of training/testing samples generated from it.
         self._data_count = {}
@@ -130,7 +135,11 @@ class TbmExperiment(Experiment):
 
     def model_save_path(self, model):
         trained_dbs = "-".join(self._train_db)
-        return os.path.join(self._root_path, 'models', "%s_%d_%s.spn" % (model.template.__name__, CategoryManager.NUM_CATEGORIES, trained_dbs))
+        train_method = "dgsmlh" if self._train_dgsm_lh_dict is not None else ""
+        if len(train_method) != 0:
+            return os.path.join(self._root_path, 'models', "%s_%d_%s_%s.spn" % (model.template.__name__, CategoryManager.NUM_CATEGORIES, trained_dbs, train_method))
+        else:
+            return os.path.join(self._root_path, 'models', "%s_%d_%s.spn" % (model.template.__name__, CategoryManager.NUM_CATEGORIES, trained_dbs))
 
 
     def data_count(self, db=None, update=False):
@@ -148,7 +157,8 @@ class TbmExperiment(Experiment):
                     return 0  # the model is already trained. Didn't load any training data.
         
 
-    def load_training_data(self, *db_names, skip_unknown=False, skip_placeholders=False, segment=False, mix_ratio=None):
+    def load_training_data(self, *db_names, skip_unknown=False, skip_placeholders=False,
+                           segment=False, mix_ratio=None, use_dgsm_likelihoods=False, random_sampling=True):
         """
         Load training data from given dbs
         
@@ -157,7 +167,11 @@ class TbmExperiment(Experiment):
         mix_ratio (float): When not None, it is the percentage of sequences in the given dbs used for training (e.g. 0.8).
                            If this value is set, the testing data would be the remaining sequences that take 1-mixed_ratio
                            percentage
+        use_dgsm_likelihood (bool): Also load dgsm likelihoods for the sequencs in the training database.
+                                    If True, skip_placeholder's value will be overridden and set to True.
         """
+        if use_dgsm_likelihoods:
+            skip_placeholders = True
         for db_name in db_names:
             self._dataset.load(db_name, skip_unknown=skip_unknown, skip_placeholders=skip_placeholders, segment=segment, single_component=True)
             self._train_db.append(db_name)
@@ -167,7 +181,14 @@ class TbmExperiment(Experiment):
         if mix_ratio is not None:
             self._train_seqs, self._test_seqs = self._dataset.split(mix_ratio, *db_names)
             print("Loaded %d training sequences from databases %s" % (len(self._train_seqs), list(db_names)))
-                                                                      
+
+        print("Preloading all template training samples...")
+        rs = self._dataset.load_template_dataset(self._template_type, db_names=db_names, random=random_sampling,
+                                                 use_dgsm_likelihoods=use_dgsm_likelihoods)
+        if use_dgsm_likelihoods:
+            self._train_samples_dict, self._train_dgsm_lh_dict = rs
+        else:
+            self._train_samples_dict = rs
 
 
     def load_testing_data(self, *db_names, skip_unknown=False, skip_placeholders=False, tiny_size=0, segment=False):
@@ -260,6 +281,7 @@ class TbmExperiment(Experiment):
         timestamp = kwargs.get("timestamp", None)
         save_training_info = kwargs.get("save_training_info", False)
         partition_sampling_method = kwargs.get("partition_sampling_method", "RANDOM")
+        use_dgsm_likelihoods = kwargs.get("use_dgsm_likelihoods", False)
 
         likelihoods = {}
 
@@ -287,19 +309,32 @@ class TbmExperiment(Experiment):
                 get_data_params['num_partitions'] = num_partitions
             else:
                 get_data_params['random'] = False
+            get_data_params['use_dgsm_likelihoods'] = use_dgsm_likelihoods
 
-            samples_dict = self._dataset.load_template_dataset(model.template,
-                                                               **get_data_params)
-            # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
-            #                                                (D,2*n) if Edgetemplate
+            # rs = self._dataset.load_template_dataset(model.template,
+            #                                          **get_data_params)
+            # if use_dgsm_likelihoods:
+            #     samples_dict, likelihoods_dict = rs
+            # else:
+            #     samples_dict = rs
+            # # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
+            # #                                                (D,2*n) if Edgetemplate
             samples = None
-            for db in samples_dict:
+            for db in self._train_samples_dict:
                 if samples is None:
-                    samples = samples_dict[db]
+                    samples = self._train_samples_dict[db][model.template]
                 else:
-                    samples = np.vstack(samples, samples_dict[db])
+                    samples = np.vstack(samples, self._train_samples_dict[db][model.template])
 
-            self._data_count['train_%s' % model.template.__name__] = {"counts_by_db": {db:len(samples_dict[db]) for db in samples_dict},
+            dgsm_lh = None
+            if use_dgsm_likelihoods:
+                for db in self._train_dgsm_lh_dict:
+                    if dgsm_lh is None:
+                        dgsm_lh = self._train_dgsm_lh_dict[db][model.template]
+                    else:
+                        dgsm_lh = np.vstack(dgsm_lh, self._train_dgsm_lh_dict[db][model.template])
+
+            self._data_count['train_%s' % model.template.__name__] = {"counts_by_db": {db:len(self._train_samples_dict[db]) for db in self._train_samples_dict},
                                                                       "counts_by_sample": self._get_sample_frequencies(samples, model)}
             
             # initialize model with random weights
@@ -308,8 +343,12 @@ class TbmExperiment(Experiment):
             model.init_learning_ops()
             model.initialize_weights(sess)
             sess.run(tf.global_variables_initializer())
-            lh = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres, num_epochs=num_epochs)
-            likelihoods[model.template.__name__] = lh
+
+            if use_dgsm_likelihoods:
+                model.expand()
+            
+            train_likelihoods = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
+            likelihoods[model.template.__name__] = train_likelihoods
             
             if save:
                 sys.stdout.write("Saving trained %s-SPN saved to path: %s ..." % (model.template.__name__, model_save_path))

@@ -1,13 +1,16 @@
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+import matplotlib.lines as lines
+import matplotlib.patheffects as path_effects
+
 import os
 import math
 import yaml
 import re
 import random
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-import matplotlib.lines as lines
-import matplotlib.patheffects as path_effects
 import sklearn.metrics
 
 ABS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -235,6 +238,7 @@ def plot_to_file(*args, labels=[], path="plot.png", xlabel=None, ylabel=None):
         plt.ylabel(ylabel)
     plt.legend(loc='upper right')
     plt.savefig(path)
+    plt.close()
 
 
 def plot_roc(roc_data, savepath='roc.png', names=[]):

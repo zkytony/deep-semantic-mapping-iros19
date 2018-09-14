@@ -288,7 +288,7 @@ class TbmExperiment(Experiment):
         save_training_info = kwargs.get("save_training_info", False)
         partition_sampling_method = kwargs.get("partition_sampling_method", "RANDOM")
         use_dgsm_likelihoods = kwargs.get("use_dgsm_likelihoods", False)
-        plot_losses = kwargs.get("plot_losses", False)
+        investigate = kwargs.get("investigate", False)
 
         likelihoods = {}
 
@@ -389,14 +389,15 @@ class TbmExperiment(Experiment):
                 model.save(model_save_path, sess)
                 model._save_path = model_save_path
 
-            if plot_losses:
+            if investigate:
                 plot_lhs, labels = [train_likelihoods], ["train"]
                 if "test" in likelihoods[model.template.__name__]:
                     plot_lhs.append(likelihoods[model.template.__name__]['test'])
                     labels.append("test")
                 plot_fname = "loss-" + os.path.splitext(os.path.basename(model_save_path))[0] + ".png"
-                save_dir = os.path.dirname(model_save_path)
-                plot_to_file(*plot_lhs, labels=labels, path=os.path.join(save_dir, plot_fname), xlabel='epoch', ylabel='loss')
+                save_path = os.path.join(os.path.dirname(model_save_path), plot_fname)
+                plot_to_file(*plot_lhs, labels=labels, path=save_path, xlabel='epoch', ylabel='loss')
+                print("Saved loss plot in %s" % save_path)
                 
             train_info[model.template.__name__] = {'config': { k: dict(kwargs)[k]
                                                                for k in kwargs

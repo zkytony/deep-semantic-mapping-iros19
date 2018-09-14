@@ -84,17 +84,18 @@ class TopoMapDataset:
                     for nid_str in d[graph_id]:
                         result[graph_id][int(nid_str)] = d[graph_id][nid_str]
 
-        for db_name in db_test:
-            building, train_floors, test_floor = self.get_dbname_info(db_name)
-            path_to_results = result_paths[test_floor]
-            for fname in os.listdir(path_to_results):
-                if fname.endswith("_likelihoods.json"):
-                    graph_id = building.lower() + "_" + "_".join(fname.split("_likelihoods.json")[0].split("_")[1:])
-                    with open(os.path.join(path_to_results, fname)) as f:
-                        d = json.load(f)
-                        result[graph_id] = {}
-                        for nid_str in d:
-                            result[graph_id][int(nid_str)] = d[nid_str][2]
+        if db_test is not None:
+            for db_name in db_test:
+                building, train_floors, test_floor = self.get_dbname_info(db_name)
+                path_to_results = result_paths[test_floor]
+                for fname in os.listdir(path_to_results):
+                    if fname.endswith("_likelihoods.json"):
+                        graph_id = building.lower() + "_" + "_".join(fname.split("_likelihoods.json")[0].split("_")[1:])
+                        with open(os.path.join(path_to_results, fname)) as f:
+                            d = json.load(f)
+                            result[graph_id] = {}
+                            for nid_str in d:
+                                result[graph_id][int(nid_str)] = d[nid_str][2]
         return result
 
 
@@ -147,7 +148,7 @@ class TopoMapDataset:
                 result_samples[db_name] = {}
                 for seq_id in sorted(samples[db_name]):
                     for template in samples[db_name][seq_id]:
-                        if template not in result_samples[db_name]:
+                        if template not in result_samples[db_name] and len(samples[db_name][seq_id][template]) > 0:
                             result_samples[db_name][template] = samples[db_name][seq_id][template]
                         elif len(samples[db_name][seq_id][template]) > 0:
                             result_samples[db_name][template] = np.vstack((result_samples[db_name][template],
@@ -159,7 +160,7 @@ class TopoMapDataset:
                     result_likelihoods[db_name] = {}
                     for seq_id in sorted(likelihoods[db_name]):
                         for template in likelihoods[db_name][seq_id]:
-                            if template not in result_likelihoods[db_name]:
+                            if template not in result_likelihoods[db_name] and len(likelihoods[db_name][seq_id][template]) > 0:
                                 result_likelihoods[db_name][template] = likelihoods[db_name][seq_id][template]
                             elif len(likelihoods[db_name][seq_id][template]) > 0:
                                 result_likelihoods[db_name][template] = np.vstack((result_likelihoods[db_name][template],

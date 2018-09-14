@@ -173,7 +173,7 @@ class TemplateSpn(SpnModel):
                                                ops=[self._avg_train_likelihood])
             likelihood_values.append(likelihood_val)
             batch += 1
-        return np.mean(likelihood_values)
+        return -np.mean(likelihood_values)
     
 
     def _start_training(self, samples, batch_size, likelihood_thres,
@@ -243,7 +243,7 @@ class TemplateSpn(SpnModel):
 
                 if samples_test is not None:
                     print("Computing train, (test) likelihoods...")
-                    likelihood_train = np.mean(batch_likelihoods)
+                    likelihood_train = -np.mean(batch_likelihoods)
                     train_likelihoods.append(likelihood_train)
                     print("Train likelihood: %.3f  " % likelihood_train)
 

@@ -356,6 +356,7 @@ class Data:
                                     + "graph_id: %s\n" % graph_id
                                     + "Expected: node %d class %s" % (nid, groundtruth_class)
                                     + "  Actual: node %d class %s" % (nid, topo_map.nodes[nid].label))
+
             if len(maps_counts[graph_id]) != len(topo_map.nodes):
                 raise Exception("Incorrect number of nodes with likelihoods."
                                 + "graph_id: %s\n" % graph_id

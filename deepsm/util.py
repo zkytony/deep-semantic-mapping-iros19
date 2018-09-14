@@ -301,7 +301,8 @@ class CategoryManager:
     CAT_MAP_ALL = {
         'BINARY': load_mapping("binary"),
         'SIMPLE': load_mapping("simple"),
-        'FULL': load_mapping("full")
+        'FULL': load_mapping("full"),
+        'SEVEN': load_mapping("seven_stockholm")
     }
 
     CAT_MAP = None

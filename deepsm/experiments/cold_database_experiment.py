@@ -108,6 +108,14 @@ class ColdDatabaseExperiment(TbmExperiment):
             __record['results']['_total_inferred_'] = total_cases
             __record['results']['_dgsm_results_'] = dgsm_result
 
+            # Compute accuracy by class
+            accuracy_per_catg = []
+            for catg in __record['results']:
+                if not catg.startswith("_"):
+                    accuracy_per_catg.append(__record['results'][catg][2])
+            __record['results']['_overall_by_class_'] = float(np.mean(accuracy_per_catg))
+            __record['results']['_stdev_by_class_'] = float(np.std(accuracy_per_catg))
+
             # Record
             __record['instance']['_marginals_'] = marginals
             __record['instance']['_marginals_normalized_'] = normalize_marginals(marginals)
@@ -145,6 +153,7 @@ class ColdDatabaseExperiment(TbmExperiment):
             save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', True)
             save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no
             save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'exclude_ph_result', True)  # All nodes are no
+            print("  Saved to: %s" % os.path.basename(save_path))
                 
             return report
 
@@ -319,6 +328,7 @@ def same_building():
     parser.add_argument('-R', '--num-sampling-rounds', type=int, help="Number of rounds to sample partition sets before picking the best one.", default=100)
     parser.add_argument('-E', '--epochs-training', type=int, help="Number of epochs to train models.", default=100)
     parser.add_argument('-L', '--likelihood-thres', type=float, help="Likelihood update threshold for training.", default=0.05)
+    parser.add_argument('-B', '--batch-size', type=int, help="Batch size of training", default=200)
     parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
@@ -354,6 +364,7 @@ def same_building():
         'timestamp': timestamp,
         'use_dgsm_likelihoods': args.train_with_likelihoods,
         'investigate': args.investigate,
+        'batch_size': args.batch_size,
         'partition_sampling_method': "RANDOM" if args.random_sampling else "ENERGY",
         
         "num_epochs": args.epochs_training,
@@ -531,6 +542,14 @@ def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=No
     dgsm_result['_total_cases_'] = total_cases
     dgsm_result['_total_correct_'] = total_correct
     dgsm_result['_overall_'] = total_correct / total_cases
+
+    # Compute accuracy by class
+    accuracy_per_catg = []
+    for catg in dgsm_result:
+        if not catg.startswith("_"):
+            accuracy_per_catg.append(dgsm_result[catg][2])
+    dgsm_result['_overall_by_class_'] = float(np.mean(accuracy_per_catg))
+    dgsm_result['_stdev_by_class_'] = float(np.std(accuracy_per_catg))
 
     # Apply relaxation
     if relax_level is not None:

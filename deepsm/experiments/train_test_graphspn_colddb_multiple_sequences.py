@@ -38,7 +38,8 @@ def experiment_proc(what,
                     train_with_likelihoods=False,
                     investigate=False,
                     epochs_training=None,
-                    likelihood_thres=0.05):
+                    likelihood_thres=0.05,
+                    batch_size=200):
     nullable_args = []
     if skip_placeholders:
         nullable_args.append('--skip-placeholders')
@@ -71,6 +72,7 @@ def experiment_proc(what,
                                  '-P', str(num_partitions),
                                  '-R', str(num_sampling_rounds),
                                  '-L', str(likelihood_thres),
+                                 '-B', str(batch_size),
                                  '--category-type', category_type,
                                  '--template', template] + nullable_args)
     elif what == "DGSM_ACROSS_BUILDINGS":
@@ -123,7 +125,7 @@ def same_buliding(args):
                                    category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
                                    dom_coeff=args.dom_coeff, separable_coeff=args.separable_coeff, straight_template_coeff=args.straight_template_coeff,
                                    train_with_likelihoods=args.train_with_likelihoods, investigate=args.investigate, epochs_training=args.epochs_training,
-                                   likelihood_thres=args.likelihood_thres)
+                                   likelihood_thres=args.likelihood_thres, batch_size=args.batch_size)
             proc.wait()
             num_seqs_tested += 1
             if args.num_test_seqs >= 0 and num_seqs_tested >= args.num_test_seqs:
@@ -164,6 +166,7 @@ def main():
     parser.add_argument('-R', '--num-sampling-rounds', type=int, help="Number of rounds to sample partition sets before picking the best one.", default=100)
     parser.add_argument('-E', '--epochs-training', type=int, help="Number of epochs to train models.", default=100)
     parser.add_argument('-L', '--likelihood-thres', type=float, help="Likelihood update threshold for training.", default=0.05)
+    parser.add_argument('-B', '--batch-size', type=int, help="Batch size of training", default=200)
     parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
     parser.add_argument('--test-floor', type=int, help="Floor number that will be used for testing. Other floors are then for training.")
     parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')

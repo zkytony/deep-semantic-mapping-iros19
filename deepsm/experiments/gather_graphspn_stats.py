@@ -20,6 +20,11 @@ def main():
     stats = {'graphspn':{'total':0, 'correct':0, 'overall':0.0},
              'dgsm':{'total':0, 'correct':0, 'overall':0.0}}
 
+    acc_by_class = []
+    acc_overall = []
+    dgsm_acc_by_class = []
+    dgsm_acc_overall = []
+
     print("Gathering")
     for case_name in sorted(os.listdir(results_dir)):
         if case_name.startswith(args.test_case) \
@@ -29,22 +34,29 @@ def main():
             with open(os.path.join(results_dir, case_name, 'report.log')) as f:
                 report = yaml.load(f)
 
-            # For now, just compute the overall
+            stats['graphspn'][case_name] = report
+
+            acc_by_class.append(report['_overall_by_class_'])
+            acc_overall.append(report['_overall_'])
+
             graphspn_total = report['_total_inferred_']
             graphspn_correct = report['_total_correct_']
-            stats['graphspn']['total'] += graphspn_total
-            stats['graphspn']['correct'] += graphspn_correct
             
             if '_dgsm_results_' in report:
                 dgsm_total = report['_dgsm_results_']['_total_cases_']
                 dgsm_correct = report['_dgsm_results_']['_total_correct_']
-                stats['dgsm']['total'] += dgsm_total
-                stats['dgsm']['correct'] += dgsm_correct
+                dgsm_acc_by_class.append(report['_dgsm_results_']['_overall_by_class_'])
+                dgsm_acc_overall.append(report['_dgsm_results_']['_overall_'])
 
-    if stats['graphspn']['total'] > 0:
-        stats['graphspn']['overall'] = stats['graphspn']['correct'] / stats['graphspn']['total']
-    if stats['dgsm']['total'] > 0:
-        stats['dgsm']['overall'] = stats['dgsm']['correct'] / stats['dgsm']['total']
+    stats['graphspn']['overall'] = np.mean(acc_overall)
+    stats['graphspn']['stdev'] = np.std(acc_overall)
+    stats['graphspn']['overall_by_class'] = np.mean(acc_by_class)
+    stats['graphspn']['stdev_by_class'] = np.std(acc_by_class)
+
+    stats['dgsm']['overall'] = np.mean(dgsm_acc_overall)
+    stats['dgsm']['stdev'] = np.std(dgsm_acc_overall)
+    stats['dgsm']['overall_by_class'] = np.mean(dgsm_acc_by_class)
+    stats['dgsm']['stdev_by_class'] = np.std(dgsm_acc_by_class)
 
     pprint(stats)
 

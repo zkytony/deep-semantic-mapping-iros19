@@ -553,6 +553,15 @@ class FactorGraphTest:
                 stats['_overall_'] = 0
             stats['_total_correct_'] = num_total_correct
             stats['_total_inferred_'] = num_total_cases
+
+            # Compute accuracy by class
+            accuracy_per_catg = []
+            for catg in stats:
+                if not catg.startswith("_"):
+                    accuracy_per_catg.append(stats[catg][2])
+            stats['_overall_by_class_'] = float(np.mean(accuracy_per_catg))
+            stats['_stdev_by_class_'] = float(np.std(accuracy_per_catg))
+                
             stats['_no_prob_'] = num_no_prob
         except Exception as ex:
             print(ex)

@@ -38,7 +38,6 @@ class TopoMapDataset:
         # Example: Stockholm456
         building = re.search("(stockholm|freiburg|saarbrucken)", db_train_name, re.IGNORECASE).group().capitalize()
         train_floors = db_train_name[len(building):]
-
         if building == "Stockholm":
             floors = {4, 5, 6, 7}
         elif building == "Freiburg":
@@ -46,7 +45,7 @@ class TopoMapDataset:
         elif building == "Saarbrucken":
             floors = {1, 2, 3, 4}
         for f in train_floors:
-            floors = floors - {f}
+            floors = floors - {int(f)}
         test_floor = list(floors)[0]
         return building, train_floors, test_floor
 

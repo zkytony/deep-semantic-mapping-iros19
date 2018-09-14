@@ -347,7 +347,7 @@ def same_building():
     # Configuration
     train_kwargs = {
         'trained_categories': classes,
-        'load_if_exists': False,
+        'load_if_exists': True,
         'shuffle': True,
         "save": True,
         'save_training_info': True,

@@ -41,7 +41,7 @@ results_root/
                 CR/
                 ...
                 graphs/
-                    {graph_id}_likelihoods.json   (graph_id == {building}_{seq_id})
+                    {graph_id}_likelihoods.json   (graph_id == {building#}_{seq_id})
             ...
 """
 

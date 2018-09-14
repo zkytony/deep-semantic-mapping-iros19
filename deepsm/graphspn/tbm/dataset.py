@@ -17,6 +17,7 @@ import math
 import random
 from collections import deque
 import json
+import copy
 
 DEBUG = False
 
@@ -34,6 +35,7 @@ class TopoMapDataset:
 
     # TODO: This shouldn't really be here.  It's a more general function for the experiments.
     def get_dbname_info(self, db_train_name):
+        # Example: Stockholm456
         building = re.search("(stockholm|freiburg|saarbrucken)", db_train_name, re.IGNORECASE).group().capitalize()
         train_floors = db_train_name[len(building):]
 
@@ -48,18 +50,23 @@ class TopoMapDataset:
         test_floor = list(floors)[0]
         return building, train_floors, test_floor
 
-    def _load_dgsm_likelihoods(self, db_names, **kwargs):
+    def _load_dgsm_likelihoods(self, db_names, db_test=None, **kwargs):
         """Load all dgsm_likelihoods for the databases provided in db_names.
 
-        Each element in db_names should be of format Building_{FloorsTrain-FloorTest
-        
         db_info: a dictionary that maps from db_name to a list of tuples
-                 (train_floors, test_floor)
+                 (train_floors, test_floor). Exmaple for db_name: Stockholm456
+
+        kwargs:
+            db_test (list): If provided, we will load likelihoods in a different way for these dbs.
+                            Example: ['Stockholm7']. `db_names` should not include db_test.
+                            WARNING: It's actually not practical at the moment to have multiple elements
+                            in db_test.
 
         Note: This function is only planned to be used for DGSM_SAME_BUILDING experiments.
         """
         result = {}
         trial_number = kwargs.get("trial_number", 0)
+        result_paths = {}
         for db_name in db_names:
             building, train_floors, test_floor = self.get_dbname_info(db_name)
             path_to_results = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
@@ -68,17 +75,31 @@ class TopoMapDataset:
                                                                       trial_number,
                                                                       train_floors,
                                                                       test_floor)
-            with open(os.path.join(path_to_results, "%s_likelihoods_training.json" % db_name.lower())) as f:
+            result_paths[test_floor] = path_to_results
+            with open(os.path.join(path_to_results, "%s%s_likelihoods_training.json" % (building.lower(), train_floors))) as f:
                 d = json.load(f)
                 for graph_id in d:
                     if graph_id not in result:
                         result[graph_id] = {}
                     for nid_str in d[graph_id]:
                         result[graph_id][int(nid_str)] = d[graph_id][nid_str]
+
+        for db_name in db_test:
+            building, train_floors, test_floor = self.get_dbname_info(db_name)
+            path_to_results = result_paths[test_floor]
+            for fname in os.listdir(path_to_results):
+                if fname.endswith("_likelihoods.json"):
+                    graph_id = building.lower() + "_" + "_".join(fname.split("_likelihoods.json")[0].split("_")[1:])
+                    with open(os.path.join(path_to_results, fname)) as f:
+                        d = json.load(f)
+                        result[graph_id] = {}
+                        for nid_str in d:
+                            result[graph_id][int(nid_str)] = d[nid_str][2]
         return result
 
 
-    def load_template_dataset(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1, random=True, **kwargs):
+    def load_template_dataset(self, template_type, db_names=None, seq_ids=None,
+                              seqs_limit=-1, random=True, db_test=None, **kwargs):
         """
         loads all samples for template_type. `template_type` can either be 'three' or 'view'.
         
@@ -99,14 +120,19 @@ class TopoMapDataset:
         If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
         will treat `seq_ids` as None. `seq_ids` should be a list of "{db}-{seq_id}" strings.
 
+        If `db_test` is not None, that means we want to load samples and likelihoods from the
+        test sequences as well. Then `db_names` is ASSUMED to not be None and does not contain
+        `db_test`. Example: Stockholm7.
+
         """
         get_likelihoods = kwargs.get("use_dgsm_likelihoods", False)  # For now, this only works for random partitioning
-
         templates = Template.templates_for(template_type)
+        db_train = copy.deepcopy(db_names)
         
         if random:
             rs = self.create_template_dataset_with_sampler(template_type, db_names=db_names, seq_ids=seq_ids, seqs_limit=seqs_limit,
-                                                           num_partitions=kwargs.get('num_partitions', 5), random=random, get_likelihoods=get_likelihoods)
+                                                           num_partitions=kwargs.get('num_partitions', 5),
+                                                           random=random, get_likelihoods=get_likelihoods, db_test=db_test)
 
             likelihoods = None
             if get_likelihoods:
@@ -139,10 +165,29 @@ class TopoMapDataset:
                                 result_likelihoods[db_name][template] = np.vstack((result_likelihoods[db_name][template],
                                                                                    likelihoods[db_name][seq_id][template]))
 
-            if get_likelihoods:             
-                return result_samples, result_likelihoods
+            # Split train db and test db. Then return.
+            if db_test is not None:
+                result_samples_train, result_samples_test = {}, {}
+                for db_name in sorted(db_train):
+                    result_samples_train[db_name] = result_samples[db_name]
+                for db_name in sorted(db_test):
+                    result_samples_test[db_name] = result_samples[db_name]
+
+                if get_likelihoods:
+                    result_likelihoods_train, result_likelihoods_test = {}, {}
+                    for db_name in sorted(db_train):
+                        result_likelihoods_train[db_name] = result_likelihoods[db_name]
+                    for db_name in sorted(db_test):
+                        result_likelihoods_test[db_name] = result_likelihoods[db_name]
+
+                    return result_samples_train, result_likelihoods_train, result_samples_test, result_likelihoods_test
+                else:
+                    return result_samples_train, result_likelihoods_test
             else:
-                return result_samples
+                if get_likelihoods:
+                    return result_samples, result_likelihoods
+                else:
+                    return result_samples
                                                                   
         else:
             if db_names is None and seq_ids is None:
@@ -184,7 +229,8 @@ class TopoMapDataset:
 
 
     def create_template_dataset_with_sampler(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1,
-                                             num_partitions=5, num_rounds=100, repeat=1, save=True, random=False, get_likelihoods=False):
+                                             num_partitions=5, num_rounds=100, repeat=1,
+                                             save=True, random=False, get_likelihoods=False, db_test=None):
         """
         Return a dataset of samples that can be used to train template SPNs. This
         dataset contains symmetrical data, i.e. for every pair of semantics, its
@@ -208,10 +254,13 @@ class TopoMapDataset:
             save = False
 
         if db_names is None and seq_ids is None:
-            db_names = self._topo_maps_data.keys()
+            db_names = list(self._topo_maps_data.keys())
 
         if get_likelihoods:
-            dgsm_likelihoods = self._load_dgsm_likelihoods(db_names)
+            dgsm_likelihoods = self._load_dgsm_likelihoods(db_names, db_test=db_test)
+
+        if db_test is not None:
+            db_names.extend(db_test)
 
         samples, likelihoods = {}, {}
         topo_maps = {}  # map from "{db}_{seq_id}" to topo map
@@ -232,11 +281,9 @@ class TopoMapDataset:
         while repeat >= 1:
             repeat -= 1
             for db_seq_id in topo_maps:
-                print(db_seq_id)
-                
                 db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
-                building, train_floors, test_floor = self.get_dbname_info(db_name)
-                graph_id = building.lower() + "_" + seq_id
+                building, _, _ = self.get_dbname_info(db_name)
+                graph_id = building.lower() + "_" + seq_id  # Here, graph_id needs to comply with the format used in load_dgsm_likelihoods()
                 topo_map = topo_maps[db_seq_id]
                 print("Partitioning topo map %s" % (db_seq_id))
 
@@ -667,7 +714,7 @@ class TopoMapDataset:
     def load(self, db_name, skip_unknown=False, skip_placeholders=False,
              limit=None, segment=False, single_component=True, room_remap={'7-2PO-1': '7-1PO-3'},
              skipped_seq_pattern={"floor6_base*"},
-             skipped_rooms={'Stockholm':{'4-1PO-1'}}):
+             skipped_rooms={'Stockholm':{}}):#{'4-1PO-1'}}):
         """
         loads data. The loaded data is stored in self.topo_maps_data, a dictionary
         where keys are database names and values are data.
@@ -742,7 +789,8 @@ class TopoMapDataset:
                             skipped.add(nid)
 
                     # Also, skip nodes in rooms that we want to skip
-                    if node_room_mapping[nid] in skipped_rooms[self.get_dbname_info(db_name)[0]]:
+                    building = self.get_dbname_info(db_name)[0]
+                    if building in skipped_rooms and node_room_mapping[nid] in skipped_rooms[building]:
                         if DEBUG:
                             print("Skipping node %d in room %s" % (nid, node_room_mapping[nid]))
                         skipped.add(nid)

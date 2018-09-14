@@ -35,14 +35,21 @@ def experiment_proc(what,
                     straight_template_coeff=8.0,
                     dom_coeff=4.85,
                     separable_coeff=2.15,
-                    train_with_likelihoods=False):
-    store_true_args = []
+                    train_with_likelihoods=False,
+                    investigate=False,
+                    epochs_training=None,
+                    likelihood_thres=0.05):
+    nullable_args = []
     if skip_placeholders:
-        store_true_args.append('--skip-placeholders')
+        nullable_args.append('--skip-placeholders')
     if random_sampling:
-        store_true_args.append('--random-sampling')
+        nullable_args.append('--random-sampling')
     if train_with_likelihoods:
-        store_true_args.append('--train-with-likelihoods')
+        nullable_args.append('--train-with-likelihoods')
+    if investigate:
+        nullable_args.append('--investigate')
+    if epochs_training is not None:
+        nullable_args.extend(['-E', str(epochs_training)])
 
     if what == "DGSM_SAME_BUILDING":
         coeffs = ['--similarity-coeff', similarity_coeff,
@@ -63,8 +70,9 @@ def experiment_proc(what,
                                  '-l', str(trial),
                                  '-P', str(num_partitions),
                                  '-R', str(num_sampling_rounds),
+                                 '-L', str(likelihood_thres),
                                  '--category-type', category_type,
-                                 '--template', template] + store_true_args)
+                                 '--template', template] + nullable_args)
     elif what == "DGSM_ACROSS_BUILDINGS":
         proc = subprocess.Popen(['./train_test_graphspn.py',
                                  "acrossbuildings",
@@ -87,47 +95,40 @@ def same_buliding(args):
     elif db_name == "Saarbrucken":
         floors = {1, 2, 3, 4}
 
-    if args.seq_id is None:    
-        num_seqs_tested = 0
-        for test_floor in sorted(floors):
-            for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
-                train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
-                dirpath_to_dgsm_graphs_result = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
-                                                                                        db_name,
-                                                                                        "graphs",
-                                                                                        args.trial,
-                                                                                        train_floors_str,
-                                                                                        str(test_floor))
-                if not os.path.exists(os.path.join(dirpath_to_dgsm_graphs_result, "%s%d_%s_likelihoods.json" % (db_name.lower(), test_floor, seq_id))):
-                    print("Skipping %s. No DGSM result found." % seq_id)
-                    continue
 
-                print("...%s..." % seq_id)
-                proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
-                                       args.seed, args.exp_name, args.test_name, args.trial,
-                                       args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
-                                       test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
-                                       category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
-                                       dom_coeff=args.dom_coeff, separable_coeff=args.separable_coeff, straight_template_coeff=args.straight_template_coeff,
-                                       train_with_likelihoods=args.train_with_likelihoods)
-                proc.wait()
-                num_seqs_tested += 1
-                if args.num_test_seqs >= 0 and num_seqs_tested >= args.num_test_seqs:
-                    print("Test sequence limit of %d is reached" % num_seqs_tested)
-                    return
-    else:
-        seq_id = args.seq_id
-        print("...%s..." % seq_id)
-        test_floor = int(re.search("[0-9]+", seq_id).group())
-        train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
-        proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
-                               args.seed, args.exp_name, args.test_name, args.trial,
-                               args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
-                               test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
-                               category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
-                               dom_coeff=args.dom_coeff, separable_coeff=args.seprable_coeff, straight_template_coeff=args.straight_template_coeff,
-                               train_with_likelihoods=args.train_with_likelihoods)
-        proc.wait()
+    num_seqs_tested = 0
+    for test_floor in sorted(floors):
+
+        if args.test_floor is not None and test_floor != args.test_floor:
+            continue
+
+        print("Testing on floor %d" % test_floor)
+        for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
+            train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
+            dirpath_to_dgsm_graphs_result = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
+                                                                                    db_name,
+                                                                                    "graphs",
+                                                                                    args.trial,
+                                                                                    train_floors_str,
+                                                                                    str(test_floor))
+            if not os.path.exists(os.path.join(dirpath_to_dgsm_graphs_result, "%s%d_%s_likelihoods.json" % (db_name.lower(), test_floor, seq_id))):
+                print("Skipping %s. No DGSM result found." % seq_id)
+                continue
+
+            print("...%s..." % seq_id)
+            proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
+                                   args.seed, args.exp_name, args.test_name, args.trial,
+                                   args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
+                                   test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
+                                   category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
+                                   dom_coeff=args.dom_coeff, separable_coeff=args.separable_coeff, straight_template_coeff=args.straight_template_coeff,
+                                   train_with_likelihoods=args.train_with_likelihoods, investigate=args.investigate, epochs_training=args.epochs_training,
+                                   likelihood_thres=args.likelihood_thres)
+            proc.wait()
+            num_seqs_tested += 1
+            if args.num_test_seqs >= 0 and num_seqs_tested >= args.num_test_seqs:
+                print("Test sequence limit of %d is reached" % num_seqs_tested)
+                return
 
 
 def across_buildings(args):
@@ -161,8 +162,10 @@ def main():
                         default=-1)
     parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
     parser.add_argument('-R', '--num-sampling-rounds', type=int, help="Number of rounds to sample partition sets before picking the best one.", default=100)
+    parser.add_argument('-E', '--epochs-training', type=int, help="Number of epochs to train models.", default=100)
+    parser.add_argument('-L', '--likelihood-thres', type=float, help="Likelihood update threshold for training.", default=0.05)
     parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
-    parser.add_argument('--seq-id', type=str, help="Sequence ID to run on; If supplied, -N is suppressed.")
+    parser.add_argument('--test-floor', type=int, help="Floor number that will be used for testing. Other floors are then for training.")
     parser.add_argument("--skip-placeholders", help='e.g. Freiburg', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
@@ -173,6 +176,7 @@ def main():
     parser.add_argument("--dom-coeff", type=float, default=4.85)
     parser.add_argument("--separable-coeff", type=float, default=2.15)
     parser.add_argument("--train-with-likelihoods", action="store_true")
+    parser.add_argument("--investigate", action="store_true", help="If set, loss plots during training will be saved to the same directory as the models.")
     args = parser.parse_args()
 
     util.CategoryManager.TYPE = args.category_type

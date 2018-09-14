@@ -187,11 +187,18 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     
     util.print_in_box(["Experiment %s" % exp_name])
     util.print_banner("Start", ch='v')
+
+    # Test
+    exp.load_testing_data(test_kwargs['db_name'], skip_unknown=True, skip_placeholders=skip_placeholders)
+    test_instances = exp.get_test_instances(db_name=test_kwargs['db_name'],
+                                            amount=amount,
+                                            seq_id=seq_id,
+                                            auto_load_splitted=seq_id is None)
     
     # Load training data
     # We don't need to skip placeholders in training, because we know their groundtruth values.
     exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True, skip_placeholders=False,
-                           use_dgsm_likelihoods=train_kwargs['use_dgsm_likelihoods'])
+                           use_dgsm_likelihoods=train_kwargs['use_dgsm_likelihoods'], investigate=train_kwargs['investigate'])
     spn_paths = {model.template.__name__:exp.model_save_path(model) for model in spns}
 
     try:
@@ -219,12 +226,6 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
             for template_spn in spns:                
                 template_spn._conc_inputs.set_inputs()
 
-            # Test
-            exp.load_testing_data(test_kwargs['db_name'], skip_unknown=True, skip_placeholders=skip_placeholders)
-            test_instances = exp.get_test_instances(db_name=test_kwargs['db_name'],
-                                                    amount=amount,
-                                                    seq_id=seq_id,
-                                                    auto_load_splitted=seq_id is None)
             for db_seq_id in test_instances:
                 db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
                 util.print_banner(seq_id, length=40)
@@ -316,6 +317,8 @@ def same_building():
     parser.add_argument('-l', '--trial', type=int, help="Trial number to identify DGSM experiment result", default=0)
     parser.add_argument('-P', '--num-partitions', type=int, help="Number of times the graph is partitioned (i.e. number of children for the root sum in GraphPSN)", default=5)
     parser.add_argument('-R', '--num-sampling-rounds', type=int, help="Number of rounds to sample partition sets before picking the best one.", default=100)
+    parser.add_argument('-E', '--epochs-training', type=int, help="Number of epochs to train models.", default=100)
+    parser.add_argument('-L', '--likelihood-thres', type=float, help="Likelihood update threshold for training.", default=0.05)
     parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
@@ -326,6 +329,7 @@ def same_building():
     parser.add_argument("--dom-coeff", type=float, default=4.85)
     parser.add_argument("--separable-coeff", type=float, default=2.15)
     parser.add_argument("--train-with-likelihoods", action="store_true")
+    parser.add_argument("--investigate", action="store_true", help="If set, loss plots during training will be saved to the same directory as the models.")
     args = parser.parse_args(sys.argv[2:])
 
     util.CategoryManager.TYPE = args.category_type
@@ -343,13 +347,17 @@ def same_building():
     # Configuration
     train_kwargs = {
         'trained_categories': classes,
-        'load_if_exists': True,
+        'load_if_exists': False,
         'shuffle': True,
         "save": True,
         'save_training_info': True,
         'timestamp': timestamp,
         'use_dgsm_likelihoods': args.train_with_likelihoods,
+        'investigate': args.investigate,
         'partition_sampling_method': "RANDOM" if args.random_sampling else "ENERGY",
+        
+        "num_epochs": args.epochs_training,
+        'likelihood_thresh': args.likelihood_thres,
 
         # spn structure
         "num_decomps": 1,
@@ -411,67 +419,72 @@ def same_building():
 
 
 def across_buildings():
-    parser = argparse.ArgumentParser(description='Run instance-SPN test.')
-    parser.add_argument('db_name', type=str, help="e.g. Stockholm, which means Freiburg and Saarbrucken will be used for training.")
-    parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
-    parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
-                        default=100)
-    parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: ColdDatabaseExperiment",
-                        default="AcrossBuildingsExperiment")
-    parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
-    parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
-                        default="mytest")
-    args = parser.parse_args(sys.argv[2:])
+    raise NotImplementedError("across building does not work.")
+    # parser = argparse.ArgumentParser(description='Run instance-SPN test.')
+    # parser.add_argument('db_name', type=str, help="e.g. Stockholm, which means Freiburg and Saarbrucken will be used for training.")
+    # parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
+    # parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
+    #                     default=100)
+    # parser.add_argument('-e', '--exp-name', type=str, help="Name to label this experiment. Default: ColdDatabaseExperiment",
+    #                     default="AcrossBuildingsExperiment")
+    # parser.add_argument('-r', '--relax-level', type=float, help="Adds this value to every likelihood value and then re-normalize all likelihoods (for each node)")
+    # parser.add_argument('-t', '--test-name', type=str, help="Name for grouping the experiment result. Default: mytest",
+    #                     default="mytest")
+    # args = parser.parse_args(sys.argv[2:])
 
-    print_args(args)
+    # print_args(args)
 
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    # timestamp = time.strftime("%Y%m%d-%H%M%S")
 
-    classes = []
-    for i in range(util.CategoryManager.NUM_CATEGORIES):
-        classes.append(util.CategoryManager.category_map(i, rev=True))
+    # classes = []
+    # for i in range(util.CategoryManager.NUM_CATEGORIES):
+    #     classes.append(util.CategoryManager.category_map(i, rev=True))
 
 
-    # Global configs:
-    # Configuration
-    train_kwargs = {
-        'trained_categories': classes,
-        'load_if_exists': True,
-        'shuffle': True,
-        "save": True,
-        'save_training_info': True,
-        'timestamp': timestamp,
+    # # Global configs:
+    # # Configuration
+    # train_kwargs = {
+    #     'trained_categories': classes,
+    #     'load_if_exists': True,
+    #     'shuffle': True,
+    #     "save": True,
+    #     'investigate': True,
+    #     'save_training_info': True,
+        
+    #     'timestamp': timestamp,
+    #     'likelihood_thresh': 0.0,
+    #     'num_epochs': 50,
 
-        # spn structure
-        "num_decomps": 1,
-        "num_subsets": 3,
-        "num_mixtures": 2,
-        "num_input_mixtures": 2,
+    #     # spn structure
+    #     "num_decomps": 1,
+    #     "num_subsets": 3,
+    #     "num_mixtures": 2,
+    #     "num_input_mixtures": 2,
 
-        # spn learning
-        'learning_algorithm': spn.EMLearning,
-        'additive_smoothing': 30
-    }
-    test_kwargs = {
-        'test_name': args.test_name,
-        'num_partitions': 5,
-        'timestamp': timestamp,
-        'relax_level': args.relax_level if args.relax_level else None
-    }
+    #     # spn learning
+    #     'learning_algorithm': spn.EMLearning,
+    #     'additive_smoothing': 30
+    # }
+    # test_kwargs = {
+    #     'test_name': args.test_name,
+    #     'num_partitions': 5,
+    #     'timestamp': timestamp,
+    #     'relax_level': args.relax_level if args.relax_level else None
+    # }
 
-    templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
+    # templates = [SingletonTemplate, PairTemplate, ThreeNodeTemplate, StarTemplate]
 
-    all_db = {'Freiburg', 'Saarbrucken', 'Stockholm'}
-    train_kwargs['db_names'] = sorted(list(all_db - {args.db_name}))
-    test_kwargs['db_name'] = args.db_name
+    # all_db = {'Freiburg', 'Saarbrucken', 'Stockholm'}
+    # train_kwargs['db_names'] = sorted(list(all_db - {args.db_name}))
+    # test_kwargs['db_name'] = args.db_name
 
-    test_kwargs['graph_results_dir'] \
-        = paths.path_to_dgsm_result_across_buildings(util.CategoryManager.NUM_CATEGORIES,
-                                                     "graphs",
-                                                     train_kwargs['db_names'],
-                                                     test_kwargs['db_name'])
-    exp_name = args.exp_name
-    run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name, seq_id=args.seq_id)
+    # test_kwargs['graph_results_dir'] \
+    #     = paths.path_to_dgsm_result_across_buildings(util.CategoryManager.NUM_CATEGORIES,
+    #                                                  "graphs",
+    #                                                  train_kwargs['db_names'],
+    #                                                  test_kwargs['db_name'])
+    # exp_name = args.exp_name
+    # run_experiment(args.seed, train_kwargs, test_kwargs, templates, exp_name, seq_id=args.seq_id)
 
 
 def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=None, return_dgsm_result=False):
@@ -481,7 +494,7 @@ def load_likelihoods(results_dir, graph_id, topo_map, categories, relax_level=No
 
     Args:
         results_dir (str) directory for DGSM output for graph scan results
-        graph_id (str) {building}_{seq_id}
+        graph_id (str) {building#}_{seq_id}
         topo_map (TopologicalMap) The topological map for this graph; Used to filter out nodes that we don't need to count
         categories (list) list of string categories
         relax_level (None or float): If not none, adds this value to every likelihood value

@@ -236,8 +236,8 @@ class DGSMDataset:
         for vscan in scans:
             room_id = vscan[0]
 
-            if "4-1PO-1" in room_id:
-                continue
+            # if "4-1PO-1" in room_id:
+            #     continue
             
             orig_room_class = vscan[1]
             if "7-2PO-1" in room_id:

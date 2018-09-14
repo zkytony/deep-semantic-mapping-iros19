@@ -119,8 +119,11 @@ class TemplateSpn(SpnModel):
             self._learn_spn = learning.learn(optimizer=self._optimizer)
             
         elif self._learning_algorithm == spn.EMLearning:
-            learning = spn.EMLearning(self._root, log=True, value_inference_type = self._value_inference_type,
-                                  additive_smoothing = self._additive_smoothing_var, use_unweighted=True)
+            learning = spn.EMLearning(self._root, log=True,
+                                      value_inference_type=self._value_inference_type,
+                                      additive_smoothing=self._additive_smoothing_var,
+                                      use_unweighted=True,
+                                      initial_accum_value=self._init_accum)
             self._reset_accumulators = learning.reset_accumulators()
             self._learn_spn = learning.accumulate_updates()
             self._update_spn = learning.update_spn()
@@ -157,8 +160,25 @@ class TemplateSpn(SpnModel):
             self._conc_inputs.set_inputs(*map(spn.Input.as_input, prods))
             self._expanded = True
 
+    def _compute_mle_loss(self, samples, func_feed_samples, dgsm_lh=None, batch_size=100):
+        batch = 0
+        likelihood_values = []
+        stop = min(batch_size, len(samples))
+        while stop < len(samples):
+            start = (batch)*batch_size
+            stop = min((batch+1)*batch_size, len(samples))
+            print("    BATCH", batch, "SAMPLES", start, stop)
 
-    def _start_training(self, samples, num_batches, likelihood_thres, sess, func_feed_samples, num_epochs=None, dgsm_lh=None):
+            likelihood_val = func_feed_samples(self, samples, start, stop, dgsm_lh=dgsm_lh,
+                                               ops=[self._avg_train_likelihood])
+            likelihood_values.append(likelihood_val)
+            batch += 1
+        return np.mean(likelihood_values)
+    
+
+    def _start_training(self, samples, batch_size, likelihood_thres,
+                        sess, func_feed_samples, num_epochs=None, dgsm_lh=None,
+                        shuffle=True, dgsm_lh_test=None, samples_test=None):
         """
         Helper for train() in subclasses. Weights should have been initialized.
 
@@ -171,45 +191,72 @@ class TemplateSpn(SpnModel):
         print("Resetting accumulators...")
         sess.run(self._reset_accumulators)
 
-        batch_size = samples.shape[0] // num_batches
+        batch_likelihoods = []  # record likelihoods within an epoch
+        train_likelihoods = []  # record likelihoods for training samples
+        test_likelihoods = []   # record likelihoods for testing samples
 
-        likelihoods_log = []
-
-        prev_likelihood = 100
-        likelihood = 0
+        prev_likelihood = 100   # previous likelihood
+        likelihood = 0          # current likelihood
         epoch = 0
+        batch = 0
 
+        # Shuffle
+        if shuffle:
+            print("Shuffling...")
+            p = np.random.permutation(len(samples))
+            smaples = samples[p]
+            if dgsm_lh is not None:
+                dgsm_lh = dgsm_lh[p]
+
+        print("Starts training. Maximum epochs: %s   Likelihood threshold: %.3f" % (num_epochs, likelihood_thres))
         while (num_epochs and epoch < num_epochs) \
               or (not num_epochs and (abs(prev_likelihood - likelihood) > likelihood_thres)):
-            prev_likelihood = likelihood
-            likelihoods = []
-            for batch in range(num_batches):
-                start = (batch)*batch_size
-                stop = (batch+1)*batch_size
-                print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop)
+            start = (batch)*batch_size
+            stop = min((batch+1)*batch_size, samples.shape[0])
+            print("EPOCH", epoch, "BATCH", batch, "SAMPLES", start, stop, "  prev likelihood", prev_likelihood, "likelihood", likelihood)
 
-                if self._learning_algorithm == spn.EMLearning:
-                    ads = max(np.exp(-epoch*self._smoothing_decay)*self._additive_smoothing,
-                              self._min_additive_smoothing)
-                    sess.run(self._additive_smoothing_var.assign(ads))
-                    print("Smoothing: ", sess.run(self._additive_smoothing_var))
-                
-                train_likelihoods_arr, avg_train_likelihood_val, _, = \
-                    func_feed_samples(self, samples, start, stop, dgsm_lh=dgsm_lh)
+            if self._learning_algorithm == spn.EMLearning:
+                ads = max(np.exp(-epoch*self._smoothing_decay)*self._additive_smoothing,
+                          self._min_additive_smoothing)
+                sess.run(self._additive_smoothing_var.assign(ads))
+                print("Smoothing: ", sess.run(self._additive_smoothing_var))
 
-                # Print avg likelihood of this batch data on previous batch weights
-                print("Avg likelihood (this batch data on previous weights): %s" % (avg_train_likelihood_val))
-                likelihoods.append(avg_train_likelihood_val)
+                train_likelihoods_arr, likelihood_train, _, = \
+                    func_feed_samples(self, samples, start, stop, dgsm_lh=dgsm_lh,
+                                      ops=[self._train_likelihood, self._avg_train_likelihood,
+                                           self._learn_spn])
+                sess.run(self._update_spn)
 
-                if self._learning_algorithm == spn.EMLearning:
-                    sess.run(self._update_spn)
-                
-            likelihood = sum(likelihoods) / len(likelihoods)
-            print("Avg likelihood: %s" % (likelihood))
-            likelihoods_log.append(likelihood)
-            epoch += 1
-            sess.run(self._reset_accumulators)
-        return likelihoods_log
+            batch_likelihoods.append(likelihood_train)
+            batch += 1
+            if stop >= samples.shape[0]:  # epoch finishes
+                epoch += 1
+                batch = 0
+
+                # Shuffle
+                if shuffle:
+                    print("Shuffling...")
+                    p = np.random.permutation(len(samples))
+                    smaples = samples[p]
+                    if dgsm_lh is not None:
+                        dgsm_lh = dgsm_lh[p]
+
+                if samples_test is not None:
+                    print("Computing train, (test) likelihoods...")
+                    likelihood_train = np.mean(batch_likelihoods)
+                    train_likelihoods.append(likelihood_train)
+                    print("Train likelihood: %.3f  " % likelihood_train)
+
+                    likelihood_test = self._compute_mle_loss(samples_test, func_feed_samples, dgsm_lh=dgsm_lh_test)
+                    test_likelihoods.append(likelihood_test)
+                    print("Test likelihood: %.3f  " % likelihood_test)
+
+                prev_likelihood = likelihood
+                likelihood = likelihood_train
+                batch_likelihoods = []
+
+        return train_likelihoods, test_likelihoods
+
 
     @staticmethod
     def dup_fun_up(inpt, *args,
@@ -365,14 +412,12 @@ class NodeTemplateSpn(TemplateSpn):
           likelihood_thres (float): threshold of likelihood difference between
                                     interations to stop training. Default: 0.05
         """
-        def feed_samples(self, samples, start, stop, dgsm_lh=None):
+        def feed_samples(self, samples, start, stop, dgsm_lh=None, ops=[]):
             if dgsm_lh is None:
-                return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                                 self._learn_spn],
-                                feed_dict={self._catg_inputs: samples[start:stop]})
+                return sess.run(ops, feed_dict={self._catg_inputs: samples[start:stop]})
+                                
             else:
-                return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                                 self._learn_spn],
+                return sess.run(ops,
                                 feed_dict={self._semantic_inputs: np.full((stop-start, self._num_nodes),-1),
                                            self._likelihood_inputs: dgsm_lh[start:stop]})
 
@@ -384,19 +429,17 @@ class NodeTemplateSpn(TemplateSpn):
                              "Expected (?,%d), got %s)" % (self._num_nodes, samples.shape))
         
         shuffle = kwargs.get('shuffle', False)
-        num_batches = kwargs.get('num_batches', 1)
+        batch_size = kwargs.get('batch_size', 200)
         num_epochs = kwargs.get('num_epochs', None)
         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
         dgsm_lh = kwargs.get('dgsm_lh', None)
-
-        if shuffle:
-            p = np.random.permutation(len(samples))
-            smaples = samples[p]
-            if dgsm_lh is not None:
-                dgsm_lh = dgsm_lh[p]
+        dgsm_lh_test = kwargs.get('dgsm_lh_test', None)
+        samples_test = kwargs.get('samples_test', None)
 
         # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
+        return self._start_training(samples, batch_size, likelihood_thres,
+                                    sess, feed_samples, num_epochs=num_epochs, dgsm_lh=dgsm_lh,
+                                    shuffle=shuffle, samples_test=samples_test, dgsm_lh_test=dgsm_lh_test)
         
     
     def evaluate(self, sess, *args, **kwargs):
@@ -917,15 +960,13 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                                    then shape is (D, 1)
         **kwargs:
           shuffle (bool): shuffles `samples` before training. Default: False.
-          num_batches (int): number of batches to split the training data into.
-                             Default: 1
+          batch_size (int): batch size during training
           likelihood_thres (float): threshold of likelihood difference between
                                     interations to stop training. Default: 0.05
         """
-        def feed_samples(self, samples, start, stop, dgsm_lh=None):
+        def feed_samples(self, samples, start, stop, dgsm_lh=None, ops=[]):
             feed_dict = self._get_feed_dict(samples, start=start, stop=stop, dgsm_lh=dgsm_lh)
-            return sess.run([self._train_likelihood, self._avg_train_likelihood,
-                             self._learn_spn],
+            return sess.run(ops,
                             feed_dict = feed_dict)
         
         samples = args[0]
@@ -944,20 +985,17 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                                  "Expected (?, %d), got %s)" % (1, samples.shape))
             
         shuffle = kwargs.get('shuffle', False)
-        num_batches = kwargs.get('num_batches', 1)
+        batch_size = kwargs.get('batch_size', 200)
         likelihood_thres = kwargs.get('likelihood_thres', 0.05)
         num_epochs = kwargs.get('num_epochs', None)
         dgsm_lh = kwargs.get('dgsm_lh', None)
-
-        if shuffle:
-            p = np.random.permutation(len(samples))
-            smaples = samples[p]
-            if dgsm_lh is not None:
-                dgsm_lh = dgsm_lh[p]
+        dgsm_lh_test = kwargs.get('dgsm_lh_test', None)
+        samples_test = kwargs.get('samples_test', None)
 
         # Starts training
-        return self._start_training(samples, num_batches, likelihood_thres, sess, feed_samples, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
-
+        return self._start_training(samples, batch_size, likelihood_thres, sess, feed_samples,
+                                    num_epochs=num_epochs, dgsm_lh=dgsm_lh,
+                                    samples_test=samples_test, dgsm_lh_test=dgsm_lh_test)
 
     def init_mpe_states(self):
         """

@@ -17,7 +17,7 @@ from deepsm.graphspn.tbm.template import Template, EdgeTemplate, PairEdgeTemplat
 from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeRelationTemplateSpn
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.spn_model import SpnModel
-from deepsm.util import CategoryManager, ColdDatabaseManager, json_safe
+from deepsm.util import CategoryManager, ColdDatabaseManager, json_safe, plot_to_file
 from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
 import deepsm.experiments.paths as paths
 
@@ -158,7 +158,7 @@ class TbmExperiment(Experiment):
         
 
     def load_training_data(self, *db_names, skip_unknown=False, skip_placeholders=False,
-                           segment=False, mix_ratio=None, use_dgsm_likelihoods=False, random_sampling=True):
+                           segment=False, mix_ratio=None, use_dgsm_likelihoods=False, random_sampling=True, investigate=False):
         """
         Load training data from given dbs
         
@@ -183,12 +183,18 @@ class TbmExperiment(Experiment):
             print("Loaded %d training sequences from databases %s" % (len(self._train_seqs), list(db_names)))
 
         print("Preloading all template training samples...")
-        rs = self._dataset.load_template_dataset(self._template_type, db_names=db_names, random=random_sampling,
-                                                 use_dgsm_likelihoods=use_dgsm_likelihoods)
+        rs = self._dataset.load_template_dataset(self._template_type, db_names=list(db_names), random=random_sampling,
+                                                 use_dgsm_likelihoods=use_dgsm_likelihoods, db_test=(self._test_db if investigate else None))
         if use_dgsm_likelihoods:
-            self._train_samples_dict, self._train_dgsm_lh_dict = rs
+            if investigate:
+                self._train_samples_dict, self._train_dgsm_lh_dict, self._test_samples_dict, self._test_dgsm_lh_dict = rs
+            else:
+                self._train_samples_dict, self._train_dgsm_lh_dict = rs
         else:
-            self._train_samples_dict = rs
+            if investigate:
+                self._train_samples_dict, self._test_samples_dict = rs
+            else:
+                self._train_samples_dict = rs
 
 
     def load_testing_data(self, *db_names, skip_unknown=False, skip_placeholders=False, tiny_size=0, segment=False):
@@ -275,13 +281,14 @@ class TbmExperiment(Experiment):
         save = kwargs.get("save", False)
         load_if_exists = kwargs.get("load_if_exists", False)
         num_partitions = kwargs.get("num_partitions", 10)  # deprecated, useless.
-        num_batches = kwargs.get("num_batches", 1)
+        batch_size = kwargs.get("batch_size", 200)  # Previously had num_batch = 1
         num_epochs = kwargs.get('num_epochs', None)
         likelihood_thres = kwargs.get("likelihood_thres", 0.05)
         timestamp = kwargs.get("timestamp", None)
         save_training_info = kwargs.get("save_training_info", False)
         partition_sampling_method = kwargs.get("partition_sampling_method", "RANDOM")
         use_dgsm_likelihoods = kwargs.get("use_dgsm_likelihoods", False)
+        plot_losses = kwargs.get("plot_losses", False)
 
         likelihoods = {}
 
@@ -320,13 +327,24 @@ class TbmExperiment(Experiment):
             # # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
             # #                                                (D,2*n) if Edgetemplate
             samples = None
+            samples_test = None
             for db in sorted(self._train_samples_dict):
                 if samples is None:
                     samples = self._train_samples_dict[db][model.template]
                 else:
-                    samples = np.vstack(samples, self._train_samples_dict[db][model.template])
+                    samples = np.vstack((samples, self._train_samples_dict[db][model.template]))
+
+            if hasattr(self, '_test_samples_dict'):
+                # We want to plot test loss during training.
+                for db in sorted(self._test_samples_dict):
+                    if samples_test is None:
+                        samples_test = self._test_samples_dict[db][model.template]
+                    else:
+                        samples_test = np.vstack(samples_test, self._test_samples_dict[db][model.template])
+
 
             dgsm_lh = None
+            dgsm_lh_test = None
             if use_dgsm_likelihoods and model.num_nodes > 0:
                 model.expand()  # expand model
                 
@@ -334,9 +352,17 @@ class TbmExperiment(Experiment):
                     if dgsm_lh is None:
                         dgsm_lh = np.array(self._train_dgsm_lh_dict[db][model.template])
                     else:
-                        dgsm_lh = np.vstack(dgsm_lh, self._train_dgsm_lh_dict[db][model.template])
+                        dgsm_lh = np.vstack((dgsm_lh, self._train_dgsm_lh_dict[db][model.template]))
                 dgsm_lh = dgsm_lh.reshape(-1, model.template.num_nodes() * CategoryManager.NUM_CATEGORIES)
 
+                if hasattr(self, '_test_dgsm_lh_dict'):
+                    # We want to plot test loss during training.
+                    for db in sorted(self._test_dgsm_lh_dict):
+                        if dgsm_lh_test is None:
+                            dgsm_lh_test = np.array(self._test_dgsm_lh_dict[db][model.template])
+                        else:
+                            dgsm_lh_test = np.vstack((dgsm_lh_test, self._test_dgsm_lh_dict[db][model.template]))
+                    dgsm_lh_test = dgsm_lh_test.reshape(-1, model.template.num_nodes() * CategoryManager.NUM_CATEGORIES)
             self._data_count['train_%s' % model.template.__name__] = {"counts_by_db": {db:len(self._train_samples_dict[db]) for db in self._train_samples_dict},
                                                                       "counts_by_sample": self._get_sample_frequencies(samples, model)}
             
@@ -346,9 +372,15 @@ class TbmExperiment(Experiment):
             model.init_learning_ops()
             model.initialize_weights(sess)
             sess.run(tf.global_variables_initializer())
-            
-            train_likelihoods = model.train(sess, samples, shuffle=True, num_batches=num_batches, likelihood_thres=likelihood_thres, num_epochs=num_epochs, dgsm_lh=dgsm_lh)
-            likelihoods[model.template.__name__] = train_likelihoods
+
+            train_likelihoods, test_likelihoods = model.train(sess, samples, shuffle=True, batch_size=batch_size,
+                                                              likelihood_thres=likelihood_thres, num_epochs=num_epochs, dgsm_lh=dgsm_lh,
+                                                              samples_test=samples_test, dgsm_lh_test=dgsm_lh_test)
+            if len(test_likelihoods) == 0:
+                likelihoods[model.template.__name__] = {"train": train_likelihoods}
+            else:
+                likelihoods[model.template.__name__] = {"train": train_likelihoods,
+                                                        "test": test_likelihoods}
             
             if save:
                 sys.stdout.write("Saving trained %s-SPN saved to path: %s ..." % (model.template.__name__, model_save_path))
@@ -356,6 +388,15 @@ class TbmExperiment(Experiment):
                     os.makedirs(os.path.join(self._root_path, 'models'), exist_ok=True)
                 model.save(model_save_path, sess)
                 model._save_path = model_save_path
+
+            if plot_losses:
+                plot_lhs, labels = [train_likelihoods], ["train"]
+                if "test" in likelihoods[model.template.__name__]:
+                    plot_lhs.append(likelihoods[model.template.__name__]['test'])
+                    labels.append("test")
+                plot_fname = "loss-" + os.path.splitext(os.path.basename(model_save_path))[0] + ".png"
+                save_dir = os.path.dirname(model_save_path)
+                plot_to_file(*plot_lhs, labels=labels, path=os.path.join(save_dir, plot_fname), xlabel='epoch', ylabel='loss')
                 
             train_info[model.template.__name__] = {'config': { k: dict(kwargs)[k]
                                                                for k in kwargs

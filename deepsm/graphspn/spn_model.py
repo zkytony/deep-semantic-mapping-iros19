@@ -35,6 +35,7 @@ class SpnModel(ABC):
         self._learning_algorithm = kwargs.get('learning_algorithm', spn.EMLearning)
 
         if self._learning_algorithm == spn.EMLearning:
+            self._init_accum = kwargs.get('init_accum_val', 20)
             self._min_additive_smoothing = kwargs.get('min-additive_smoothing', 1)
             self._smoothing_decay = kwargs.get('smoothing_decay', 0.2)
             self._additive_smoothing = kwargs.get('additive_smoothing', 30)

@@ -114,26 +114,28 @@ class TopoMapDataset:
             else:
                 samples = rs
 
+            # Note: iterate in sorted order to guarantee match-up between samples and likelihoods.
+                
             result_samples = {}
-            for db_name in samples:
+            for db_name in sorted(samples):
                 result_samples[db_name] = {}
-                for seq_id in samples[db_name]:
+                for seq_id in sorted(samples[db_name]):
                     for template in samples[db_name][seq_id]:
                         if template not in result_samples[db_name]:
                             result_samples[db_name][template] = samples[db_name][seq_id][template]
-                        else:
+                        elif len(samples[db_name][seq_id][template]) > 0:
                             result_samples[db_name][template] = np.vstack((result_samples[db_name][template],
                                                                            samples[db_name][seq_id][template]))
 
             if likelihoods is not None:
                 result_likelihoods = {}
-                for db_name in likelihoods:
+                for db_name in sorted(likelihoods):
                     result_likelihoods[db_name] = {}
-                    for seq_id in likelihoods[db_name]:
+                    for seq_id in sorted(likelihoods[db_name]):
                         for template in likelihoods[db_name][seq_id]:
                             if template not in result_likelihoods[db_name]:
                                 result_likelihoods[db_name][template] = likelihoods[db_name][seq_id][template]
-                            else:
+                            elif len(likelihoods[db_name][seq_id][template]) > 0:
                                 result_likelihoods[db_name][template] = np.vstack((result_likelihoods[db_name][template],
                                                                                    likelihoods[db_name][seq_id][template]))
 
@@ -274,25 +276,27 @@ class TopoMapDataset:
 
                     elif template_type.lower() == "view":
                         for template in p:  # template here is a tuple (num_nodes, num_edge_pair)
+                            template_class = EdgeRelationTemplateInstance.get_class(template)
                             if template not in samples[db_name][seq_id]:
-                                samples[db_name][seq_id][template] = []
+                                samples[db_name][seq_id][template_class] = []
+                                likelihoods[db_name][seq_id][template_class] = []
                             for i in p[template]:
                                 catg_list, vdist = i.to_sample()
                                 if catg_list is not None:
                                     if vdist is None:
-                                        samples[db_name][seq_id][template].append(catg_list)
+                                        samples[db_name][seq_id][template_class].append(catg_list)
                                         if get_likelihoods:
-                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in i.nodes)))
+                                            likelihoods[db_name][seq_id][template_class].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in i.nodes)))
                                     else:
                                         vdist -= 1 # -1 is because vdist ranges from 1-4 but we want 0-3 as input to the network
-                                        samples[db_name][seq_id][template].append(catg_list + [vdist])
-                                        samples[db_name][seq_id][template].append(list(reversed(catg_list)) + [vdist])
+                                        samples[db_name][seq_id][template_class].append(catg_list + [vdist])
+                                        samples[db_name][seq_id][template_class].append(list(reversed(catg_list)) + [vdist])
                                         if get_likelihoods:
-                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in i.nodes)))
-                                            likelihoods[db_name][seq_id][template].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in reversed(i.nodes))))
+                                            likelihoods[db_name][seq_id][template_class].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in i.nodes)))
+                                            likelihoods[db_name][seq_id][template_class].append(get_lh(dgsm_likelihoods[graph_id], *(n.id for n in reversed(i.nodes))))
                                 else:
                                     vdist -= 1 # same reason as above
-                                    samples[db_name][seq_id][template].append([vdist])
+                                    samples[db_name][seq_id][template_class].append([vdist])
 
                     else:
                         raise ValueError("Unrecognized template type %s" % template_type)

@@ -320,19 +320,19 @@ class TbmExperiment(Experiment):
             # # Convert dictionary into list of samples. Shape is (D,n) if NodeTemplate,
             # #                                                (D,2*n) if Edgetemplate
             samples = None
-            for db in self._train_samples_dict:
+            for db in sorted(self._train_samples_dict):
                 if samples is None:
                     samples = self._train_samples_dict[db][model.template]
                 else:
                     samples = np.vstack(samples, self._train_samples_dict[db][model.template])
 
             dgsm_lh = None
-            if use_dgsm_likelihoods:
+            if use_dgsm_likelihoods and model.num_nodes > 0:
                 model.expand()  # expand model
                 
-                for db in self._train_dgsm_lh_dict:
+                for db in sorted(self._train_dgsm_lh_dict):
                     if dgsm_lh is None:
-                        dgsm_lh = self._train_dgsm_lh_dict[db][model.template]
+                        dgsm_lh = np.array(self._train_dgsm_lh_dict[db][model.template])
                     else:
                         dgsm_lh = np.vstack(dgsm_lh, self._train_dgsm_lh_dict[db][model.template])
                 dgsm_lh = dgsm_lh.reshape(-1, model.template.num_nodes() * CategoryManager.NUM_CATEGORIES)

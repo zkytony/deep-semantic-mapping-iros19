@@ -793,7 +793,9 @@ class EdgeRelationTemplateSpn(TemplateSpn):
             'VIEW_IVS':"View_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
             'CONC': "Conc_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
             'SEMAN_IVS': "Exp_Catg_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
-            'LH_CONT': "Exp_Lh_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair)
+            'LH_CONT': "Exp_Lh_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
+            'EXP_VIEW_IVS':"Exp_View_%s_%d_%d" % (self.__class__.__name__, self._num_nodes, self._num_edge_pair),
+            
         }
 
     def _get_all_catg_inputs(self):
@@ -969,6 +971,33 @@ class EdgeRelationTemplateSpn(TemplateSpn):
                 self._mpe_state = mpe_state_gen.get_state(self._root, self._semantic_inputs, self._view_inputs)
         else:
             raise ValueError("Nothing to infer!")
+
+        
+    def expand(self):
+
+        if not self._expanded:
+            print("Expanding...")
+
+            if self._num_nodes != 0:
+                super().expand()
+
+            if self._num_edge_pair != 0:
+                # Note: Because current libspn's compute_graph_up function does not handle Concat nodes
+                # correctly, directly adding self._view_dist_input to _conc_input will lead to error in
+                # weight generation. Instead, we do a trick similar to that is done for the node
+                # expansion - replace each IV with a product node, but with only one child.
+                self._view_dist_input = spn.IVs(num_vars=1, num_vals=self._num_view_dists, name=self.vn['EXP_VIEW_IVS'])
+                prods = []
+                for i in range(self._num_view_dists):
+                    prod = spn.Product(
+                        (self._view_dist_input, [i])
+                    )
+                    prods.append(prod)
+                if self._num_nodes != 0:
+                    self._conc_inputs.add_inputs(*map(spn.Input.as_input, prods))
+                else:
+                    self._conc_inputs.set_inputs(*map(spn.Input.as_input, prods))
+                self._expanded = True
 
         
     def evaluate(self, sess, *args, **kwargs):

@@ -80,22 +80,29 @@ class ColdDatabaseExperiment(TbmExperiment):
                     class_nid_lh[label] = []
                 class_nid_lh[label].append((nid, query_lh[nid]))
 
+            # Groundtruth
+            lh_val_no_swap = float(instance_spn.evaluate(sess, query, sample_lh=query_lh)[0])
+            __record['results']['_no_swap_'] = lh_val_no_swap
+            print("Likelihood no swap %.3f" % lh_val_no_swap)
+
             for swapped_classes in cases:
                 c1, c2 = swapped_classes
-                print("Swap %s and %s" % (c1, c2))
                 topo_map.swap_classes(swapped_classes)
 
                 # For the swapped classes, we want to feed in labels. For
                 # other nodes, we feed in likelihoods.
                 for nid in topo_map.nodes:
                     if topo_map.nodes[nid].label == c1 or topo_map.nodes[nid].label == c2:
-                        # For node in any class being swapped, we randomly pick a likelihood
-                        # array from a node in the original mapping with class that is assigned
-                        # to this node after swapping.
+                        # # For node in any class being swapped, we randomly pick a likelihood
+                        # # array from a node in the original mapping with class that is assigned
+                        # # to this node after swapping.
                         _, rand_lh_arr = random.choice(class_nid_lh[topo_map.nodes[nid].label])
                         query_lh[nid] = rand_lh_arr
+                        # query_lh[nid] = np.log(np.full((util.CategoryManager.NUM_CATEGORIES,), 1.0))
+                        # query[nid] = util.CategoryManager.category_map(topo_map.nodes[nid].label)
                 # Evaluate network
                 lh_val = float(instance_spn.evaluate(sess, query, sample_lh=query_lh)[0])
+                print("Swap %s and %s: %.3f" % (c1, c2, lh_val))
                 __record['results'][swapped_classes] = lh_val
                 topo_map.reset_categories()
 
@@ -505,14 +512,11 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 elif test_kwargs['expr_case'].lower() == "inferplaceholder":
                     report = exp.test(ColdDatabaseExperiment.TestCase_InferPlaceholders, sess, **test_kwargs)
                 elif test_kwargs['expr_case'].lower() == "novelty":
-                    if util.CategoryManager.TYPE == "SEVEN":
-                        test_kwargs['cases'] = [('1PO', '2PO'),  # regular
-                                                ('DW', 'CR'),    # novel (all below)
-                                                ('PT', 'CR'),
-                                                ('2PO', 'AT'),
-                                                ('BA', 'PT'),
-                                                ('AT', 'CR'),
-                                                ('1PO', 'DW')]
+                    # Do 10 random swaps
+                    test_kwargs['cases'] = []
+                    for i in range(10):
+                        class1, class2 = random.sample(util.CategoryManager.known_categories(), 2)
+                        test_kwargs['cases'].append((class1, class2))
                     report = exp.test(ColdDatabaseExperiment.TestCase_NoveltyDetection, sess, **test_kwargs)
                     
     except KeyboardInterrupt as ex:

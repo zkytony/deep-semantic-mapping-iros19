@@ -202,13 +202,15 @@ def TEST_segmentation(dataset, coldmgr):
 
 
 def TEST_topo_map_visualization(dataset, coldmgr, seq_id=None):
+    rcParams['figure.figsize'] = 44, 30
     topo_maps = dataset.get_topo_maps(db_name="Stockholm", amount=1, seq_id=seq_id)
     for seq_id in topo_maps:
         topo_map = topo_maps[seq_id]
+        print(len(topo_map.nodes))
         topo_map.visualize(plt.gca(), coldmgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'), show_nids=True)
-        # plt.savefig('%s.png' % seq_id)
-        plt.show()
+        plt.savefig('%s.png' % seq_id)
         plt.clf()
+        plt.close()
         # print("Saved %s.png" % seq_id)
 
 def TEST_connected_components(dataset, coldmgr):
@@ -338,15 +340,16 @@ if __name__ == "__main__":
     CategoryManager.TYPE = "SIMPLE"
     CategoryManager.init()
     
-    coldmgr = ColdDatabaseManager("Freiburg", COLD_ROOT)
+    coldmgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
     dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
-    dataset.load("Freiburg", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
+    dataset.load("Stockholm", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
     # dataset.load("Saarbrucken", skip_unknown=True, skip_placeholders=True, single_component=SINGLE_COMPONENT)
     # #TEST_refine_partition(dataset, coldmgr)
     # #TEST_topo_map_copy(dataset)
     # TEST_partition_by_edge_relations(dataset)
     # # TEST_segmentation(dataset, coldmgr)
-    # TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor4_cloudy_a2")
+    TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor6_cloudy_a2")
+    plt.show()
     # TEST_connected_components(dataset, coldmgr)
     # TEST_node_id_unique()
     # TEST_topo_map_visualization(dataset, coldmgr, seq_id='floor6_base_cloudy_b')
@@ -354,5 +357,5 @@ if __name__ == "__main__":
     # TEST_load_edge_rel_template_samples(dataset)
     # TEST_visualize_edge_relation_partition(dataset, coldmgr)
     # TEST_subtract(dataset, coldmgr)
-    TEST_create_samples()
-    TEST_load_samples()
+    # TEST_create_samples()
+    # TEST_load_samples()

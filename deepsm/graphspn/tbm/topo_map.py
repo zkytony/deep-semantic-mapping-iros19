@@ -528,7 +528,9 @@ class TopologicalMap:
             nid_text = str(nid) if show_nids else None
                 
             place = self.nodes[nid]
-            node_color = util.CategoryManager.category_color(place.label) if not (consider_placeholders and place.placeholder) else util.CategoryManager.PLACEHOLDER_COLOR
+            node_color = util.CategoryManager.category_color(place.label) \
+                         if not (consider_placeholders and place.placeholder) \
+                            else util.CategoryManager.PLACEHOLDER_COLOR
             pose_x, pose_y = place.pose  # gmapping coordinates
             plot_x, plot_y = util.plot_dot(ax, pose_x, pose_y, map_spec, img,
                                            dotsize=dotsize, color=node_color, zorder=2, linewidth=linewidth, edgecolor='black', label_text=nid_text)

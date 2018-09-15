@@ -10,6 +10,26 @@ from pprint import pprint
 def get_seq_id(case_name):
     return case_name.split("-")[-1]
 
+def complete_the_report(report):
+    """Used for older report.log format"""
+    
+    # Compute accuracy by class
+    accuracy_per_catg = []
+    for catg in report:
+        if not catg.startswith("_"):
+            accuracy_per_catg.append(report[catg][2])
+    report['_overall_by_class_'] = float(np.mean(accuracy_per_catg))
+    report['_stdev_by_class_'] = float(np.std(accuracy_per_catg))
+
+    if '_dgsm_results_' in report:
+        accuracy_per_catg = []
+        for catg in report['_dgsm_results_']:
+            if not catg.startswith("_"):
+                accuracy_per_catg.append(report['_dgsm_results_'][catg][2])
+        report['_dgsm_results_']['_overall_by_class_'] = float(np.mean(accuracy_per_catg))
+        report['_dgsm_results_']['_stdev_by_class_'] = float(np.std(accuracy_per_catg))
+
+
 def main():
     parser = argparse.ArgumentParser(description="Gather stats for graphspn experiments; A test case" \
                                      "is located at [ExperimentName]/[TestCase]_timestamp_[test-name]_seq_id")
@@ -43,6 +63,9 @@ def main():
             # Open report.log
             with open(os.path.join(results_dir, case_name, 'report.log')) as f:
                 report = yaml.load(f)
+
+            if "_overall_by_class_" not in report:
+                complete_the_report(report)
 
             stats['graphspn'][floor][seq_id] = report
 

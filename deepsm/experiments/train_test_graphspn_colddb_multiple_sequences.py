@@ -20,6 +20,7 @@ def experiment_proc(what,
                     seed,
                     exp_name,
                     test_name,
+                    expr_case,
                     trial,
                     relax_level,
                     template,
@@ -60,6 +61,7 @@ def experiment_proc(what,
                   '--separable-coeff', separable_coeff]
         proc = subprocess.Popen(['./train_test_graphspn.py',
                                  "samebuilding",
+                                 expr_case,
                                  db_name,
                                  seq_id,
                                  str(test_floor),
@@ -88,6 +90,11 @@ def experiment_proc(what,
 
 
 def same_buliding(args):
+
+    if args.expr_case is None:
+        raise Exception("You must supply test case for DGSM_SAME_BUILDING experiments.\n"
+                        + "Available ones: 'classification', 'inferplaceholder', 'novelty'")
+    
     # Run all experiments for the entire Stockholm building
     db_name = args.db_name
     if db_name == "Stockholm":
@@ -106,6 +113,11 @@ def same_buliding(args):
 
         print("Testing on floor %d" % test_floor)
         for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
+
+            if test_floor == 7 and seq_id != "floor7_night_c":
+                print("already tested %s " % seq_id)
+                continue
+            
             train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
             dirpath_to_dgsm_graphs_result = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
                                                                                     db_name,
@@ -119,7 +131,7 @@ def same_buliding(args):
 
             print("...%s..." % seq_id)
             proc = experiment_proc("DGSM_SAME_BUILDING", db_name, seq_id,
-                                   args.seed, args.exp_name, args.test_name, args.trial,
+                                   args.seed, args.exp_name, args.test_name, args.expr_case, args.trial,
                                    args.relax_level, args.template, args.num_partitions, args.num_sampling_rounds,
                                    test_floor=test_floor, train_floors_str=train_floors_str, random_sampling=args.random_sampling,
                                    category_type=args.category_type, similarity_coeff=args.similarity_coeff, complexity_coeff=args.complexity_coeff,
@@ -151,6 +163,7 @@ def across_buildings(args):
 def main():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
     parser.add_argument('what', type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
+    parser.add_argument('--expr-case', type=str, help="Test case to run. Either 'Classification', 'InferPlaceholder', or 'Novelty'. Case-insensitive")
     parser.add_argument('-d', '--db_name', type=str, help="e.g. Stockholm")
     parser.add_argument('-s', '--seed', type=int, help="Seed of randomly generating SPN structure. Default 100",
                         default=100)

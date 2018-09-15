@@ -12,6 +12,7 @@ import re
 import argparse
 import time
 import os, sys
+import random
 import json, yaml
 from pprint import pprint
 import tensorflow as tf
@@ -37,6 +38,206 @@ class ColdDatabaseExperiment(TbmExperiment):
                      the class of its modeled template by [obj].template.
         """
         super().__init__(db_root, *spns, **kwargs)
+
+    class TestCase_NoveltyDetection(TestCase):
+
+        def __init__(self, experiment):
+            super().__init__(experiment)
+
+        def run(self, sess, *args, **kwargs):
+
+            topo_map = kwargs.get('topo_map', None)
+            graph_id = kwargs.get('graph_id', None)
+            db_name = kwargs.get('db_name', None)
+            graph_results_dir = kwargs.get('graph_results_dir', None)
+            instance_spn = kwargs.get('instance_spn', None)
+            cases = kwargs.get('cases', None)
+            categories = kwargs.get('categories', None)
+            relax_level = kwargs.get('relax_level', None)
+            self._topo_map = topo_map
+            self._graph_id = graph_id
+            self._db_name = db_name
+
+            __record = {
+                'results': {},
+                'instance': {}
+            }
+            true_catg_map = topo_map.current_category_map()
+            __record['instance']['groundtruth'] = true_catg_map
+
+            print("Preparing inputs for evaluating network")
+            query_lh, dgsm_result = load_likelihoods(graph_results_dir, graph_id, topo_map,
+                                                     categories, relax_level=relax_level,
+                                                     return_dgsm_result=True)
+            query_nids = list(topo_map.nodes.keys())
+            query = {k:-1 for k in query_nids}
+
+            # Before swapping, class to node likelihoods mapping.
+            class_nid_lh = {}
+            for nid in query_lh:
+                label = topo_map.nodes[nid].label
+                if label not in class_nid_lh:
+                    class_nid_lh[label] = []
+                class_nid_lh[label].append((nid, query_lh[nid]))
+
+            for swapped_classes in cases:
+                c1, c2 = swapped_classes
+                print("Swap %s and %s" % (c1, c2))
+                topo_map.swap_classes(swapped_classes)
+
+                # For the swapped classes, we want to feed in labels. For
+                # other nodes, we feed in likelihoods.
+                for nid in topo_map.nodes:
+                    if topo_map.nodes[nid].label == c1 or topo_map.nodes[nid].label == c2:
+                        # For node in any class being swapped, we randomly pick a likelihood
+                        # array from a node in the original mapping with class that is assigned
+                        # to this node after swapping.
+                        _, rand_lh_arr = random.choice(class_nid_lh[topo_map.nodes[nid].label])
+                        query_lh[nid] = rand_lh_arr
+                # Evaluate network
+                lh_val = float(instance_spn.evaluate(sess, query, sample_lh=query_lh)[0])
+                __record['results'][swapped_classes] = lh_val
+                topo_map.reset_categories()
+
+            self._record = __record
+
+        def _report(self):
+            return self._record
+
+
+        def save_results(self, save_path):
+            # report
+            report = self._report()
+
+            with open(os.path.join(save_path, "novelty.log"), "w") as f:
+                yaml.dump(report, f)
+                
+            print("  Saved to: %s" % os.path.basename(save_path))
+
+            return report
+
+
+    class TestCase_InferPlaceholders(TestCase):
+        def __init__(self, experiment):
+            super().__init__(experiment)
+
+        def run(self, sess, *args, expand=False, **kwargs):
+            """
+            **kwargs:
+                topo_map (TopologicalMap)
+                graph_id (str)
+                instance_spn (InstanceSpn)
+                categories (list of strings)
+                graph_results_dir (str)
+                relax_level (float) optional
+            """
+            # Literally copying from Classification TestCase.
+            instance_spn = kwargs.get('instance_spn', None)
+            topo_map = kwargs.get('topo_map', None)
+            graph_id = kwargs.get('graph_id', None)
+            categories = kwargs.get('categories', None)
+            graph_results_dir = kwargs.get('graph_results_dir', None)
+            relax_level = kwargs.get('relax_level', None)
+            self._topo_map = topo_map
+            self._graph_id = graph_id
+
+            true_catg_map = topo_map.current_category_map()
+
+            total_correct, total_cases = 0, 0
+            __record = {
+                'results':{
+                    util.CategoryManager.category_map(k, rev=True):[0,0,0] for k in range(util.CategoryManager.NUM_CATEGORIES)
+                },
+                'instance':{}
+            }
+
+
+            print("Preparing inputs for marginal inference")
+            query_lh, dgsm_result = load_likelihoods(graph_results_dir, graph_id, topo_map,
+                                                     categories, relax_level=relax_level,
+                                                     return_dgsm_result=True)
+            # Add uniform likelihoods for placeholders
+            for nid in topo_map.nodes:
+                if nid not in query_lh:
+                    if topo_map.nodes[nid].placeholder:  # log(1.0)
+                        query_lh[nid] = np.log(np.full((util.CategoryManager.NUM_CATEGORIES,), 1.0))
+                    else:
+                        raise ValueError("Node %d has no associated likelihoods. Something wrong in DGSM output?" % nid)
+            query_nids = list(topo_map.nodes.keys())
+            query = {k:-1 for k in query_nids}
+            print("Performing marginal inference...")
+            marginals = instance_spn.marginal_inference(sess, query_nids,
+                                                        query, query_lh=query_lh)
+            result_catg_map = {}
+            
+            for nid in query:
+                result_catg_map[nid] = marginals[nid].index(max(marginals[nid]))
+
+            for nid in true_catg_map:
+                if topo_map.nodes[nid].placeholder:
+                    # Want to calculate accuracy for placholders
+                    true_catg = util.CategoryManager.category_map(true_catg_map[nid], rev=True) # (str)
+                    infrd_catg = util.CategoryManager.category_map(result_catg_map[nid], rev=True)
+
+                    if true_catg == infrd_catg:
+                        __record['results'][true_catg][1] += 1
+                        total_correct += 1
+                    __record['results'][true_catg][0] += 1
+                    __record['results'][true_catg][2] = __record['results'][true_catg][1] / __record['results'][true_catg][0]
+                    total_cases += 1
+            __record['results']['_overall_'] = total_correct / max(total_cases,1)
+            __record['results']['_total_correct_'] = total_correct
+            __record['results']['_total_inferred_'] = total_cases
+            __record['results']['_dgsm_results_'] = dgsm_result
+
+            # Compute accuracy by class
+            accuracy_per_catg = []
+            for catg in __record['results']:
+                if not catg.startswith("_"):
+                    accuracy_per_catg.append(__record['results'][catg][2])
+            __record['results']['_overall_by_class_'] = float(np.mean(accuracy_per_catg))
+            __record['results']['_stdev_by_class_'] = float(np.std(accuracy_per_catg))
+
+            # Record
+            __record['instance']['_marginals_'] = marginals
+            __record['instance']['_marginals_normalized_'] = normalize_marginals(marginals)
+            __record['instance']['_marginals_normalized_log_'] = normalize_marginals_remain_log(marginals)
+            __record['instance']['likelihoods'] = query_lh
+            __record['instance']['true'] = true_catg_map
+            __record['instance']['query'] = get_category_map_from_lh(query_lh)
+            __record['instance']['result'] = result_catg_map
+            
+            self._record = __record
+
+        def _report(self):
+            return self._record
+
+        def save_results(self, save_path):
+            def save_vis(topo_map, category_map, graph_id, save_path, name, consider_placeholders):
+                floor = re.search("(seq|floor)[1-9]+", graph_id).group()
+                db_name = re.search("(stockholm|freiburg|saarbrucken)", graph_id, re.IGNORECASE).group().capitalize()
+                ColdMgr = util.ColdDatabaseManager(db_name, COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
+                topo_map.assign_categories(category_map)
+                rcParams['figure.figsize'] = 22, 14
+                topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(floor, 'map.yaml'), consider_placeholders=consider_placeholders)
+                plt.savefig(os.path.join(save_path, '%s_%s.png' % (graph_id, name)))
+                plt.clf()
+                print("Saved %s visualization for %s." % (name, graph_id))
+                
+            report = self._report()
+            with open(os.path.join(save_path, "report.log"), "w") as f:
+                yaml.dump(report['results'], f)
+            with open(os.path.join(save_path, "test_instance.log"), "w") as f:
+                yaml.dump(report['instance'], f)
+
+            # Save visualizations
+            save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  True)
+            save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', True)
+            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no
+            print("  Saved to: %s" % os.path.basename(save_path))
+                
+            return report
+
 
     class TestCase_Classification(TestCase):
         def __init__(self, experiment):
@@ -152,7 +353,6 @@ class ColdDatabaseExperiment(TbmExperiment):
             save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  True)
             save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', True)
             save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no
-            save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'exclude_ph_result', True)  # All nodes are no
             print("  Saved to: %s" % os.path.basename(save_path))
                 
             return report
@@ -198,6 +398,9 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     util.print_banner("Start", ch='v')
 
     # Test
+    if test_kwargs['expr_case'].lower() == "inferplaceholder":
+        # We want to load placeholders into test graphs
+        skip_placeholders=False
     exp.load_testing_data(test_kwargs['db_name'], skip_unknown=True, skip_placeholders=skip_placeholders)
     test_instances = exp.get_test_instances(db_name=test_kwargs['db_name'],
                                             amount=amount,
@@ -206,6 +409,8 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     
     # Load training data
     # We don't need to skip placeholders in training, because we know their groundtruth values.
+    # Placeholders also have matched scans; that is not a problem (just copying a few scans with the
+    # correct label and reasonable likelihood.)
     exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True, skip_placeholders=False,
                            use_dgsm_likelihoods=train_kwargs['use_dgsm_likelihoods'], investigate=train_kwargs['investigate'])
     spn_paths = {model.template.__name__:exp.model_save_path(model) for model in spns}
@@ -295,7 +500,21 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 print("Initializing Ops. Will take a while...")
                 instance_spn.init_ops(no_mpe=True)
 
-                report = exp.test(ColdDatabaseExperiment.TestCase_Classification, sess, **test_kwargs)
+                if test_kwargs['expr_case'].lower() == "classification":
+                    report = exp.test(ColdDatabaseExperiment.TestCase_Classification, sess, **test_kwargs)
+                elif test_kwargs['expr_case'].lower() == "inferplaceholder":
+                    report = exp.test(ColdDatabaseExperiment.TestCase_InferPlaceholders, sess, **test_kwargs)
+                elif test_kwargs['expr_case'].lower() == "novelty":
+                    if util.CategoryManager.TYPE == "SEVEN":
+                        test_kwargs['cases'] = [('1PO', '2PO'),  # regular
+                                                ('DW', 'CR'),    # novel (all below)
+                                                ('PT', 'CR'),
+                                                ('2PO', 'AT'),
+                                                ('BA', 'PT'),
+                                                ('AT', 'CR'),
+                                                ('1PO', 'DW')]
+                    report = exp.test(ColdDatabaseExperiment.TestCase_NoveltyDetection, sess, **test_kwargs)
+                    
     except KeyboardInterrupt as ex:
         print("Terminating...\n")
 
@@ -312,6 +531,7 @@ def print_args(args):
 
 def same_building():
     parser = argparse.ArgumentParser(description='Run instance-SPN test.')
+    parser.add_argument('expr_case', type=str, help="Experiment case to run. Either 'Classification', 'InferPlaceholder', or 'Novelty'. Case-insensitive")
     parser.add_argument('db_name', type=str, help="e.g. Stockholm")
     parser.add_argument('seq_id', type=str, help="e.g. floor4_cloudy_b")
     parser.add_argument('test_floor', type=str, help="e.g. 4")
@@ -389,6 +609,7 @@ def same_building():
         }
     }
     test_kwargs = {
+        'expr_case': args.expr_case,  # experiment case
         'test_name': args.test_name,
         'num_rounds': args.num_sampling_rounds,
         'num_partitions': args.num_partitions, # default is 5

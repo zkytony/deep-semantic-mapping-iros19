@@ -298,6 +298,11 @@ class FactorGraphTest:
         """
         global COUNT
         varlabels = self._create_var_labels_map(topo_map)
+
+        # Save the varlabels mapping for reference
+        with open(os.path.join(result_path, "%s_%s_VarL_%d.json"
+                               % (self._db_test, seq_id, COUNT)), 'w') as f:
+            json.dump(varlabels, f, indent=4, sort_keys=True)
         
         # Create a .fg file
         if likelihoods:

@@ -12,11 +12,12 @@ from pylab import rcParams
 import os
 import re
 import argparse
-import yaml
+import yaml, json
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.experiments.factor_graph.run_factor_graph_tests import FactorGraphTest
-from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH, BP_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT
+from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT, BP_EXEC_PATH, BP_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, DGSM_RESULTS_ROOT
 from deepsm.util import CategoryManager, print_in_box
+import deepsm.experiments.paths as paths
 from deepsm.graphspn.tests.tbm.runner import normalize_marginals
 
 
@@ -47,6 +48,14 @@ def parse_likelihood(path):
     # needed = needed.replace('array(', '')
     # needed = needed.replace(')', '')
     # return eval("{" + needed + "}")
+
+def parse_likelihoods_from_dgsm_results(path):
+    with open(path) as f:
+        d = json.load(f)
+    lh_log = {}
+    for nid in d:
+        lh_log[int(nid)] = d[nid][2]
+    return normalize_marginals(lh_log)
 
 def parse_test_info(path):
     test_info = {}
@@ -99,23 +108,50 @@ def same_building(args):
             test_info = parse_test_info(os.path.join(case_path, 'testing_info_%s.log' % timestamp))
             # Prepare parameters for running factor graph test
             fg_tester = fg_testers[test_info['test_db']]
+
             seq_id = "_".join(test_info['graph_id'].split("_")[1:])
+            db_name = test_info['graph_id'].split("_")[0]
+
+            building = db_name[:-1]
+            test_floor = db_name[-1]
+            floors = {4, 5, 6, 7}
+            train_floors = "".join(map(str, sorted(floors - {int(test_floor)})))
+            
             topo_map = topo_dataset.get(test_info['test_db'], seq_id)
             masked = {nid:-1 for nid in topo_map.nodes}
             groundtruth = topo_map.current_category_map()
             case_results_path = os.path.join(results_dir, case_name)
             os.makedirs(case_results_path, exist_ok=True)
-            likelihoods = parse_likelihood(os.path.join(case_path, 'test_instance.log'))
-            for nid in topo_map.nodes:
-                if nid not in likelihoods:
-                    if not topo_map.nodes[nid].placeholder:
-                        print(nid)
-                    likelihoods[nid] = np.full((CategoryManager.NUM_CATEGORIES,), 1)
-                    likelihoods[nid] = (likelihoods[nid] / np.sum(likelihoods[nid])).tolist()
-            
-            _, stats = fg_tester.run_instance(seq_id, topo_map, masked, groundtruth, likelihoods=likelihoods,
-                                              result_path=case_results_path, visualize=True,
-                                              avoid_placeholders=True)
+
+            if args.novelty:
+
+                result_path = paths.path_to_dgsm_result_same_building(CategoryManager.NUM_CATEGORIES,
+                                                                      building,
+                                                                      "graphs",
+                                                                      0,
+                                                                      train_floors,
+                                                                      test_floor)
+                likelihoods = parse_likelihoods_from_dgsm_results(os.path.join(result_path, test_info['graph_id'].lower() + "_likelihoods.json"))
+                stats, _ = fg_tester.run_novelty_detection(db_seq_id=db_name + "-" + seq_id,
+                                                           same_building=True, likelihoods=likelihoods)
+            else:
+                likelihoods = parse_likelihood(os.path.join(case_path, 'test_instance.log'))
+                for nid in topo_map.nodes:
+                    if nid not in likelihoods:
+                        if not topo_map.nodes[nid].placeholder:
+                            print(nid)
+                        likelihoods[nid] = np.full((CategoryManager.NUM_CATEGORIES,), 1)
+                        likelihoods[nid] = (likelihoods[nid] / np.sum(likelihoods[nid])).tolist()
+
+                if args.infer_placeholders:
+                    _, stats = fg_tester.run_instance(seq_id, topo_map, masked, groundtruth, likelihoods=likelihoods,
+                                                      result_path=case_results_path, visualize=True, consider_placeholders=True,
+                                                      avoid_placeholders=False)
+                else:
+                    _, stats = fg_tester.run_instance(seq_id, topo_map, masked, groundtruth, likelihoods=likelihoods,
+                                                      result_path=case_results_path, visualize=True, consider_placeholders=False,
+                                                      avoid_placeholders=True)
+                
             with open(os.path.join(case_results_path, 'report.log'), 'w') as f:
                 yaml.dump(stats, f)
 
@@ -130,12 +166,14 @@ def main():
     parser.add_argument("what", type=str, help='what data you want to make available constants: (DGSM_SAME_BUILDING, DGSM_ACROSS_BUILDINGS)')
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL or BINARY", default="SIMPLE")
     parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
+    parser.add_argument("--infer-placeholders", help='Run experiments that infer placeholders.', action='store_true')
+    parser.add_argument("--novelty", help='Run experiments that infer placeholders.', action='store_true')
 
     args = parser.parse_args()
     
     CategoryManager.TYPE = args.category_type
     CategoryManager.init()
-    
+
     if args.what == "DGSM_SAME_BUILDING":
         same_building(args)
 

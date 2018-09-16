@@ -114,10 +114,6 @@ def same_buliding(args):
         print("Testing on floor %d" % test_floor)
         for seq_id in sorted(os.listdir(os.path.join(TOPO_MAP_DB_ROOT, "%s%d" % (db_name, test_floor)))):
 
-            if test_floor == 7 and seq_id != "floor7_night_c":
-                print("already tested %s " % seq_id)
-                continue
-            
             train_floors_str = "".join(sorted(map(str, floors - {test_floor})))
             dirpath_to_dgsm_graphs_result = paths.path_to_dgsm_result_same_building(util.CategoryManager.NUM_CATEGORIES,
                                                                                     db_name,

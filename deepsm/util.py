@@ -243,7 +243,8 @@ def plot_to_file(*args, labels=[], path="plot.png", xlabel=None, ylabel=None):
 
 def plot_roc(roc_data, savepath='roc.png', names=[]):
     """roc_data is list of tuples (fpr, tpr)"""
-    plt.figure(figsize=(4, 4))
+    from pylab import rcParams
+    rcParams['figure.figsize'] = 4, 4
     for i, item in enumerate(roc_data):
         fpr, tpr = item
         name = names[i] if len(names) > i else "Model%d" % i

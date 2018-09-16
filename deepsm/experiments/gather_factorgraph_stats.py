@@ -5,6 +5,8 @@ import yaml
 import os
 import numpy as np
 from deepsm.experiments.common import BP_RESULTS_ROOT
+from deepsm.util import CategoryManager
+from gather_graphspn_stats import gather_novelty_results
 from pprint import pprint
 
 def get_seq_id(case_name):
@@ -28,10 +30,21 @@ def main():
     parser.add_argument("exp_name", type=str, help="Name of experiment. e.g. GraphSPNToyExperiment")
     parser.add_argument("test_case", type=str, help="Name of test. e.g. Classification")
     parser.add_argument("test_name", type=str, help="Name of test. e.g. mytest")
+    parser.add_argument("-k", "--category-type", type=str, default="SEVEN") 
 
     args = parser.parse_args()
 
+    CategoryManager.TYPE = args.category_type
+    CategoryManager.init()
+
+
     results_dir = os.path.join(BP_RESULTS_ROOT, args.exp_name, args.test_case + "_" + args.test_name)
+
+    # IF test_case is "Novelty", we gather novelty results and plot roc curve.
+    if args.test_case.lower() == "novelty":
+        gather_novelty_results(args.exp_name, args.test_case, args.test_name,
+                               results_dir=results_dir, report_fname='report.log')
+        return
 
     stats = {'factor_graph':{'_all_':{'_overall_':0.0}}}
 

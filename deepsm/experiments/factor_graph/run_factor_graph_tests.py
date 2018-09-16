@@ -20,6 +20,7 @@ from deepsm.util import CategoryManager, ColdDatabaseManager, print_banner, prin
 import csv
 import matplotlib.pyplot as plt
 import os
+import re
 import pprint
 import random
 import subprocess
@@ -271,7 +272,7 @@ class FactorGraphTest:
         if masked:
             save_vis(topo_map, masked, self._db_test, seq_id, save_path, 'query', consider_placeholders)
         if result:
-            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', consider_placeholders)
+            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', False)
 
 
     def run_instance(self, seq_id, topo_map, masked, groundtruth, likelihoods=None,
@@ -336,20 +337,29 @@ class FactorGraphTest:
             self._visualize_test_case(seq_id, topo_map, groundtruth=groundtruth, masked=get_category_map_from_lh(likelihoods),
                                       result=res_catg_map,
                                       save_path=result_path,
-                                      consider_placeholders=avoid_placeholders or consider_placeholders)
+                                      consider_placeholders=consider_placeholders)
         topo_map.reset_categories()
         return res_catg_map, stats
 
 
-    def run_novelty_detection(self, db_seq_id=None, mix_ratio=0.8):
+    def run_novelty_detection(self, db_seq_id=None, mix_ratio=0.8,
+                              same_building=False, likelihoods=None):
         """
-        Runs the novelty detection task on "1PO-2PO", "1PO-CR", "DW-CR"
+        Runs the novelty detection task on 10 randomly selected class swaps
 
         db_seq_id (str) sequence id to run novelty detection task on. If None, will randomly select a sequence.
+
+        `same_building` (bool) is true if we are running experiment that belongs to DGSM_SAME_BUILDING
         """
-        def run_case(self, topo_map, result_path, seq_id, varlabels, factor):
-            fg_path = self._create_fg(topo_map, seq_id, varlabels, factor=factor)  # use default path
-            tab_path = self._create_tab(topo_map, seq_id, varlabels, topo_map.current_category_map())  # use default path
+        def run_case(self, topo_map, result_path, seq_id, varlabels, factor, likelihoods=None):
+
+            if likelihoods:
+                masked = {nid:-1 for nid in topo_map.nodes}
+                fg_path = self._create_fg(topo_map, seq_id, varlabels, likelihoods=likelihoods)
+                tab_path = self._create_tab(topo_map, seq_id, varlabels, masked, likelihoods=likelihoods)
+            else:
+                fg_path = self._create_fg(topo_map, seq_id, varlabels, factor=factor)  # use default path
+                tab_path = self._create_tab(topo_map, seq_id, varlabels, topo_map.current_category_map())  # use default path
 
             # Run the binary for BP
             bp_proc = subprocess.Popen([self._bp_exec_path, fg_path, tab_path, "mpe", result_path])
@@ -362,20 +372,34 @@ class FactorGraphTest:
         # Count from 80% sequences. Test on a sequence randomly selected from the remaining 20%
         if db_seq_id:
             db_name = db_seq_id.split("-")[0]
-            other_dbs = {'Freiburg', 'Saarbrucken', 'Stockholm'} - {db_name}
-            if RUN_TRAIN:
-                # Count on sequence's building and another building.
-                count_seqs, tt = self._dataset.split(0.8, *([db_name, random.choice(list(other_dbs))])) # lazy way
-                try: # We don't want to count db_seq_id. Move it out by swapping with a sequence in tt
-                    idx = count_seqs.index(db_seq_id)
-                    tt[0], count_seqs[idx] = count_seqs[idx], tt[0]
-                except ValueError:
-                    # Ok. The given sequence is in test.
-                    pass
+
+            if same_building:  # same building experiment
+                # In this case, the db_seq_id is what we want to test on. So db is of the form builiding#
+                # where `#` is the test floor.
+                building = re.search("(stockholm|freiburg|saarbrucken)", db_name, re.IGNORECASE).group().capitalize()
+                test_floor = db_name[len(building):]
+                if building == "Stockholm":
+                    floors = {4, 5, 6, 7}
+                elif building == "Freiburg":
+                    floors = {1, 2, 3}
+                elif building == "Saarbrucken":
+                    floors = {1, 2, 3, 4}
+                train_floors= "".join(map(str, sorted(floors - {int(test_floor)})))
+                count_seqs, _ = self._dataset.split(1.0, building+train_floors) # lazy way
             else:
-                # Count on other two buildings
-                count_seqs, _ = self._dataset.split(1.0, *(list(other_dbs))) # lazy way
-                        
+                other_dbs = {'Freiburg', 'Saarbrucken', 'Stockholm'} - {db_name}
+                if RUN_TRAIN:
+                    # Count on sequence's building and another building.
+                    count_seqs, tt = self._dataset.split(0.8, *([db_name, random.choice(list(other_dbs))])) # lazy way
+                    try: # We don't want to count db_seq_id. Move it out by swapping with a sequence in tt
+                        idx = count_seqs.index(db_seq_id)
+                        tt[0], count_seqs[idx] = count_seqs[idx], tt[0]
+                    except ValueError:
+                        # Ok. The given sequence is in test.
+                        pass
+                else:
+                    # Count on other two buildings
+                    count_seqs, _ = self._dataset.split(1.0, *(list(other_dbs))) # lazy way
         else:
             count_seqs, test_seqs = self._dataset.split(mix_ratio, *self._db_count)
             db_seq_id = test_seqs[0]
@@ -401,22 +425,43 @@ class FactorGraphTest:
         _, logscore = run_case(self, topo_map, result_path, seq_id, varlabels, factor_unif)
         stats['_uniform_'] = logscore
 
-        # Cases
-        for swapped_classes in [('1PO', '2PO'), ('1PO', 'CR'), ('DW', 'CR')]:
-            c1, c2 = swapped_classes
-            print("Swap %s and %s" % (c1, c2))
-            topo_map.swap_classes(swapped_classes)
-            query = topo_map.current_category_map()
-
-            result_path = os.path.join(self._result_dir, "%s_%s_Inf_%s.json" % (db_name, seq_id, "-".join(swapped_classes)))
-            res_catg_map, logscore = run_case(self, topo_map, result_path, seq_id, varlabels, None)
-            stats[swapped_classes] = {'raw': logscore, 'normalized': -(logscore / stats['_uniform_'])}
-            topo_map.reset_categories()
-
         # Groundtruth
         result_path = os.path.join(self._result_dir, "%s_%s_Inf_%s.json" % (db_name, seq_id, "groundtruth"))
-        _, logscore = run_case(self, topo_map, result_path, seq_id, varlabels, None)
-        stats['_groundtruth_'] = {'raw': logscore, 'normalized': -(logscore / stats['_uniform_'])}
+        _, logscore = run_case(self, topo_map, result_path, seq_id, varlabels, None, likelihoods=likelihoods)
+        stats['_no_swap_'] = {'_raw_': logscore,
+                              '_normalized_': logscore / len(topo_map.nodes), #-(logscore / stats['_uniform_'])}
+                              '_num_nodes': len(topo_map.nodes)}
+        print("Likelihood no swap: %.3f" % logscore)
+
+        # Cases
+        # Do 10 random swaps
+        cases = []
+        for i in range(10):
+            class1, class2 = random.sample(CategoryManager.known_categories(), 2)
+            cases.append((class1, class2))
+        
+        for swapped_classes in cases:
+            c1, c2 = swapped_classes
+            topo_map.swap_classes(swapped_classes)
+
+            if likelihoods is None:
+                query = topo_map.current_category_map()
+            else:
+                query = {nid:-1 for nid in topo_map.nodes}
+                c1_num = CategoryManager.category_map(c1)
+                c2_num = CategoryManager.category_map(c2)
+
+                for nid in topo_map.nodes:
+                    likelihoods[nid][c1_num], likelihoods[nid][c2_num] = likelihoods[nid][c2_num], likelihoods[nid][c1_num]
+
+            result_path = os.path.join(self._result_dir, "%s_%s_Inf_%s.json" % (db_name, seq_id, "-".join(swapped_classes)))
+            res_catg_map, logscore = run_case(self, topo_map, result_path, seq_id, varlabels, None, likelihoods=likelihoods)
+            stats[swapped_classes] = {'_raw_': logscore,
+                                      '_normalized_': logscore / len(topo_map.nodes), #-(logscore / stats['_uniform_'])}
+                                      '_num_nodes_': len(topo_map.nodes)}
+            print("Swap %s and %s: %.3f" % (c1, c2, logscore))
+            topo_map.reset_categories()
+            
         return stats, db_seq_id
             
     

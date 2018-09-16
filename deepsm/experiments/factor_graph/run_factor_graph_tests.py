@@ -254,11 +254,17 @@ class FactorGraphTest:
     def _visualize_test_case(self, seq_id, topo_map, groundtruth=None, masked=None,
                              result=None, consider_placeholders=False, save_path=None):
         """Visualize"""
-        def save_vis(topo_map, category_map, db_name, seq_id, save_path, name,  consider_placeholders):
+        def save_vis(topo_map, category_map, db_name, seq_id, save_path,
+                     name,  consider_placeholders):
+            included_nids = None
+            if not consider_placeholders:
+                included_nids = {nid for nid in topo_map.nodes
+                                 if not topo_map.nodes[nid].placeholder}
             ColdMgr = ColdDatabaseManager(db_name, COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
             topo_map.assign_categories(category_map)
             rcParams['figure.figsize'] = 22, 14
-            topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'), consider_placeholders=consider_placeholders)
+            topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'),
+                               consider_placeholders=consider_placeholders, included_nodes=included_nids)
             if not os.path.exists(os.path.join(save_path, seq_id)):
                 os.makedirs(os.path.join(save_path, seq_id))
             plt.savefig(os.path.join(save_path, seq_id, '%s_%s_%s.png' % (db_name, seq_id, name)))

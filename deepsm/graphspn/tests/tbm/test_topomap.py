@@ -337,7 +337,7 @@ def TEST_load_samples():
 
 if __name__ == "__main__":
 
-    CategoryManager.TYPE = "SIMPLE"
+    CategoryManager.TYPE = "SEVEN"
     CategoryManager.init()
     
     coldmgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     # #TEST_topo_map_copy(dataset)
     # TEST_partition_by_edge_relations(dataset)
     # # TEST_segmentation(dataset, coldmgr)
-    TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor6_cloudy_a2")
+    TEST_topo_map_visualization(dataset, coldmgr, seq_id="floor6_night_a1")
     plt.show()
     # TEST_connected_components(dataset, coldmgr)
     # TEST_node_id_unique()

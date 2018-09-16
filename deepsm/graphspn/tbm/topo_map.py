@@ -508,7 +508,9 @@ class TopologicalMap:
 
 
     #--- Visualizations ---#
-    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None, dotsize=13, linewidth=1.0, img=None, consider_placeholders=False, show_nids=False):
+    def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None,
+                  dotsize=13, linewidth=1.0,
+                  img=None, consider_placeholders=False, show_nids=False):
         """Visualize the topological map `self`. Nodes are colored by labels, if possible."""
         # Open the yaml file
         with open(canonical_map_yaml_path) as f:

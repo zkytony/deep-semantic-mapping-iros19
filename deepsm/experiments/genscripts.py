@@ -52,19 +52,27 @@ def handle_dgsm():
                         "will be split evenly among them")
     args = parser.parse_args(sys.argv[2:])
 
-    cases = {
-        "Stockholm": ["456-7", "457-6", "567-4"],
+    casesdb = {
+        "Stockholm": ["456-7", "457-6", "467-5", "567-4"],
         "Freiburg": ["12-3", "23-1", "13-2"],
         "Saarbrucken": ["123-4", "124-3", "134-2", "234-1"]
     }
+    cases = []
     for c in args.cases:
-        if c not in cases[args.db]:
+        if c == "full":
+            cases = casesdb[args.db]
+            break
+        elif c not in casesdb[args.db]:
             print("Case %s not recognized for %s" % (args.cases, args.db))
+            return
+        else:
+            cases.append(c)
+
 
     settings = read_paramcfg_file(args.paramcfg_file)
     commands = []
     for options_str in settings:
-        for test_case in args.cases:
+        for test_case in cases:
             command = "%s DGSM_SAME_BUILDING -d %s --config \"{'test_case':'%s',"\
                       "'category_type':'%s', 'training_params':'%s'}\""\
                       % (os.path.join(args.exppy_dir, "train_test_dgsm_full_model.py"),
@@ -77,7 +85,7 @@ def handle_dgsm():
     comands_by_gpu = [commands]
     if args.gpus is not None:
         commands_by_gpu = []
-        n = int(len(commands) / len(args.gpus))
+        n = int(round(len(commands) / float(len(args.gpus)) +  0.001))
         for i, gpu in enumerate(args.gpus):
             if i < len(args.gpus) - 1:
                 commands_by_gpu.append(commands[i*n:(i+1)*n])
@@ -91,7 +99,7 @@ def handle_dgsm():
         with open(filename, "w") as f:
             f.write("set -x\n")
             f.write(commands_str)
-            f.write("set +x\n")
+            f.write("\nset +x\n")
             os.chmod(filename, 0o777)
         print("Written commands to %s" % filename)
     

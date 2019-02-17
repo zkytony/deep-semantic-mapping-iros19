@@ -31,7 +31,7 @@ def read_paramcfg_file(filepath):
                 if type(setting[option]) is bool:
                     options_str += option + " "
                 else:
-                    options_str += option + " " + str(setting[option])
+                    options_str += option + " " + str(setting[option]) + " "
             settings.append(options_str)
     return settings
 
@@ -44,7 +44,7 @@ def handle_dgsm():
                         "will be performed for those parameters. You can also vary multiple parameters"\
                         "together. See more in code. Parameters are for training.")
     parser.add_argument("save_dir", type=str, help="Path to directory to save the shell script.")
-    parser.add_argument("exppy_dir", type=str, help="Path to directory where experiment python code is stored.")
+    parser.add_argument("exppy_dir", type=str, help="Path to directory where experiment python code is stored, relative to save_dir")
     parser.add_argument("cases", type=str, nargs="+", help="Case, e.g. 456-7. If 'full' will"\
                         "enumerate all cases for the given building")
     parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
@@ -65,8 +65,8 @@ def handle_dgsm():
     commands = []
     for options_str in settings:
         for test_case in args.cases:
-            command = "%s DGSM_SAME_BUILDING -d %s --config {'test_case':'%s',"\
-                      "'category_type':'%s', 'training_params':'%s'} --save-loss"\
+            command = "%s DGSM_SAME_BUILDING -d %s --config \"{'test_case':'%s',"\
+                      "'category_type':'%s', 'training_params':'%s'}\""\
                       % (os.path.join(args.exppy_dir, "train_test_dgsm_full_model.py"),
                          args.db,
                          test_case,
@@ -89,7 +89,9 @@ def handle_dgsm():
                                 % (os.path.basename(args.paramcfg_file),
                                    args.gpus[i]))
         with open(filename, "w") as f:
+            f.write("set -x\n")
             f.write(commands_str)
+            f.write("set +x\n")
             os.chmod(filename, 0o777)
         print("Written commands to %s" % filename)
     

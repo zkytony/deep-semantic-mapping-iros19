@@ -17,7 +17,6 @@ if __name__ == "__main__":
                         'that provides key-value pair for configurations (e.g. "{\'test_case\': \'456-7\'}"',
                         default="{}")
     parser.add_argument('-n', '--num-trials', type=int, help='number of trials', default=1)
-    parser.add_argument('--save-loss', action='store_true', help='Save loss during training')
     args = parser.parse_args()
 
     what = args.what
@@ -41,8 +40,6 @@ if __name__ == "__main__":
                                                'real_data')
         original_set_defs_path = os.path.join(os.path.dirname(original_real_data_path),
                                               config['test_case'], "set_defs")
-
-        save_loss_option = ['--save-loss'] if args.save_loss else []
 
         for trial_number in range(args.num_trials):
             print("**********Trial %d**********" % trial_number)
@@ -76,5 +73,5 @@ if __name__ == "__main__":
                                                           results_dir,
                                                           '1',
                                                           '--graph-test',
-                                                          '--building', args.db_name + "_" + config['test_case']] + save_loss_option + training_params)
+                                                          '--building', args.db_name + "_" + config['test_case']] + training_params)
             dgsm_runner.main(args=dsgm_args)

@@ -10,8 +10,9 @@ import copy
 def read_paramcfg_file(filepath):
     with open(filepath) as f:
         cfg = yaml.load(f)
-    globalcfg = {cfg['_global']['param_name'][i]:cfg['_global']['default_values'][i]
-                 for i in range(len(cfg['_global']['param_names']))}
+    globalcfg = {cfg['_global']['param_name'][i]:(cfg['_global']['default_values'][i],
+                                                  cfg['_global']['options'][i])
+                 for i in range(len(cfg['_global']['param_name']))}
     # Returns a list of parameter settings for the command line program.
     settings = []
 
@@ -29,7 +30,7 @@ def read_paramcfg_file(filepath):
     return settings
 
 
-def proc_cases(arg_cases):
+def proc_cases(arg_cases, arg_db):
     casesdb = {
         "Stockholm": ["456-7", "457-6", "467-5", "567-4"],
         "Freiburg": ["12-3", "23-1", "13-2"],
@@ -37,12 +38,12 @@ def proc_cases(arg_cases):
     }
         
     cases = []
-    for c in args_cases:
+    for c in arg_cases:
         if c == "full":
-            cases = casesdb[args.db]
+            cases = casesdb[arg_db]
             break
-        elif c not in casesdb[args.db]:
-            print("Case %s not recognized for %s" % (args.cases, args.db))
+        elif c not in casesdb[arg_db]:
+            print("Case %s not recognized for %s" % (arg_cases, arg_db))
             return
         else:
             cases.append(c)
@@ -50,18 +51,19 @@ def proc_cases(arg_cases):
 
 def divide_commands_by_gpu(commands, gpus):
     commands_by_gpu = []
-    n = int(round(len(commands) / float(len(args.gpus)) +  0.001))
-    for i, gpu in enumerate(args.gpus):
-        if i < len(args.gpus) - 1:
+    n = int(round(len(commands) / float(len(gpus)) +  0.001))
+    for i, gpu in enumerate(gpus):
+        if i < len(gpus) - 1:
             commands_by_gpu.append(commands[i*n:(i+1)*n])
         else:
             commands_by_gpu.append(commands[i*n:])
     return commands_by_gpu
 
-def save_commands_to_files(filename, commands_by_gpu, gpus):
+def save_commands_to_files(filename_prefix, commands_by_gpu, gpus):
     for i in range(len(commands_by_gpu)):
         commands_str = "\n".join(commands_by_gpu[i])
-        with open("%s_gpu_%d.sh" % (filename, gpus[i]), "w") as f:
+        filename = "%s_gpu_%d.sh" % (filename_prefix, gpus[i])
+        with open(filename, "w") as f:
             f.write("set -x\n")
             f.write(commands_str)
             f.write("\nset +x\n")
@@ -86,7 +88,7 @@ def handle_dgsm():
     parser.add_argument("--gpus", type=int, nargs="+", help="Integer ids for gpus. The commands"\
                         "will be split evenly among them")
     args = parser.parse_args(sys.argv[2:])
-    cases = proc_cases(args.cases)
+    cases = proc_cases(args.cases, args.db)
 
     # Generate commands
     settings = read_paramcfg_file(args.paramcfg_file)
@@ -138,7 +140,7 @@ def handle_graphspn():
     parser.add_argument("--gpus", type=int, nargs="+", help="Integer ids for gpus. The commands"\
                         "will be split evenly among them")
     args = parser.parse_args(sys.argv[2:])
-    cases = proc_cases(args.cases)
+    cases = proc_cases(args.cases, args.db)
 
     # Generate commands
     settings = read_paramcfg_file(args.paramcfg_file)
@@ -147,17 +149,24 @@ def handle_graphspn():
         for test_case in cases:
             test_floor = test_case.split("-")[1]
 
-            template = setting["template"]
-            num_partitions = setting["num_partitions"]
-            
-            test_name = "full%sP%dT0%s%s%s" % (template, num_partitions,
-                                               args.db, "TrainLH" if setting["train_with_likelihoods"] else "",
-                                               args.exp_case)
-            option_str = "--expr-case %s" % args.exp_case\
-                         + "-d %s" % args.db\
-                         + "-e %s" % args.exp_name\
-                         + "-t %s" % test_name\
-                         + "--test-floor %s" % test_floor\
+            template = setting["template"][0]
+            num_partitions = setting["num_partitions"][0]
+
+            # batch_size, epoch, likelihood_thresholds (fmt: 0001 means 0.001), sampling method, dgsm_lh
+            trial_cfg_str = "B%dE%dlh%sm%s"\
+                            % (setting["batch_size"][0], setting["epochs"][0],
+                               str(setting["likelihood_thres"][0]).replace(".",""),
+                               "RANDOM" if setting["random_sampling"][0] else "")
+            trial_cfg_str += "dgsmLh" if setting["train_with_likelihoods"][0] else ""
+            test_name = "full%s%sP%dT0%strain%s" % (template, args.exp_case,
+                                                    num_partitions,
+                                                    args.db, trial_cfg_str)
+                                                    
+            option_str = "--expr-case %s " % args.exp_case\
+                         + "-d %s " % args.db\
+                         + "-e %s " % args.exp_name\
+                         + "-t %s " % test_name\
+                         + "--test-floor %s " % test_floor\
                          + " "
             for param_name in setting:
                 value = setting[param_name][0]
@@ -169,7 +178,7 @@ def handle_graphspn():
             
             command = "%s DGSM_SAME_BUILDING %s"\
                       % (os.path.join(args.exppy_dir, "train_test_graphspn_colddb_multiple_sequences.py"),
-                         options_str)
+                         option_str)
             commands.append(command)
 
     # save commands to files

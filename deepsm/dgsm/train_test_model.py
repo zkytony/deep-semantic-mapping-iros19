@@ -326,7 +326,7 @@ def main(args=None):
     except KeyboardInterrupt:
         print("Stop training...")
     finally:
-        dirpath = os.path.join("analysis", "dgsm")
+        dirpath = os.path.join(common.EXPERIMENTS_ROOT, "analysis", "dgsm")
 
         loss_plot_path = os.path.join(dirpath, 'loss-%s.png' % trial_name)
         plot_to_file(train_loss, test_loss, *train_perf, *test_perf,

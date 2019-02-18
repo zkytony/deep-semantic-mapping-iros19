@@ -1,6 +1,7 @@
 # Shared parameters
 
 import numpy as np
+import os
 
 # 56x21
 resolution      = 0.02
@@ -30,14 +31,18 @@ num_radius_cells = len(radiuses)-1
 
 # ----- Constants -----
 # Gerlach
-GROUNDTRUTH_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/cold-groundtruth"
 COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
-GRAPHSPN_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/graphspn"
-DGSM_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/dgsm/"
-TOPO_MAP_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/topo_map"
-DGSM_DB_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/dataset/dgsm"
-BP_EXEC_PATH = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/factor_graph/fg_topo"
-BP_RESULTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments/results/factor_graph"
+EXPERIMENTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments"
+
+GROUNDTRUTH_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "cold-groundtruth")
+TOPO_MAP_DB_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "topo_map")
+DGSM_DB_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "dgsm")
+
+BP_RESULTS_ROOT = os.path.join(EXPERIMENTS_ROOT, "results", "factor_graph")
+GRAPHSPN_RESULTS_ROOT = os.path.join(EXPERIMENTS_ROOT, "results", "graphspn")
+DGSM_RESULTS_ROOT = os.path.join(EXPERIMENTS_ROOT, "results", "dgsm")
+
+BP_EXEC_PATH = os.path.join(EXPERIMENTS_ROOT, "factor_graph", "fg_topo")
 
 # Laptop
 # COLD_ROOT = "/home/kaiyu/Documents/Projects/Research/SaraRobotics/repo/spn_topo/experiments/data/groundtruth"

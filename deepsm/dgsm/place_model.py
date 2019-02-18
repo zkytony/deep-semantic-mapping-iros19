@@ -467,10 +467,13 @@ class PlaceModel:
             
     def train_samples_exam(self, dirpath, trial_name):
         def write_row_func(writer, i, start, scans, likelihoods_arr, labels):
+            pred = CategoryManager.category_map(np.argmax(likelihoods_arr[i]), rev=True)
+            gt = CategoryManager.category_map(labels[start+i][0], rev=True)
             writer.writerow([self._data._training_footprint_graph[start+i][0]]  # graph_id
-                            + [CategoryManager.category_map(labels[start+i][0], rev=True)]
-                            + likelihoods_arr[i].reshape(-1,).tolist() 
                             + [self._data._training_footprint_graph[start+i][-1]]  # node id
+                            + [gt]    # groundtruth label string
+                            + [pred]  # prediction label string
+                            + likelihoods_arr[i].reshape(-1,).tolist() 
                             + scans[start+i].tolist())
 
         def per_lh_func(start, i, likelihoods_arr, lh_map={}):
@@ -494,11 +497,14 @@ class PlaceModel:
     
     def test_samples_exam(self, dirpath, trial_name):
         def write_row_func(writer, i, start, scans, likelihoods_arr, labels):
-            writer.writerow([len(scans[start+i])]
-                            + scans[start+i].tolist()
-                            + [CategoryManager.NUM_CATEGORIES]
-                            + likelihoods_arr[i].reshape(-1,).tolist()
-                            + [CategoryManager.category_map(labels[start+i][0], rev=True)])
+            pred = CategoryManager.category_map(np.argmax(likelihoods_arr[i]), rev=True)
+            gt = CategoryManager.category_map(labels[start+i][0], rev=True)
+            writer.writerow([self._data._testing_footprint[start+i][0]]  # graph_id
+                            + [self._data._testing_footprint[start+i][-1]]  # node id
+                            + [gt]    # groundtruth label string
+                            + [pred]  # prediction label string
+                            + likelihoods_arr[i].reshape(-1,).tolist() 
+                            + scans[start+i].tolist())
         
         print("Writing test samples exam file...")
         with open(os.path.join(dirpath, "test_samples_exam-%s.csv" % trial_name), 'w') as f:

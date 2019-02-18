@@ -394,7 +394,15 @@ class TbmExperiment(Experiment):
                 if "test" in likelihoods[model.template.__name__]:
                     plot_lhs.append(likelihoods[model.template.__name__]['test'])
                     labels.append("test")
-                plot_fname = "loss-" + os.path.splitext(os.path.basename(model_save_path))[0] + ".png"
+                # string that identifies this trial.
+                trial_cfg_str = "B%d_E%d_lh%d_m%s"\
+                                % (batch_size, num_epochs, likelihood_thres,
+                                   partition_sampling_method)
+                trial_cfg_str += "_dgsmLh" if use_dgsm_likelihoods else ""
+                plot_fname = "loss-"\
+                             + os.path.splitext(os.path.basename(model_save_path))[0]\
+                             + "_%s" % trial_cfg_str\
+                             + ".png"
                 save_path = os.path.join(os.path.dirname(model_save_path), plot_fname)
                 plot_to_file(*plot_lhs, labels=labels, path=save_path, xlabel='epoch', ylabel='loss')
                 print("Saved loss plot in %s" % save_path)

@@ -12,6 +12,7 @@ import subprocess
 import time
 import deepsm.util as util
 import deepsm.experiments.paths as paths
+import deepsm.experiments.common as common
 from deepsm.experiments.common import TOPO_MAP_DB_ROOT
 
 def experiment_proc(what,
@@ -59,7 +60,7 @@ def experiment_proc(what,
                   '--straight_template-coeff', straight_template_coeff,
                   '--dom-coeff', dom_coeff,
                   '--separable-coeff', separable_coeff]
-        proc = subprocess.Popen(['./train_test_graphspn.py',
+        proc = subprocess.Popen(['%s' % os.path.join(common.EXPERIMENTS_ROOT, "train_test_graphspn.py"),
                                  "samebuilding",
                                  expr_case,
                                  db_name,

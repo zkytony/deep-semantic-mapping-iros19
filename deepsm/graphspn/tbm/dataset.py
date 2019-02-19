@@ -34,20 +34,26 @@ class TopoMapDataset:
 
 
     # TODO: This shouldn't really be here.  It's a more general function for the experiments.
-    def get_dbname_info(self, db_train_name):
+    def get_dbname_info(self, db_name, train=True):
+        """Given a db_name (str), e.g. Stockholm456, return a tuple ('Stockholm', '456', 7}.
+        If `train` is False, then regard the floor information (i.e. 456 in this example) as
+        testing floors and thus will return ('Stockholm', 7, '456')"""
         # Example: Stockholm456
-        building = re.search("(stockholm|freiburg|saarbrucken)", db_train_name, re.IGNORECASE).group().capitalize()
-        train_floors = db_train_name[len(building):]
+        building = re.search("(stockholm|freiburg|saarbrucken)", db_name, re.IGNORECASE).group().capitalize()
+        given_floors = db_name[len(building):]
         if building == "Stockholm":
-            floors = {4, 5, 6, 7}
+            remaining_floors = {4, 5, 6, 7}
         elif building == "Freiburg":
-            floors = {1, 2, 3}
+            remaining_floors = {1, 2, 3}
         elif building == "Saarbrucken":
-            floors = {1, 2, 3, 4}
-        for f in train_floors:
-            floors = floors - {int(f)}
-        test_floor = list(floors)[0]
-        return building, train_floors, test_floor
+            remaining_floors = {1, 2, 3, 4}
+        for f in given_floors:
+            remaining_floors = remaining_floors - {int(f)}
+        remaining_floors = "".join(map(str, (sorted(remaining_floors))))
+        if train:
+            return building, given_floors, remaining_floors
+        else:
+            return building, remaining_floors, given_floors
 
     def _load_dgsm_likelihoods(self, db_names, db_test=None, **kwargs):
         """Load all dgsm_likelihoods for the databases provided in db_names.
@@ -85,7 +91,7 @@ class TopoMapDataset:
 
         if db_test is not None:
             for db_name in db_test:
-                building, train_floors, test_floor = self.get_dbname_info(db_name)
+                building, train_floors, test_floor = self.get_dbname_info(db_name, train=False)
                 path_to_results = result_paths[test_floor]
                 for fname in os.listdir(path_to_results):
                     if fname.endswith("_likelihoods.json"):
@@ -789,7 +795,7 @@ class TopoMapDataset:
                             skipped.add(nid)
 
                     # Also, skip nodes in rooms that we want to skip
-                    building = self.get_dbname_info(db_name)[0]
+                    building = self.get_dbname_info(db_name)[0]  # we don't care whether db_name is test or train here.
                     if building in skipped_rooms and node_room_mapping[nid] in skipped_rooms[building]:
                         if DEBUG:
                             print("Skipping node %d in room %s" % (nid, node_room_mapping[nid]))

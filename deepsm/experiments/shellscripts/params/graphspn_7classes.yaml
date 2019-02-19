@@ -1,0 +1,37 @@
+_global:
+  param_names: ["template",  # type of template, e.g. VIEW, THREE or STAR
+                "num_partitions",
+                "epochs",  # Number of epochs to train models
+                "batch_size",  # batch size of training
+                "likelihood_thres",  # likelihood update threshold
+                "train_with_likelihoods",
+                "skip_placeholders",
+                "random_sampling"]
+  default_values: ["THREE",
+                   5,
+                   100,
+                   200,
+                   0.01,
+                   True,
+                   True,
+                   True]
+  options: ['--template', '--num-partitions', '--epochs-training',
+            '--batch-size', '--likelihood-thres', '--train-with-likelihoods',
+            '--skip-placeholders', '--random-sampling']
+
+
+exp_template:
+  param_indices: [0]
+  values: [["VIEW"], ["THREE"], ["STAR"]]
+
+exp_num_partitions:
+  param_indices: [1]
+  values: [[1], [3], [5], [7]]
+
+exp_batch_size:
+  param_indices: [3]
+  values: [[10], [100], [200]]
+
+exp_likelihood_thres:
+  param_indices: [4]
+  values: [[0.1], [0.01], [0.001], [0.0001]]

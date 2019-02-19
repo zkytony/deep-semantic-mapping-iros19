@@ -133,14 +133,17 @@ class TbmExperiment(Experiment):
         return self._dataset
 
 
-    def model_save_path(self, model):
+    def model_save_path(self, model, trial_cfg_str=""):
+        """Path to save the given model. `trial_cfg_str` identifies the trial
+        (i.e. specific configuration of training parameters) that the model
+        is used in, which will become part of the name."""
         trained_dbs = "-".join(self._train_db)
-        train_method = "dgsmlh" if self._train_dgsm_lh_dict is not None else ""
-        if len(train_method) != 0:
-            return os.path.join(self._root_path, 'models', "%s_%d_%s_%s.spn" % (model.template.__name__, CategoryManager.NUM_CATEGORIES, trained_dbs, train_method))
-        else:
-            return os.path.join(self._root_path, 'models', "%s_%d_%s.spn" % (model.template.__name__, CategoryManager.NUM_CATEGORIES, trained_dbs))
-
+        if len(trial_cfg_str) > 0:
+            trial_cfg_str = "_" + trial_cfg_str
+        return os.path.join(self._root_path, 'models', "%s_%d_%s%s.spn" % (model.template.__name__,
+                                                                            CategoryManager.NUM_CATEGORIES,
+                                                                            trained_dbs,
+                                                                            trial_cfg_str))
 
     def data_count(self, db=None, update=False):
         if update:
@@ -293,10 +296,19 @@ class TbmExperiment(Experiment):
         likelihoods = {}
 
         train_info = {}
+        
+        # string that identifies this trial.
+        trial_cfg_str = "B%dE%dlh%sm%s"\
+                        % (batch_size,
+                           num_epochs,
+                           str(likelihood_thres).replace(".",""),
+                           partition_sampling_method)
+        trial_cfg_str += "dgsmLh" if use_dgsm_likelihoods else ""
 
         for model in self._spns:
 
-            model_save_path = self.model_save_path(model)
+            model_save_path = self.model_save_path(model,
+                                                   trial_cfg_str=trial_cfg_str)
             if load_if_exists and os.path.exists(model_save_path):
                 model.init_weights_ops()
                 model.initialize_weights(sess)
@@ -394,11 +406,6 @@ class TbmExperiment(Experiment):
                 if "test" in likelihoods[model.template.__name__]:
                     plot_lhs.append(likelihoods[model.template.__name__]['test'])
                     labels.append("test")
-                # string that identifies this trial.
-                trial_cfg_str = "B%d_E%d_lh%d_m%s"\
-                                % (batch_size, num_epochs, likelihood_thres,
-                                   partition_sampling_method)
-                trial_cfg_str += "_dgsmLh" if use_dgsm_likelihoods else ""
                 plot_fname = "loss-"\
                              + os.path.splitext(os.path.basename(model_save_path))[0]\
                              + "_%s" % trial_cfg_str\

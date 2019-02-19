@@ -424,7 +424,6 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
     # We don't need to skip placeholders in training, because we know their groundtruth values.
     # Placeholders also have matched scans; that is not a problem (just copying a few scans with the
     # correct label and reasonable likelihood.)
-    import pdb; pdb.set_trace()
     exp.load_training_data(*train_kwargs['db_names'], skip_unknown=True, skip_placeholders=False,
                            use_dgsm_likelihoods=train_kwargs['use_dgsm_likelihoods'], investigate=train_kwargs['investigate'])
     spn_paths = {model.template.__name__:exp.model_save_path(model) for model in spns}

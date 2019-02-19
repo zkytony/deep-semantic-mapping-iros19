@@ -10,11 +10,13 @@ import copy
 def read_paramcfg_file(filepath):
     with open(filepath) as f:
         cfg = yaml.load(f)
-    globalcfg = {cfg['_global']['param_name'][i]:(cfg['_global']['default_values'][i],
-                                                  cfg['_global']['options'][i])
-                 for i in range(len(cfg['_global']['param_name']))}
+    globalcfg = {cfg['_global']['param_names'][i]:(cfg['_global']['default_values'][i],
+                                                   cfg['_global']['options'][i])
+                 for i in range(len(cfg['_global']['param_names']))}
     # Returns a list of parameter settings for the command line program.
     settings = []
+    if "_run_global_case" in cfg and cfg["_run_global_case"]:
+        settings.append(copy.deepcopy(globalcfg))
 
     for exp_name in cfg:
         if exp_name.startswith("_"):
@@ -24,7 +26,7 @@ def read_paramcfg_file(filepath):
             setting = copy.deepcopy(globalcfg)  # a setting maps from an option to a value
             for i in range(len(value)):
                 param_indx = expcfg['param_indices'][i]
-                param_name = cfg['_global']['param_name'][param_indx]
+                param_name = cfg['_global']['param_names'][param_indx]
                 setting[param_name] = (value[i], cfg['_global']['options'][param_indx])
             settings.append(setting)
     return settings
@@ -110,7 +112,7 @@ def handle_dgsm():
                          args.db,
                          test_case,
                          args.category_type,
-                         options_str)
+                         option_str)
             commands.append(command)
 
     if args.gpus is None:

@@ -2,7 +2,7 @@ import numpy as np
 
 import os, sys
 from deepsm.graphspn.tbm.topo_map import PlaceNode, TopologicalMap
-from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, SingletonTemplate
+from deepsm.graphspn.tbm.template import SingleEdgeTemplate, PairEdgeTemplate, ThreeNodeTemplate, PairTemplate, SingletonTemplate, StarTemplate
 import deepsm.util as util
 import numpy as np
 import matplotlib.pyplot as plt
@@ -242,6 +242,8 @@ class NodeTemplatePartitionSampler(PartitionSampler):
         Percentage of nodes in straight templates
         """
         if self._templates[0] != ThreeNodeTemplate:
+            if self._templates[0] == StarTemplate:
+                return 0  # ignore this factor for star templates.
             raise ValueError("straight_template factor only evaluated when "\
                              "ThreeNodeTemplate as main template")
         count = 0

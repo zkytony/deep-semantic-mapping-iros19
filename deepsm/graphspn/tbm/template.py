@@ -35,6 +35,8 @@ class Template(ABC):
             return [ThreeNodeTemplate, PairTemplate, SingletonTemplate]
         elif symbol.upper() == "VIEW":
             return [ThreeRelTemplate, SingleRelTemplate, SingleTemplate, RelTemplate]
+        elif symbol.upper() == "STAR":
+            return [StarTemplate, ThreeNodeTemplate, PairTemplate, SingletonTemplate]
         else:
             raise Exception("Unrecognized symbol for templates: %s" % symbol)
 

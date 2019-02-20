@@ -238,8 +238,9 @@ class TopoMapDataset:
                                              num_partitions=5, num_rounds=100, repeat=1,
                                              save=True, random=False, get_likelihoods=False, db_test=None):
         """
-        Return a dataset of samples that can be used to train template SPNs. This
-        dataset contains symmetrical data, i.e. for every pair of semantics, its
+        Return a dataset of samples that can be used to train template SPNs.
+
+        This dataset contains symmetrical data, i.e. for every pair of semantics, its
         reverse is also present in the dataset.
 
         If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
@@ -297,6 +298,8 @@ class TopoMapDataset:
                     sampler = NodeTemplatePartitionSampler(topo_map)
                 elif template_type.lower() == "view":
                     sampler = EdgeRelationPartitionSampler(topo_map)
+                elif template_type.lower() == "star":
+                    sampler = NodeTemplatePartitionSampler(topo_map, templates=Template.templates_for("star"))
                 else:
                     raise ValueError("Unrecognized template type %s" % template_type)
 
@@ -308,7 +311,7 @@ class TopoMapDataset:
                                                                                   pick_best=True)
                     chosen_pset = partition_sets[best_index]
                 for p in chosen_pset:
-                    if template_type.lower() == "three":
+                    if template_type.lower() == "three" or template_type.lower() == "star":
                         for template in p:
                             if template not in samples[db_name][seq_id]:
                                 samples[db_name][seq_id][template] = []
@@ -316,7 +319,7 @@ class TopoMapDataset:
                             supergraph = p[template]
                             for snid in supergraph.nodes:
                                 samples[db_name][seq_id][template].append(supergraph.nodes[snid].to_catg_list())
-                                if template.num_nodes() >= 2:
+                                if template.num_nodes() >= 2 and template.num_nodes() <= 3:
                                     samples[db_name][seq_id][template].append(list(reversed(supergraph.nodes[snid].to_catg_list())))
 
                                 # If we want likelihoods

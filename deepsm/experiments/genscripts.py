@@ -6,6 +6,7 @@ import yaml
 import argparse
 import sys, os
 import copy
+import deepsm.util as util
 
 def read_paramcfg_file(filepath):
     with open(filepath) as f:
@@ -144,6 +145,9 @@ def handle_graphspn():
     args = parser.parse_args(sys.argv[2:])
     cases = proc_cases(args.cases, args.db)
 
+    util.CategoryManager.TYPE = args.category_type
+    util.CategoryManager.init()
+
     # Generate commands
     settings = read_paramcfg_file(args.paramcfg_file)
     commands = []
@@ -155,10 +159,11 @@ def handle_graphspn():
             num_partitions = setting["num_partitions"][0]
 
             # batch_size, epoch, likelihood_thresholds (fmt: 0001 means 0.001), sampling method, dgsm_lh
-            trial_cfg_str = "B%dE%dlh%sm%s"\
+            trial_cfg_str = "B%dE%dlh%sm%sC%d"\
                             % (setting["batch_size"][0], setting["epochs"][0],
                                str(setting["likelihood_thres"][0]).replace(".",""),
-                               "RANDOM" if setting["random_sampling"][0] else "")
+                               "RANDOM" if setting["random_sampling"][0] else "",
+                               util.CategoryManager.NUM_CATEGORIES)
             trial_cfg_str += "dgsmLh" if setting["train_with_likelihoods"][0] else ""
             test_name = "full%s%sP%dT0%strain%s" % (template, args.exp_case,
                                                     num_partitions,
@@ -169,6 +174,7 @@ def handle_graphspn():
                          + "-e %s " % args.exp_name\
                          + "-t %s " % test_name\
                          + "--test-floor %s " % test_floor\
+                         + "--category-type %s " % args.category_type\
                          + " "
             for param_name in setting:
                 value = setting[param_name][0]

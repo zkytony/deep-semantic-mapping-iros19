@@ -298,11 +298,12 @@ class TbmExperiment(Experiment):
         train_info = {}
         
         # string that identifies this trial.
-        trial_cfg_str = "B%dE%dlh%sm%s"\
+        trial_cfg_str = "B%dE%dlh%sm%sC%d"\
                         % (batch_size,
                            num_epochs,
                            str(likelihood_thres).replace(".",""),
-                           partition_sampling_method)
+                           partition_sampling_method,
+                           CategoryManager.NUM_CATEGORIES)
         trial_cfg_str += "dgsmLh" if use_dgsm_likelihoods else ""
 
         for model in self._spns:
@@ -408,7 +409,6 @@ class TbmExperiment(Experiment):
                     labels.append("test")
                 plot_fname = "loss-"\
                              + os.path.splitext(os.path.basename(model_save_path))[0]\
-                             + "_%s" % trial_cfg_str\
                              + ".png"
                 save_path = os.path.join(os.path.dirname(model_save_path), plot_fname)
                 plot_to_file(*plot_lhs, labels=labels, path=save_path, xlabel='epoch', ylabel='loss')

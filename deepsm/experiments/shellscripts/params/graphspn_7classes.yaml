@@ -6,7 +6,8 @@ _global:
                 "likelihood_thres",  # likelihood update threshold
                 "train_with_likelihoods",
                 "skip_placeholders",
-                "random_sampling"]
+                "random_sampling",
+                "investigate"]
   default_values: ["THREE",
                    5,
                    100,
@@ -14,10 +15,11 @@ _global:
                    0.01,
                    True,
                    True,
+                   True,
                    True]
   options: ['--template', '--num-partitions', '--epochs-training',
             '--batch-size', '--likelihood-thres', '--train-with-likelihoods',
-            '--skip-placeholders', '--random-sampling']
+            '--skip-placeholders', '--random-sampling', '--investigate']
 
 
 exp_template:
@@ -30,7 +32,7 @@ exp_num_partitions:
 
 exp_batch_size:
   param_indices: [3]
-  values: [[10], [100], [200]]
+  values: [[100], [200], [500]]
 
 exp_likelihood_thres:
   param_indices: [4]

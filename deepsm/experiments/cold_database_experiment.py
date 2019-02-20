@@ -561,7 +561,7 @@ def same_building():
     parser.add_argument('-L', '--likelihood-thres', type=float, help="Likelihood update threshold for training.", default=0.05)
     parser.add_argument('-B', '--batch-size', type=int, help="Batch size of training", default=200)
     parser.add_argument("--skip-placeholders", help='Skip placeholders. Placeholders will not be part of the graph.', action='store_true')
-    parser.add_argument("--category-type", type=str, help="either SIMPLE, FULL, or BINARY", default="SIMPLE")
+    parser.add_argument("--category-type", type=str, help="either SEVEN, SIMPLE, FULL, or BINARY", default="SIMPLE")
     parser.add_argument("--template", type=str, help="either VIEW, THREE, or STAR", default="THREE")
     parser.add_argument("--random-sampling", action="store_true", help='Sample partitions randomly (but with higher complexity first). Not using a sampler.')
     parser.add_argument("--similarity-coeff", type=float, default=-3.0)
@@ -599,7 +599,7 @@ def same_building():
         'partition_sampling_method': "RANDOM" if args.random_sampling else "ENERGY",
         
         "num_epochs": args.epochs_training,
-        'likelihood_thresh': args.likelihood_thres,
+        'likelihood_thres': args.likelihood_thres,
 
         # spn structure
         "num_decomps": 1,
@@ -695,7 +695,7 @@ def across_buildings():
     #     'save_training_info': True,
         
     #     'timestamp': timestamp,
-    #     'likelihood_thresh': 0.0,
+    #     'likelihood_thres': 0.0,
     #     'num_epochs': 50,
 
     #     # spn structure

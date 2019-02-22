@@ -256,15 +256,11 @@ class FactorGraphTest:
         """Visualize"""
         def save_vis(topo_map, category_map, db_name, seq_id, save_path,
                      name,  consider_placeholders):
-            included_nids = None
-            if not consider_placeholders:
-                included_nids = {nid for nid in topo_map.nodes
-                                 if not topo_map.nodes[nid].placeholder}
             ColdMgr = ColdDatabaseManager(db_name, COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
             topo_map.assign_categories(category_map)
             rcParams['figure.figsize'] = 22, 14
             topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'),
-                               consider_placeholders=consider_placeholders, included_nodes=included_nids)
+                               consider_placeholders=consider_placeholders)
             if not os.path.exists(os.path.join(save_path, seq_id)):
                 os.makedirs(os.path.join(save_path, seq_id))
             plt.savefig(os.path.join(save_path, seq_id, '%s_%s_%s.png' % (db_name, seq_id, name)))
@@ -274,11 +270,11 @@ class FactorGraphTest:
         if save_path is None:
             save_path = self._result_dir
         if groundtruth:
-            save_vis(topo_map, groundtruth, self._db_test, seq_id, save_path, 'groundtruth', False)
+            save_vis(topo_map, groundtruth, self._db_test, seq_id, save_path, 'groundtruth', consider_placeholders)
         if masked:
             save_vis(topo_map, masked, self._db_test, seq_id, save_path, 'query', consider_placeholders)
         if result:
-            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', False)
+            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', consider_placeholders)
 
 
     def run_instance(self, seq_id, topo_map, masked, groundtruth, likelihoods=None,

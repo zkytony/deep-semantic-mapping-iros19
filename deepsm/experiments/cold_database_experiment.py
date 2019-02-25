@@ -13,6 +13,7 @@ import argparse
 import time
 import os, sys
 import random
+import itertools
 import json, yaml
 from pprint import pprint
 import tensorflow as tf
@@ -518,12 +519,16 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                 elif test_kwargs['expr_case'].lower() == "inferplaceholder":
                     report = exp.test(ColdDatabaseExperiment.TestCase_InferPlaceholders, sess, **test_kwargs)
                 elif test_kwargs['expr_case'].lower() == "novelty":
-                    # Do 10 random swaps
-                    classes_on_map = {topo_map.nodes[nid].label for nid in topo_map.nodes}
-                    test_kwargs['cases'] = []
-                    for i in range(10):
-                        class1, class2 = random.sample(classes_on_map, 2)
-                        test_kwargs['cases'].append((class1, class2))
+                    # For 6 classes, 6C2=15, we choose 10 random pairs. 
+                    if util.CategoryManager.NUM_CATEGORIES < 10:
+                        num_swaps = 10
+                    else:
+                        num_swaps = 30
+                    class_pairs = list(itertools.combinations({topo_map.nodes[nid].label for nid in topo_map.nodes},
+                                                              2))
+                    chosen_swaps = random.sample(class_pairs, num_swaps)
+                    test_kwargs['cases'] = [(class1, class2)
+                                            for class1, class2 in chosen_swaps]
                     report = exp.test(ColdDatabaseExperiment.TestCase_NoveltyDetection, sess, **test_kwargs)
                     
     except KeyboardInterrupt as ex:

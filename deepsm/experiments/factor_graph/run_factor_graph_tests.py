@@ -26,6 +26,7 @@ import random
 import subprocess
 import time
 import json
+import itertools
 from pprint import pprint
 import argparse
 
@@ -290,7 +291,7 @@ class FactorGraphTest:
                             elements where N is the number of semantic classes, and a value
                             is the likelihood that the corresponding node belongs to this class.
                             Assume that the order of the class in the tuple is from 0 - NUM_CATEGORIES-1.
-        consider_placeholder is True if we want to only compute the accuracy over the
+        consider_placeholder is True if we want to ONLY compute the accuracy over the
             placeholder nodes.
         avoid_placeholders is True if we want to exclude placeholder nodes when computing
             the accuracy.
@@ -436,11 +437,16 @@ class FactorGraphTest:
         print("Likelihood no swap: %.3f" % logscore)
 
         # Cases
-        # Do 10 random swaps
-        cases = []
-        for i in range(10):
-            class1, class2 = random.sample(CategoryManager.known_categories(), 2)
-            cases.append((class1, class2))
+        # For 6 classes, 6C2=15, we choose 10 random pairs. 
+        if CategoryManager.NUM_CATEGORIES < 10:
+            num_swaps = 10
+        else:
+            num_swaps = 30
+        class_pairs = list(itertools.combinations({topo_map.nodes[nid].label for nid in topo_map.nodes},
+                                                  2))
+        chosen_swaps = random.sample(class_pairs, num_swaps)
+        cases = [(class1, class2)
+                 for class1, class2 in chosen_swaps]
         
         for swapped_classes in cases:
             c1, c2 = swapped_classes
@@ -553,7 +559,7 @@ class FactorGraphTest:
         category number. `masked` may contain -1 as category numbers to indicate missing
         information.
 
-        consider_placeholder is True if we want to only compute the accuracy over the
+        consider_placeholder is True if we want to ONLY compute the accuracy over the
             placeholder nodes. If False, then accuracy is computed over all nodes.
         avoid_placeholders is True if we want to exclude placeholder nodes when computing
             the accuracy. If False, it depends on the value of consider_placeholder to

@@ -245,7 +245,7 @@ class ColdDatabaseExperiment(TbmExperiment):
                 yaml.dump(report['instance'], f)
 
             # Save visualizations
-            save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  True)
+            save_vis(self._topo_map, report['instance']['true'], self._graph_id, save_path, 'groundtruth',  False)  # We don't want gray placeholders
             save_vis(self._topo_map, report['instance']['query'], self._graph_id, save_path, 'query', True)
             save_vis(self._topo_map, report['instance']['result'], self._graph_id, save_path, 'result', False)  # All nodes are no
             print("  Saved to: %s" % os.path.basename(save_path))

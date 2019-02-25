@@ -146,7 +146,6 @@ class Data:
             scan = i[2]
             if "#" in rid:
                 room_id, seq_id = rid.split("#")[0], rid.split("#")[1]
-            
                 if room_id in self._train_rooms and rnum != CategoryManager.CAT_MAP['UN']:
                     if type(i[-2]) == str and i[-2] == "graph_node":
                         training_scans_graph.append(scan)

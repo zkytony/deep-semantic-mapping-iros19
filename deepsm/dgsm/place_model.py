@@ -215,7 +215,8 @@ class PlaceModel:
             self._learn_spn, self._loss_op = self._gd_learning.learn(optimizer=self._optimizer)
 
             # Op for getting likelihoods. The result is an array of likelihoods produced by sub-SPNs for different classes.
-            self._likelihood_op = self._likelihood_y_given_x() #self._gd_learning._value_gen.get_value(self._root.values[0].node)
+            # self._likelihood_op = self._likelihood_y_given_x() #self._gd_learning._value_gen.get_value(self._root.values[0].node)
+            self._likelihood_op = self._likelihood_x_given_y() #self._gd_learning._value_gen.get_value(self._root.values[0].node)
 
             self._init_weights = spn.initialize_weights(self._root)
             self._init_weights = [self._init_weights, tf.global_variables_initializer()]
@@ -569,6 +570,15 @@ class PlaceModel:
         # p(y|x) = p(x,y)/p(x)
         return log_likelihood_x_and_y - log_likelihood_x
 
+    
+    def _likelihood_x_given_y(self):
+        """Follows the implementation in libspn/learning/gd.py"""
+        # p(x|y)
+        log_likelihood_x_given_y = spn.inference.value.LogValue(dropconnect_keep_prob=self._gd_learning._dropconnect_keep_prob,
+                                                                dropprod_keep_prob=self._gd_learning._dropprod_keep_prob,
+                                                                noise=self._gd_learning._noise,
+                                                                batch_noise=self._gd_learning._batch_noise).get_value(self._root.values[0].node)
+        return log_likelihood_x_given_y
 
     def _compute_stats(self, graph_results):
         stats = {}

@@ -88,6 +88,8 @@ def gather_novelty_results(exp_name, test_case, test_name,
             
             no_swap = novelty['_no_swap_']['_normalized_']
             for case in novelty:
+                if case == "_uniform_":
+                    continue  # skip the uniform case
                 if type(case) == str and case.startswith("_"):
                     novelty[case] = novelty[case]['_normalized_']
                 if type(novelty[case]) == dict:
@@ -110,7 +112,7 @@ def gather_novelty_results(exp_name, test_case, test_name,
 
     pairs = []
     names = []
-    for floor in results:
+    for floor in reversed(sorted(results)):
         y_true = [k[0] for k in results[floor]]
         y_score = [k[1] for k in results[floor]]
         fpr, tpr, _ = metrics.roc_curve(y_true, y_score)
@@ -128,7 +130,7 @@ def main():
     parser = argparse.ArgumentParser(description="Gather stats for graphspn experiments; A test case" \
                                      "is located at [ExperimentName]/[TestCase]_timestamp_[test-name]_seq_id")
     parser.add_argument("exp_name", type=str, help="Name of experiment. e.g. GraphSPNToyExperiment")
-    parser.add_argument("test_case", type=str, help="Name of test. e.g. Classification")
+    parser.add_argument("test_case", type=str, help="Name of test. e.g. Classification, Novelty, InferPlaceholder")
     parser.add_argument("test_name", type=str, help="Name of test. e.g. mytest")
     parser.add_argument("-k", "--category-type", type=str, default="SEVEN") 
 

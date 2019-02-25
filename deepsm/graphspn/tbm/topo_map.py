@@ -511,7 +511,10 @@ class TopologicalMap:
     def visualize(self, ax, canonical_map_yaml_path=None, included_nodes=None,
                   dotsize=13, linewidth=1.0,
                   img=None, consider_placeholders=False, show_nids=False):
-        """Visualize the topological map `self`. Nodes are colored by labels, if possible."""
+        """Visualize the topological map `self`. Nodes are colored by labels, if possible.
+        If `consider_placeholders` is True, then all placeholders will be colored grey.
+        Note that the graph itself may or may not contain placeholders and `consider_placholders`
+        is not used to specify that."""
         # Open the yaml file
         with open(canonical_map_yaml_path) as f:
             map_spec = yaml.load(f)

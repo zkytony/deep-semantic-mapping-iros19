@@ -271,11 +271,11 @@ class FactorGraphTest:
         if save_path is None:
             save_path = self._result_dir
         if groundtruth:
-            save_vis(topo_map, groundtruth, self._db_test, seq_id, save_path, 'groundtruth', consider_placeholders)
+            save_vis(topo_map, groundtruth, self._db_test, seq_id, save_path, 'groundtruth', False)  # False because we don't want gray placeholders
         if masked:
             save_vis(topo_map, masked, self._db_test, seq_id, save_path, 'query', consider_placeholders)
         if result:
-            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', consider_placeholders)
+            save_vis(topo_map, result, self._db_test, seq_id, save_path, 'result', False)
 
 
     def run_instance(self, seq_id, topo_map, masked, groundtruth, likelihoods=None,

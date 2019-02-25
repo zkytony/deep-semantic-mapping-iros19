@@ -1,0 +1,6 @@
+_global:
+  param_names: ['batch-size', 'learning-rate', 'update-threshold', 'balance-data']
+  default_values: [200, 0.0001, 0.001, True]
+  options: ['--batch-size', '--learning-rate', '--update-threshold', '--balance-data']
+
+_run_global_case: True  # If set to true, run a case with global settings

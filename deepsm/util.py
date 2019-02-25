@@ -303,7 +303,9 @@ class CategoryManager:
         'BINARY': load_mapping("binary"),
         'SIMPLE': load_mapping("simple"),
         'FULL': load_mapping("full"),
-        'SEVEN': load_mapping("seven_stockholm")
+        'SIX': load_mapping("six_stockholm"),  # 1PO and 2PO combined
+        'SEVEN': load_mapping("seven_stockholm"),
+        'TEN': load_mapping("ten_stockholm")
     }
 
     CAT_MAP = None

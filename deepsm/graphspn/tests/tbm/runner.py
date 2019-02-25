@@ -188,6 +188,7 @@ class TbmExperiment(Experiment):
         print("Preloading all template training samples...")
         rs = self._dataset.load_template_dataset(self._template_type, db_names=list(db_names), random=random_sampling,
                                                  use_dgsm_likelihoods=use_dgsm_likelihoods, db_test=(self._test_db if investigate else None))
+        print("DONE!")
         if use_dgsm_likelihoods:
             if investigate:
                 self._train_samples_dict, self._train_dgsm_lh_dict, self._test_samples_dict, self._test_dgsm_lh_dict = rs

@@ -7,48 +7,16 @@ _global:
                 "train_with_likelihoods",
                 "random_sampling",
                 "investigate"]
-  # # For view template: lh:0.001; batch-size:200;
-  # default_values: ["VIEW",
-  #                  5,
-  #                  100,
-  #                  200,
-  #                  0.001,
-  #                  True,
-  #                  True,
-  #                  True,
-  #                  True]
-  # # For three-node template: lh: 0.0001; batch-size: 100
   default_values: ["THREE",
-                   40,
+                   40,  # infer placeholder with more partitions
                    100,
                    100,
                    0.0001,
                    True,
                    True,
                    False]  # no investigate needed
-  # default_values: ["STAR",
-  #                  5,
-  #                  100,
-  #                  100,
-  #                  0.0001,
-  #                  True,
-  #                  True,
-  #                  True,
-  #                  True]
   options: ['--template', '--num-partitions', '--epochs-training',
             '--batch-size', '--likelihood-thres', '--train-with-likelihoods',
             '--random-sampling', '--investigate']
 
 _run_global_case: True  # If set to true, run a case with global settings
-
-# exp_num_partitions:
-#   param_indices: [1]
-#   values: [[1], [3], [5], [7]]
-
-# exp_batch_size:
-#   param_indices: [3]
-#   values: [[100], [200], [500]]
-
-# exp_likelihood_thres:
-#   param_indices: [4]
-#   values: [[0.1], [0.01], [0.001], [0.0001]]

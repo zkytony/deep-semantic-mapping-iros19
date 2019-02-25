@@ -130,7 +130,7 @@ def handle_graphspn():
     parser = argparse.ArgumentParser("Generate shell scripts to run GraphSPN experiments")
     parser.add_argument("db", type=str, help="Building. e.g .Stockholm")
     parser.add_argument("exp_name", type=str, help="Experiment name. Should be unique for grouping results")
-    parser.add_argument("exp_case", type=str, help="Experiment type. For example Classification, Novelty.")
+    parser.add_argument("exp_case", type=str, help="Experiment type. For example Classification, Novelty, InferPlaceholder.")
     parser.add_argument("paramcfg_file", type=str, help="Path to a file that defines what parameters"\
                         "you want to vary and what values you want to set them to. A controlled experiment"\
                         "will be performed for those parameters. You can also vary multiple parameters"\
@@ -148,10 +148,15 @@ def handle_graphspn():
     util.CategoryManager.TYPE = args.category_type
     util.CategoryManager.init()
 
+    skip_placeholders = True
+    if args.exp_case.lower() == "inferplaceholder":
+        skip_placeholders = False
+
     # Generate commands
     settings = read_paramcfg_file(args.paramcfg_file)
     commands = []
     for setting in settings:
+        setting["skip_placeholders"] = (skip_placeholders, "--skip-placeholders")
         for test_case in cases:
             test_floor = test_case.split("-")[1]
 
@@ -180,7 +185,8 @@ def handle_graphspn():
                 value = setting[param_name][0]
                 option = setting[param_name][1]
                 if type(value) is bool:
-                    option_str += option + " "
+                    if value is True:
+                        option_str += option + " "
                 else:
                     option_str += option + " " + str(value) + " "            
             

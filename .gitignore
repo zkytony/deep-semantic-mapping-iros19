@@ -5,6 +5,7 @@ deepsm/experiments/dataset/topo_map
 deepsm/experiments/dataset/cold-groundtruth
 deepsm/experiments/results
 deepsm/experiments/analysis
+deepsm/experiments/shellscripts/*.sh
 
 # Python project
 *.egg-info

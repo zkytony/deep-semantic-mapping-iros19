@@ -50,5 +50,6 @@
         8: 'MR',
         9: 'UT',  # utility
         10: 'UN'
-    }    
+    },
+    'regular_swaps': [ ['LAB', 'KT'], ['LAB', 'MR'], ['KT','MR'], ['BA', 'AT']]
 }

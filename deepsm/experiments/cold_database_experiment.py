@@ -88,6 +88,8 @@ class ColdDatabaseExperiment(TbmExperiment):
                                                 '_num_nodes_': len(topo_map.nodes)}
             print("Likelihood no swap %.3f" % lh_val_no_swap)
 
+            inf_times = []
+
             for swapped_classes in cases:
                 c1, c2 = swapped_classes
                 topo_map.swap_classes(swapped_classes)
@@ -106,12 +108,17 @@ class ColdDatabaseExperiment(TbmExperiment):
                     #     # query_lh[nid] = np.log(np.full((util.CategoryManager.NUM_CATEGORIES,), 1.0))
                     #     # query[nid] = util.CategoryManager.category_map(topo_map.nodes[nid].label)
                 # Evaluate network
+                start_time = time.time()
                 lh_val = float(instance_spn.evaluate(sess, query, sample_lh=query_lh)[0])
+                inf_times.append(time.time() - start_time)
                 print("Swap %s and %s: %.3f" % (c1, c2, lh_val))
                 __record['results'][swapped_classes] = {'_raw_': lh_val,
                                                         '_normalized_': lh_val / len(topo_map.nodes),
                                                         '_num_nodes_': len(topo_map.nodes)}
                 topo_map.reset_categories()
+            print("Finished %d inferences with average %.6fs per inference." % (len(cases), np.mean(inf_times)))
+            print("                       worse case   %.6fs." % np.max(inf_times))
+            print("Graph size: %d" % len(topo_map.nodes))
 
             self._record = __record
 
@@ -524,8 +531,7 @@ def run_experiment(seed, train_kwargs, test_kwargs, templates, exp_name,
                         num_swaps = 10
                     else:
                         num_swaps = 30
-                    class_pairs = list(itertools.combinations({topo_map.nodes[nid].label for nid in topo_map.nodes},
-                                                              2))
+                    class_pairs = list(itertools.combinations(util.CategoryManager.known_categories(), 2))
                     chosen_swaps = random.sample(class_pairs, num_swaps)
                     test_kwargs['cases'] = [(class1, class2)
                                             for class1, class2 in chosen_swaps]

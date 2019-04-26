@@ -312,6 +312,7 @@ class CategoryManager:
     CAT_REV_MAP = None
     CAT_COLOR = None
     PLACEHOLDER_COLOR = '#b8b8b8'
+    REGULAR_SWAPS = None
     
     @staticmethod
     def init():
@@ -320,6 +321,8 @@ class CategoryManager:
             CategoryManager.CAT_REV_MAP = CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]['BW']
             CategoryManager.CAT_COLOR = CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]['CL']
             CategoryManager.PLACEHOLDER_COLOR = '#b8b8b8'
+            if "regular_swaps" in CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]:
+                CategoryManager.REGULAR_SWAPS = CategoryManager.CAT_MAP_ALL[CategoryManager.TYPE]['regular_swaps']
 
             if CategoryManager.SKIP_UNKNOWN:
                 CategoryManager.NUM_CATEGORIES = len(CategoryManager.CAT_COLOR) - 2  # exclude '-1' and catg_num('UN')
@@ -398,6 +401,16 @@ class CategoryManager:
     def novel_categories():
         """Novel categories are all represented by the 'unknown' class"""
         return ['UN']
+
+    @staticmethod
+    def is_novel_swap(class1, class2):
+        """Given a swap of class1 and class2 (strings), return True if this swap is resulting in a
+        novel structure."""
+        if CategoryManager.REGULAR_SWAPS is not None:
+            return not ([class1, class2] in CategoryManager.REGULAR_SWAPS\
+                        or [class2, class1] in CategoryManager.REGULAR_SWAPS)
+        else:
+            raise ValueError("Operation not possible. Did not specify regular class swaps.")
 
 
 class ColdDatabaseManager:

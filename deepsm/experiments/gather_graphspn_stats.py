@@ -90,8 +90,8 @@ def gather_novelty_results(exp_name, test_case, test_name,
             for case in novelty:
                 if case == "_uniform_":
                     continue  # skip the uniform case
-                if type(case) == str and case.startswith("_"):
-                    novelty[case] = novelty[case]['_normalized_']
+                # if type(case) == str and case.startswith("_"):
+                #     novelty[case] = novelty[case]['_normalized_']
                 if type(novelty[case]) == dict:
                     novelty[case] = novelty[case]['_normalized_']
 

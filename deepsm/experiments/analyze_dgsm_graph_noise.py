@@ -88,11 +88,11 @@ def compute_noise_level(db_name, test_case):
                 stat_incrct.extend(stat_incrct_seq)
 
     result = {
-        '_D_20_': {
+        '_D_incorrect_': {
             'avg': np.mean(stat_incrct),
             'std': np.std(stat_incrct),
         },
-        '_D_80_': {
+        '_D_correct_': {
             'avg': np.mean(stat_crct),
             'std': np.std(stat_crct),
         }

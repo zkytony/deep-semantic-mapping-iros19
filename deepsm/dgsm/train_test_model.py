@@ -111,8 +111,6 @@ def create_parser():
                               help='Additive smoothing min value')
     learn_params.add_argument('--smoothing-decay', type=float, default=0.2,
                               help='Additive smoothing decay')
-
-
     # Testing params
     test_params = parser.add_argument_group(title="testing parameters")
     test_params.add_argument('--mask-seed', type=int, default=100,
@@ -337,7 +335,14 @@ def main(args=None):
                      ylabel='Cross Entropy Loss', path=loss_plot_path)
         np.savetxt(os.path.join(dirpath, 'loss-train-%s.txt' % trial_name), train_loss, delimiter=',', fmt='%.4f')
         np.savetxt(os.path.join(dirpath, 'loss-test-%s.txt' % trial_name), test_loss, delimiter=',', fmt='%.4f')
-        
+
+        mpe_states = model.mpe_states()
+        for i in range(len(mpe_states)):
+            data.plot_polar_scan(mpe_states[i], os.path.join(dirpath,
+                                                             "mpe-%s-%s.png" % (CategoryManager.category_map(i, rev=True),
+                                                                                trial_name)))
+
+        # Test
         cm_weighted, cm_weighted_norm, stats, roc_results = model.test(args.results_dir, graph_test=args.graph_test)
         train_graph_lh = model.train_samples_exam(dirpath, trial_name)
         model.test_samples_exam(dirpath, trial_name)

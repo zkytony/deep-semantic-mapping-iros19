@@ -1,4 +1,4 @@
-# Single DGSM for all classes
+# Single DGSM for all classesst
 from enum import Enum
 import libspn as spn
 import numpy as np
@@ -9,6 +9,7 @@ import pprint as pp
 import os, sys
 import json, yaml, csv
 import random
+import time
 from sklearn import metrics
 spn.conf.renormalize_dropconnect = True
 spn.conf.rescale_dropconnect = True
@@ -265,7 +266,7 @@ class PlaceModel:
         batch = 0
         epoch = 0
 
-        print("Start Training.tr..")
+        print("Start Training...")
         while (self._learning_algorithm == spn.GDLearning \
                and epoch < epoch_limit and abs(prev_loss - loss)>update_threshold) \
                or (self._learning_algorithm == spn.EMLearning \
@@ -326,9 +327,10 @@ class PlaceModel:
                     print("Test Loss: %.3f  " % loss_test)
 
                 print("Computing train performance...")
-                perf_train = self.performance(train_set, train_labels, batch_size=500)
+                perf_train, _ = self.performance(train_set, train_labels, batch_size=500)
                 print("Computing test performance...")
-                perf_test = self.performance(self._data.testing_scans, self._data.testing_labels, batch_size=100)
+                perf_test, time_taken = self.performance(self._data.testing_scans, self._data.testing_labels, batch_size=100)
+                print("Average time taken to evaluate each testing scan: %.5f" % (time_taken))
                 
                 for k in range(CategoryManager.NUM_CATEGORIES):
                     train_perf[k].append(perf_train[k])
@@ -340,6 +342,28 @@ class PlaceModel:
                 batch_losses = []
 
         return losses
+
+
+    def mpe_states(self):
+        """After the model is trained, return a list of mpe state (images) that are
+        the model's internal representation of the class geometries. The list is
+        ordered accroding to the indices of classes in CategoryManager."""
+        print("Generating MPE State Ops...")
+        mpe_state_gen = spn.MPEState(log=True, value_inference_type=spn.InferenceType.MPE)
+        mpe_ivs, mpe_latent = mpe_state_gen.get_state(self._root, self._ivs, self._latent)
+
+        num_vars = self._ivs.num_vars
+        num_vals = self._ivs.num_vals
+
+        print("Performing MPE Inference for classes:")
+        results = []
+        for i in range(CategoryManager.NUM_CATEGORIES):
+            print("  %d: %s" % (i, CategoryManager.category_map(i, rev=True)))
+            mpe_ivs_val = self._sess.run([mpe_ivs],
+                                         feed_dict={self._ivs: np.full((1, num_vars), -1),
+                                                    self._latent: np.array([[i]])})
+            results.append(mpe_ivs_val[0][0])
+        return results
 
             
     def test(self, results_dir, batch_size=50, graph_test=True, last_batch=True):
@@ -423,15 +447,18 @@ class PlaceModel:
         total = np.array([0 for i in range(CategoryManager.NUM_CATEGORIES)])
         batch = 0
         stop = min(batch_size, len(scans))
+        time_taken = []
         while stop < len(scans):
             start = (batch)*batch_size
             stop = min((batch+1)*batch_size, len(scans))
             print("    BATCH", batch, "SAMPLES", start, stop)
 
+            start_time = time.time()
             likelihoods_arr = self._sess.run([self._likelihood_op],
                                              feed_dict={self._ivs: scans[start:stop],
                                                         self._latent: np.full((stop-start, 1), -1),
                                                         self._dropconnect_placeholder: 1.0})[0]
+            time_taken.append((time.time() - start_time) / float(stop - start))
             batch += 1
 
             for i in range(len(likelihoods_arr)):
@@ -443,7 +470,7 @@ class PlaceModel:
 
         print(correct / total)
 
-        return correct / total
+        return correct / total, np.mean(time_taken)
     
 
     def samples_exam(self, scans, labels, writer, write_row_func, batch_size=100,

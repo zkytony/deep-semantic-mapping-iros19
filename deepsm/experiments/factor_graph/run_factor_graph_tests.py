@@ -442,12 +442,11 @@ class FactorGraphTest:
             num_swaps = 10
         else:
             num_swaps = 30
-        class_pairs = list(itertools.combinations({topo_map.nodes[nid].label for nid in topo_map.nodes},
-                                                  2))
+        class_pairs = list(itertools.combinations(CategoryManager.known_categories(), 2))
         chosen_swaps = random.sample(class_pairs, num_swaps)
         cases = [(class1, class2)
                  for class1, class2 in chosen_swaps]
-        
+
         for swapped_classes in cases:
             c1, c2 = swapped_classes
             topo_map.swap_classes(swapped_classes)

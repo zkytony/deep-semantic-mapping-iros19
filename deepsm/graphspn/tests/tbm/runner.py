@@ -18,7 +18,7 @@ from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeR
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.spn_model import SpnModel
 from deepsm.util import CategoryManager, ColdDatabaseManager, json_safe, plot_to_file
-from deepsm.graphspn.tests.constants import COLD_ROOT, TOPO_MAP_DB_ROOT
+from deepsm.experiments.common import COLD_ROOT, TOPO_MAP_DB_ROOT
 import deepsm.experiments.paths as paths
 
 
@@ -858,7 +858,6 @@ def get_noisification_level(high_likelihood_correct, low_likelihood_correct,
     we focus on the difference between the true class's likelihood and the highest likelihood.
     If the difference is large, then nosification is large.
     """
-    coldmgr = ColdDatabaseManager("Stockholm", COLD_ROOT)
     dataset = TopoMapDataset(TOPO_MAP_DB_ROOT)
     print("Loading data...")
     dataset.load("Stockholm", skip_unknown=True)

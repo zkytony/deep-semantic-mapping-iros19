@@ -4,6 +4,7 @@ num_partitions: 10
 num_batches: 10
 save: True
 load_if_exists: True
+num_epochs: 10
 likelihood_thres: 0.2
 will_upsample: TbmExperiment.will_upsample
 upsample_rate: 0

@@ -16,13 +16,13 @@ num_subsets: 3
 num_mixtures: 2
 num_input_mixtures: 2
 
-# learning_algorithm: spn.GDLearning
-# learning_type: spn.LearningType.GENERATIVE
-# learning_rate: 0.001
+learning_algorithm: spn.GDLearning
+learning_type: spn.LearningType.GENERATIVE
+learning_rate: 0.001
 
-# spn learning
-learning_algorithm: spn.EMLearning
-additive_smoothing: 30
+# # spn learning
+# learning_algorithm: spn.EMLearning
+# additive_smoothing: 30
 
 #---Changeable---#
 templates: [SingleRelTemplate, SingleTemplate, RelTemplate, ThreeRelTemplate]

@@ -40,8 +40,6 @@ from deepsm.graphspn.tests.tbm.runner import TbmExperiment, doorway_policy, rand
 from deepsm.graphspn.tests.runner import TestCase
 from deepsm.util import CategoryManager, print_banner, print_in_box, ColdDatabaseManager
 
-CategoryManager.TYPE = 'FULL'
-
 ########### Constants ###########
 # Paths. Need to change if you work on a different machine.
 from deepsm.experiments.common import COLD_ROOT, DGSM_RESULTS_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT, GROUNDTRUTH_ROOT
@@ -280,7 +278,7 @@ class InstanceSpnExperiment(TbmExperiment):
         def save_results(self, save_path):
 
             def save_vis(topo_map, category_map, db_name, seq_id, save_path, name, consider_placeholders):
-                ColdMgr = ColdDatabaseManager(db_name, COLD_ROOT)
+                ColdMgr = ColdDatabaseManager(db_name, COLD_ROOT, gt_root=GROUNDTRUTH_ROOT)
                 topo_map.assign_categories(category_map)
                 rcParams['figure.figsize'] = 22, 14
                 topo_map.visualize(plt.gca(), ColdMgr.groundtruth_file(seq_id.split("_")[0], 'map.yaml'), consider_placeholders=consider_placeholders)
@@ -794,6 +792,9 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
 
 
 def load_kwargs_from_file(filepath, eval_keys={}):
+    """
+    eval_keys: a set of parameters that need to be interpreted by the 'eval()' function.
+    """
 
     with open(filepath) as f:
         params = yaml.load(f)
@@ -803,7 +804,11 @@ def load_kwargs_from_file(filepath, eval_keys={}):
         if key not in params:
             print("Warning: eval_key %s is not in the parameters." % key)
         else:
-            params[key] = eval(params[key])
+            try:
+                params[key] = eval(params[key])
+            except Exception as ex:
+                print("Eexception evaluating \"%s\"->%s" % (key, param[key]))
+                raise ex
     return params
 
 def main():
@@ -882,7 +887,7 @@ def main():
     train_kwargs_file = args.train_kwargs_file
     test_kwargs_file = args.test_kwargs_file
 
-    train_kwargs = load_kwargs_from_file(train_kwargs_file, eval_keys={'skip_unknown', 'learning_type', 'learning_algorithm'})
+    train_kwargs = load_kwargs_from_file(train_kwargs_file, eval_keys={'skip_unknown', 'learning_algorithm'})
     test_kwargs = load_kwargs_from_file(test_kwargs_file, eval_keys={'inference_type',
                                                                      'high_likelihood_correct', 'low_likelihood_correct',
                                                                      'high_likelihood_incorrect', 'low_likelihood_incorrect'})  # cases is only used for Novelty detection.

@@ -31,11 +31,11 @@ num_radius_cells = len(radiuses)-1
 
 # ----- Constants -----
 # Gerlach
-COLD_ROOT = "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
-EXPERIMENTS_ROOT = "/home/zkytony/Documents/thesis/experiments/deep-semantic-mapping/deepsm/experiments"
+COLD_ROOT = "" # "/home/zkytony/sara/sara_ws/src/sara_processing/sara_cold_processing/forpub/COLD"
+EXPERIMENTS_ROOT = "/home/kaiyuzh/repo/deep-semantic-mapping/deepsm/experiments"
 
 GROUNDTRUTH_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "cold-groundtruth")
-TOPO_MAP_DB_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "topo_map")
+TOPO_MAP_DB_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "cold-topomaps")
 DGSM_DB_ROOT = os.path.join(EXPERIMENTS_ROOT, "dataset", "dgsm")
 
 BP_RESULTS_ROOT = os.path.join(EXPERIMENTS_ROOT, "results", "factor_graph")

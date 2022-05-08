@@ -213,7 +213,9 @@ class InstanceSpnExperiment(TbmExperiment):
                     # Query should be all -1. And we query for all nodes.
                     query_nids = list(topo_map.nodes.keys())
                     query = {k:-1 for k in query_nids}#TbmExperiment.create_category_map_from_likelihoods(0, query_lh) #
+                start = time.time()
                 marginals = instance_spn.marginal_inference(sess, query_nids, query, query_lh=query_lh)
+                print("inference finished in %.3fs" % (time.time() - start))
                 result_catg_map = {}
                 for nid in query:
                     if expand:
@@ -632,6 +634,22 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
         with tf.Session() as sess:
             train_info = exp.train_models(sess, **train_kwargs)
 
+            # Check the trained model's behavior
+            threetspn = exp.get_model(ThreeNodeTemplate)
+            cases = []
+            print("evaluating template spn...")
+            for i in range(CategoryManager.NUM_CATEGORIES):
+                for j in range(CategoryManager.NUM_CATEGORIES):
+                    for k in range(CategoryManager.NUM_CATEGORIES):
+                        sample = np.array([i, j, k])
+                        likelihood_val = threetspn.evaluate(sess, sample)[0][0]
+                        cases.append(tuple(CategoryManager.category_map(m, rev=True)
+                                           for m in [i,j,k]) + ("%.5f" % (likelihood_val),))
+            with open("three_tspn_training.csv", "w") as f:
+                for c in cases:
+                    f.write(", ".join(c) + "\n")
+            
+
             # Relax priors for simple template SPNs:
             if exp._template_mode == NodeTemplate.code():
                 # Relax the single template spn's prior
@@ -648,7 +666,7 @@ def run_experiments(train_kwargs, test_kwargs, to_do,
                 SpnModel.make_weights_same(sess, tspn10.root)
                 SpnModel.make_weights_same(sess, tspn01.root)
             
-            for template_spn in spns:                
+            for template_spn in spns:
                 # remove inputs
                 template_spn._conc_inputs.set_inputs()
                 

@@ -233,6 +233,60 @@ class TopoMapDataset:
 
             return samples
 
+    def create_template_dataset(self, *templates, num_partitions=10,
+                                db_names=None, seq_ids=None, seqs_limit=-1):
+        """
+        Return a dataset of samples that can be used to train template SPNs. This
+        dataset contains symmetrical data, i.e. for every pair of semantics, its
+        reverse is also present in the dataset.
+        If `db_names` and `seq_ids` are both None, load from all db_names. If both are not None,
+        will treat `seq_ids` as None. `seq_ids` should be a list of "{db}-{seq_id}" strings.
+        Return format:
+           {K:V}, K is database name, V is -->
+            --> NxM list, where N is the number of data samples, and M is the number of
+           nodes in the templates provided. For example, with 3-node template, each
+           data sample would be a list [a, b, c] where a, b, c are the category numbers
+           for the nodes on the template.
+        """
+        samples = {}
+        total_seqs_count = 0
+        if db_names is None and seq_ids is None:
+            db_names = self._topo_maps_data.keys()
+
+        topo_maps = {}  # map from "{db}_{seq_id}" to topo map
+        if db_names is not None:
+            for db_name in db_names:
+                samples[db_name] = []
+                for seq_id in self._topo_maps_data[db_name]:
+                    topo_maps[db_name+"-"+seq_id] = self._topo_maps_data[db_name][seq_id]
+
+        else:  # seq_ids must not be None
+            for db_seq_id in seq_ids:
+                db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+                topo_maps[db_seq_id] = self._topo_maps_data[db_name][seq_id]
+                if db_name not in samples:
+                    samples[db_name] = []
+                
+        for kk in range(num_partitions):
+            for db_seq_id in topo_maps:
+                db_name, seq_id = db_seq_id.split("-")[0], db_seq_id.split("-")[1]
+                supergraph = topo_maps[db_seq_id]
+
+                for tmpl in templates:
+                    supergraph = supergraph.partition(tmpl)
+
+                for n in supergraph.nodes:
+                    template_sample = supergraph.nodes[n].to_catg_list()
+                    samples[db_name].append(template_sample)
+                    samples[db_name].append(list(reversed(template_sample)))
+
+                total_seqs_count += 1
+
+                if seqs_limit > 0 and total_seqs_count >= seqs_limit:
+                    return samples
+        return samples                
+        
+
 
     def create_template_dataset_with_sampler(self, template_type, db_names=None, seq_ids=None, seqs_limit=-1,
                                              num_partitions=5, num_rounds=100, repeat=1,

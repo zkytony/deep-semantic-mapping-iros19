@@ -471,14 +471,58 @@ class NodeTemplateInstanceSpn(InstanceSpn):
                          Value: log-space marginal probability distribution of this node.
         """
         marginals = {}
+        samples = []
+        samples_lh = []
+        ivs_assignment = []
+        for l in range(len(self._label_node_map)):
+            nid = self._label_node_map[l]
+            ivs_assignment.append(query[nid])
+            
+        if query_lh is not None:
+            # expanded. So get likelihoods
+            lh_assignment = []
+            for l in range(len(self._label_node_map)):
+                nid = self._label_node_map[l]
+                lh_assignment.extend(query_lh[nid])
+        
         for nid in query_nids:
-            orig = query[nid]
+            assert query[nid] == -1
             marginals[nid] = []
-            for val in range(CategoryManager.NUM_CATEGORIES):
-                query[nid] = val
-                marginals[nid].append(self.evaluate(sess, query, sample_lh=query_lh))
-                query[nid] = orig
+            for v in range(CategoryManager.NUM_CATEGORIES):
+                sample = np.copy(ivs_assignment)
+                sample[self._node_label_map[nid]] = v
+                samples.append(sample)
+                if query_lh is not None:
+                    samples_lh.append(lh_assignment)  #lh_assignment is already flat
+
+        if query_lh is None:
+            likelihood_y_vals = sess.run(self._train_likelihood,
+                                         feed_dict={self._catg_inputs: np.array(samples)})[0]
+        else:
+            likelihood_xy_vals = sess.run(self._train_likelihood, feed_dict={self._semantic_inputs: np.array(samples),
+                                                                                self._likelihood_inputs: np.array(samples_lh)})
+
+            # prob x
+            likelihood_x_val = sess.run(self._train_likelihood, feed_dict={self._semantic_inputs: np.full((1, len(query)), -1),
+                                                                              self._likelihood_inputs: np.array([lh_assignment], dtype=float32)})[0]
+
+            # prob y|x = prob xy / prob x
+            likelihood_y_vals = np.array([likelihood_xy_vals[i] - likelihood_x_val for i in range(len(likelihood_xy_vals))])
+
+        for label in range(len(self._label_node_map)):
+            likelihoods_yi = likelihood_y_vals[label*CategoryManager.NUM_CATEGORIES:(label+1)*CategoryManager.NUM_CATEGORIES]
+            marginals[self._label_node_map[label]] = likelihoods_yi.flatten().tolist()
         return marginals
+        
+        # marginals = {}
+        # for nid in query_nids:
+        #     orig = query[nid]
+        #     marginals[nid] = []
+        #     for val in range(CategoryManager.NUM_CATEGORIES):
+        #         query[nid] = val
+        #         marginals[nid].append(self.evaluate(sess, query, sample_lh=query_lh))
+        #         query[nid] = orig
+        # return marginals
 
                 
     def evaluate(self, sess, sample, sample_lh=None):

@@ -517,7 +517,7 @@ class TopologicalMap:
         is not used to specify that."""
         # Open the yaml file
         with open(canonical_map_yaml_path) as f:
-            map_spec = yaml.load(f)
+            map_spec = yaml.safe_load(f)
         if img is None:
             img = mpimg.imread(os.path.join(os.path.dirname(canonical_map_yaml_path), map_spec['image']))
         plt.imshow(img, cmap = plt.get_cmap('gray'), origin="lower")

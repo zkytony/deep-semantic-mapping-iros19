@@ -35,10 +35,10 @@ from deepsm.graphspn.spn_model import SpnModel
 from deepsm.graphspn.tbm.dataset import TopoMapDataset
 from deepsm.graphspn.tbm.template import EdgeTemplate, NodeTemplate, PairTemplate, SingletonTemplate, \
     ThreeNodeTemplate, PairEdgeTemplate, SingleEdgeTemplate, StarTemplate
-from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn, EdgeTemplateSpn
+from deepsm.graphspn.tbm.spn_template import TemplateSpn, NodeTemplateSpn
 from deepsm.graphspn.tests.tbm.runner import TbmExperiment
 from deepsm.graphspn.tests.runner import TestCase
-from deepsm.util import CategoryManager, print_banner, print_in_box
+from deepsm.util import CategoryManager, print_banner, print_in_box, json_safe
 
 from deepsm.experiments.common import COLD_ROOT, GRAPHSPN_RESULTS_ROOT, TOPO_MAP_DB_ROOT
 
@@ -196,11 +196,11 @@ class TemplateSpnExperiment(TbmExperiment):
             report = self._report()
 
             with open(os.path.join(save_path, "report.json"), "w") as f:
-                json.dump(report, f, indent=4, sort_keys=True)
+                json.dump(json_safe(report), f, indent=4, sort_keys=True)
 
             # Save all test cases into a json file.
             with open(os.path.join(save_path, "test_cases.json"), "w") as f:
-                json.dump(self._test_cases, f, indent=4, sort_keys=True)
+                json.dump(json_safe(self._test_cases), f, indent=4, sort_keys=True)
 
             print("Everything saved in %s" % save_path)
 
@@ -767,7 +767,9 @@ class TemplateSpnExperiment(TbmExperiment):
             template = kwargs.get("template", None)
 
             model = self._experiment.get_model(template)
-            assert model.expanded == False
+            if model.expanded:
+                print("Model has been expanded. skipping AllProbabilities test case.")
+                return
 
             # First get all combinations of classes with repeats
             catg_combs = set(itertools.product(CategoryManager.known_categories(), repeat=template.num_nodes()))
@@ -1083,6 +1085,7 @@ if __name__ == "__main__":
     train_kwargs = {
         'num_partitions': 7,#10,
         'num_batches': 10,
+        'num_epochs': 3,
         'save': True,
         'load_if_exists': False,
         'likelihood_thres': 0.1,
@@ -1109,7 +1112,7 @@ if __name__ == "__main__":
         'num_partitions': 2,
         'inference_type': MARGINAL,
         'test_db': list(set(db) - set(train_kwargs['train_db']))[0],
-        'expand': False
+        'expand': True
     }
     
 

@@ -280,7 +280,6 @@ def print_in_box(msgs, ho="=", vr="||"):
     print(ho*(max_len+2*(len(vr)+1)))
 
 
-
 class CategoryManager:
     # TODO: Change CategoryManager so that we work with its instances, to automate more tests.
 
@@ -431,4 +430,4 @@ class ColdDatabaseManager:
         if self.gt_root is None:
             return os.path.join(self.db_root, self.db_name, 'groundtruth', floor, filename)
         else:
-            return os.path.join(self.gt_root, self.db_name, 'groundtruth', floor, filename)
+            return os.path.join(self.gt_root, self.db_name, 'groundtruth', floor, filename)    

@@ -1,6 +1,6 @@
 # deep-semantic-mapping
 
-Code for "[From Pixels to Buildings: End-to-end Probabilistic Deep Networks for Large-scale Semantic Mapping](https://kaiyuzheng.me/documents/papers/toponets_iros2019.pdf)" (IROS 2019)
+This repository contains the experiment code for "[**From Pixels to Buildings: End-to-end Probabilistic Deep Networks for Large-scale Semantic Mapping**](https://kaiyuzheng.me/documents/papers/toponets_iros2019.pdf)" (IROS 2019)
 
 * **PDF**: https://arxiv.org/pdf/1812.11866.pdf
 

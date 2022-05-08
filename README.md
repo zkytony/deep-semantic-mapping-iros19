@@ -10,6 +10,10 @@ Code for "[From Pixels to Buildings: End-to-end Probabilistic Deep Networks for 
 
 * **Presentation Slides**: https://kaiyuzheng.me/documents/slides/Slides_IROS2019.pdf
 
+
+![image](https://user-images.githubusercontent.com/7720184/167314218-46dd840a-7d39-46fa-8f18-d0ca9b220af5.png)
+
+
 Citation:
 ```
 @INPROCEEDINGS{toponets-iros-2019,
@@ -23,4 +27,4 @@ Citation:
   doi={10.1109/IROS40897.2019.8967568}}
 ```
 
-See also: [GraphSPN](https://kaiyuzheng.me/documents/sites/graphspn/).
+See also: [GraphSPN](https://kaiyuzheng.me/documents/sites/graphspn/) (Graph-Structured Sum-Product Networks).

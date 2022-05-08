@@ -27,4 +27,4 @@ Citation:
   doi={10.1109/IROS40897.2019.8967568}}
 ```
 
-See also: [GraphSPN](https://kaiyuzheng.me/documents/sites/graphspn/) (Graph-Structured Sum-Product Networks).
+See also: [GraphSPN](https://github.com/zkytony/graphspn) (Graph-Structured Sum-Product Networks).
